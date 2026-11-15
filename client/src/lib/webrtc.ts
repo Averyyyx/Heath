@@ -1,8 +1,9 @@
 import { io, Socket } from 'socket.io-client';
 import type { User, VoiceState } from '../types';
+import { API_BASE } from './api';
 
 interface WebRTCService {
-  connect: (userId: number) => void;
+  connect: () => void;
   startCall: (friend: User) => Promise<MediaStream>;
   endCall: () => void;
   toggleMute: (muted: boolean) => void;
@@ -34,9 +35,13 @@ export class WebRTCServiceImpl implements WebRTCService {
     this.handleConnectionStateChange = this.handleConnectionStateChange.bind(this);
   }
 
-  connect(userId: number): void {
-    this.socket = io('http://localhost:3001', {
-      auth: { userId },
+  // ВНИМАНИЕ: этот сервис пока не подключён к интерфейсу (App его не вызывает), а серверная
+  // часть сигналинга здесь использует события offer/answer/ice-candidate, которых в server.js нет
+  // (там call:signal / call:end, и ими пользуется MessengerWorkspace через simple-peer).
+  // Раньше сюда был зашит несуществующий сервер localhost:3001; теперь используется основной сервер.
+  connect(): void {
+    this.socket = io(API_BASE, {
+      withCredentials: true,
     });
 
     this.socket.on('connect', () => {
@@ -202,6 +207,10 @@ export class WebRTCServiceImpl implements WebRTCService {
       this.socket.disconnect();
       this.socket = null;
     }
+    // Подписчиков сбрасываем только при полном отключении, а не после каждого звонка
+    this.remoteStreamCallbacks = [];
+    this.callEndedCallbacks = [];
+    this.voiceStateUpdateCallbacks = [];
   }
 
   private async handleOffer(data: { from: number; offer: RTCSessionDescriptionInit }): Promise<void> {
@@ -328,11 +337,8 @@ export class WebRTCServiceImpl implements WebRTCService {
     // Close all peer connections
     Object.values(this.peerConnections).forEach(pc => pc.close());
     this.peerConnections = {};
-    
-    // Clear callbacks
-    this.remoteStreamCallbacks = [];
-    this.callEndedCallbacks = [];
-    this.voiceStateUpdateCallbacks = [];
+    // Колбэки здесь не очищаем: раньше из-за этого endCall() обнулял callEndedCallbacks
+    // до их вызова, и UI не узнавал о завершении звонка, а второй звонок оставался без подписчиков.
   }
 }
 

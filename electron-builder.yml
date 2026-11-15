@@ -15,11 +15,14 @@ files:
   - "!node_modules/**/{test,tests,__tests__,docs,example,examples}/**"
 
 asar: true
+# Сервер запускается как отдельный процесс из app.asar.unpacked (Electron как Node).
+# Модули ищутся от этого каталога, а не из app.asar, поэтому node_modules нужно
+# распаковать целиком (раньше распаковывался только better-sqlite3, и express и др. не находились).
 asarUnpack:
   - "server.js"
   - "public/**/*"
   - "electron/**/*"
-  - "**/node_modules/better-sqlite3/**/*"
+  - "node_modules/**/*"
 
 win:
   target:
@@ -28,7 +31,7 @@ win:
         - x64
   artifactName: "${productName}-${version}-Setup.${ext}"
   signAndEditExecutable: false
-  icon: "electron/icons/Nexo-Desctop-ico-256.png"
+  icon: "electron/icons/Nexo-Desctop-ico.ico"
 
 nsis:
   oneClick: false
@@ -41,11 +44,6 @@ nsis:
 extraMetadata:
   main: electron/main.js
 
-extraResources:
-  - from: build/runtime
-    to: runtime
-    filter:
-      - "**/*"
-
+# Нативные модули пересобираются под Electron в postinstall (electron-builder install-app-deps)
 npmRebuild: false
 buildDependenciesFromSource: false

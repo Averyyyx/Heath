@@ -1,0 +1,47 @@
+/*
+ * Tailwind подключён без preflight (сброса стилей), чтобы не ломать существующий styles.css.
+ * Порядок слоёв: утилиты Tailwind выше стилей приложения, поэтому классы вроде p-4 / flex /
+ * bg-gray-800 в компонентах работают, а не перекрываются глобальными правилами из styles.css.
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "./styles.css" layer(components);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Окно Electron без системной рамки: шапка работает как заголовок окна */
+.app-nav {
+  -webkit-app-region: drag;
+}
+
+.app-nav button,
+.app-nav a,
+.app-nav input {
+  -webkit-app-region: no-drag;
+}
+
+.window-controls {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.window-control {
+  width: 32px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.window-control:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.window-control.close:hover {
+  background: #e5484d;
+  color: #fff;
+}

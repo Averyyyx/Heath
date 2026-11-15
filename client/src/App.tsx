@@ -5,9 +5,7 @@ import { MessengerPreview } from './components/MessengerPreview';
 import { ProfileSetup } from './components/ProfileSetup';
 import { MessengerWorkspace } from './components/MessengerWorkspace';
 import { FriendsList } from './components/FriendsList';
-import { VoiceChannel } from './components/VoiceChannel';
 import { apiFetch } from './lib/api';
-import { webRTCService } from './lib/webrtc';
 import type { User } from './types';
 
 const themes = ['nebula', 'midnight', 'lilac'] as const;
@@ -22,18 +20,14 @@ export default function App() {
   const [isPreviewFocused, setIsPreviewFocused] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
-  
-  // Friends and voice call state
+
+  // Боковая навигация: друзья / сообщения
   const [activeView, setActiveView] = useState<'friends' | 'messages'>('messages');
-  const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remoteStreams, setRemoteStreams] = useState<Record<number, MediaStream>>({});
-  const [, setVoiceStates] = useState<Record<number, { self_mute: boolean; self_deaf: boolean; self_video: boolean }>>({});
-  const [isMuted, setIsMuted] = useState(false);
-  const [isDeafened, setIsDeafened] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [userVolumes, setUserVolumes] = useState<Record<number, number>>({});
-  
+  // Диалог, который нужно открыть после выбора друга в списке
+  const [openConversationId, setOpenConversationId] = useState<number | null>(null);
+
+  // В десктопной версии (Electron) окно без рамки — показываем свои кнопки управления окном
+  const desktopApi = typeof window !== 'undefined' ? window.nexoAPI : undefined;
 
   useEffect(() => {
     async function bootstrapSession() {
@@ -54,45 +48,6 @@ export default function App() {
 
     bootstrapSession();
   }, []);
-
-  useEffect(() => {
-    if (!user) return;
-
-    // Initialize WebRTC service
-    webRTCService.connect(user.id);
-
-    // Set up event listeners
-    const handleRemoteStream = (userId: number, stream: MediaStream) => {
-      setRemoteStreams(prev => ({
-        ...prev,
-        [userId]: stream,
-      }));
-    };
-
-    const handleCallEnded = () => {
-      setRemoteStreams({});
-      setLocalStream(null);
-      setIsVoiceChatOpen(false);
-    };
-
-    const handleVoiceStateUpdate = (userId: number, state: { self_mute?: boolean; self_deaf?: boolean; self_video?: boolean }) => {
-      setVoiceStates(prev => ({
-        ...prev,
-        [userId]: {
-          ...(prev[userId] || {}),
-          ...state,
-        },
-      }));
-    };
-
-    webRTCService.onRemoteStream(handleRemoteStream);
-    webRTCService.onCallEnded(handleCallEnded);
-    webRTCService.onVoiceStateUpdate(handleVoiceStateUpdate);
-
-    return () => {
-      webRTCService.disconnect();
-    };
-  }, [user]);
 
   const backgroundClass = useMemo<string>(() => {
     switch (theme) {
@@ -128,61 +83,29 @@ export default function App() {
     setTheme(pickNextTheme(theme));
   }, [theme]);
 
-  // Prepare participants for VoiceChannel component
-  const voiceParticipants = useMemo(() => {
-    return Object.entries(remoteStreams).map(([userId, stream]) => {
-      const id = Number(userId);
-      return {
-        user: { 
-          id, 
-          username: `User ${userId}`, 
-          display_name: `User ${userId}`,
-          avatar_url: '',
-          status: 'online'
-        },
-        voiceState: {
-          user_id: id,
-          channel_id: 1,
-          session_id: '',
-          deaf: false,
-          mute: false,
-          self_deaf: isDeafened,
-          self_mute: isMuted,
-          self_video: isScreenSharing,
-          suppress: false,
-          request_to_speak_timestamp: null,
-        },
-        stream,
-      };
-    });
-  }, [remoteStreams, isMuted, isDeafened, isScreenSharing]);
-
-  // Handle screen sharing
-  const toggleScreenShare = useCallback(async () => {
+  // Выбор друга в списке: открываем (или создаём) личный диалог и показываем сообщения.
+  // Раньше аргумент игнорировался, и клик по другу просто переключал вкладку.
+  const handleSelectFriend = useCallback(async (friend: { username: string }) => {
     try {
-      const isSharing = await webRTCService.toggleScreenShare();
-      setIsScreenSharing(isSharing);
+      const response = await apiFetch('/api/conversations/dm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: friend.username })
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        const conversationId = payload?.conversation?.id;
+        if (typeof conversationId === 'number') {
+          setOpenConversationId(conversationId);
+        }
+      } else {
+        console.warn('Не удалось открыть диалог:', response.status);
+      }
     } catch (error) {
-      console.error('Error toggling screen share:', error);
+      console.error('Не удалось открыть диалог', error);
+    } finally {
+      setActiveView('messages');
     }
-  }, []);
-
-  // Handle disconnecting from voice chat
-  const disconnectVoiceChat = useCallback(() => {
-    webRTCService.endCall();
-    setLocalStream(null);
-    setRemoteStreams({});
-    setIsVoiceChatOpen(false);
-  }, []);
-
-  // Handle volume change for a user
-  const handleUserVolumeChange = useCallback((userId: number, volume: number) => {
-    setUserVolumes(prev => ({
-      ...prev,
-      [userId]: volume,
-    }));
-    // Update volume in WebRTC service
-    webRTCService.updateUserVolume(userId, volume);
   }, []);
 
   return (
@@ -207,7 +130,35 @@ export default function App() {
           <button className="ghost" onClick={handleThemeChange}>
             Cycle theme
           </button>
-          <button className="primary">Get early access</button>
+          {stage !== 'social' && <button className="primary">Get early access</button>}
+          {desktopApi && (
+            <div className="window-controls">
+              <button
+                type="button"
+                className="window-control"
+                aria-label="Свернуть"
+                onClick={() => desktopApi.minimizeWindow()}
+              >
+                &#8211;
+              </button>
+              <button
+                type="button"
+                className="window-control"
+                aria-label="Развернуть"
+                onClick={() => desktopApi.maximizeWindow()}
+              >
+                &#9633;
+              </button>
+              <button
+                type="button"
+                className="window-control close"
+                aria-label="Закрыть"
+                onClick={() => desktopApi.closeWindow()}
+              >
+                &#10005;
+              </button>
+            </div>
+          )}
         </div>
       </motion.header>
 
@@ -273,80 +224,22 @@ export default function App() {
 
                 {/* Main content */}
                 <div className="flex-1 flex overflow-hidden">
-                  {/* Friends list or server list */}
-                  <div className="w-60 bg-gray-800 flex flex-col border-r border-gray-700">
-                    {activeView === 'friends' ? (
-                      <FriendsList
-                        onSelectFriend={() => {
-                          setActiveView('messages');
-                        }}
-                      />
-                    ) : (
-                      <div className="p-4">
-                        <h2 className="text-white font-bold text-lg mb-4">Серверы</h2>
-                        {/* Server list would go here */}
-                      </div>
-                    )}
-                  </div>
+                  {/* Список друзей (серверы и диалоги показывает сам MessengerWorkspace) */}
+                  {activeView === 'friends' && (
+                    <div className="w-60 bg-gray-800 flex flex-col border-r border-gray-700">
+                      <FriendsList onSelectFriend={handleSelectFriend} />
+                    </div>
+                  )}
 
                   {/* Main chat area */}
                   <div className="flex-1 flex flex-col bg-gray-700">
-                    {activeView === 'messages' ? (
-                      <MessengerWorkspace user={user} />
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center text-gray-400">
-                        <div className="text-center">
-                          <div className="text-6xl mb-4">👋</div>
-                          <h3 className="text-xl font-semibold mb-2">Добро пожаловать в Nexo!</h3>
-                          <p className="max-w-md">
-                            Выберите друга, чтобы начать общение или создать голосовой канал.
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    <MessengerWorkspace user={user} openConversationId={openConversationId} />
                   </div>
                 </div>
               </div>
             )}
           </motion.div>
         </AnimatePresence>
-
-        {/* Voice chat overlay */}
-        {isVoiceChatOpen && (
-          <VoiceChannel
-            isOpen={isVoiceChatOpen}
-            onClose={disconnectVoiceChat}
-            participants={voiceParticipants}
-            localStream={localStream}
-            onMuteToggle={(muted) => {
-              setIsMuted(muted);
-              webRTCService.toggleMute(muted);
-            }}
-            onDeafenToggle={(deafened) => {
-              setIsDeafened(deafened);
-              webRTCService.toggleDeafen(deafened);
-            }}
-            onScreenShareToggle={toggleScreenShare}
-            onDisconnect={disconnectVoiceChat}
-            onUserVolumeChange={handleUserVolumeChange}
-          />
-        )}
-
-        {/* Hidden audio elements for remote streams */}
-        {Object.entries(remoteStreams).map(([userId, stream]) => (
-          <audio
-            key={userId}
-            id={`audio-${userId}`}
-            autoPlay
-            playsInline
-            ref={(el) => {
-              if (el) {
-                el.srcObject = stream;
-                el.volume = userVolumes[parseInt(userId, 10)] || 1;
-              }
-            }}
-          />
-        ))}
 
         <motion.div
           className="panel preview"

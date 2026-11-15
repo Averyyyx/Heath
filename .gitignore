@@ -17,7 +17,6 @@ release/
 *.dat
 *.asar
 *.blockmap
-*.yml
 
 .vscode/
 .idea/

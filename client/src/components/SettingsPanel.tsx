@@ -45,6 +45,12 @@ type PremiumResponse = {
   plans: PremiumPlan[];
 };
 
+type PremiumStatus = {
+  active: boolean;
+  plan: { id: number; name: string } | null;
+  renews_at: string | null;
+};
+
 type TransactionResponse = {
   transaction: {
     id: number;
@@ -97,6 +103,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [channelStatus, setChannelStatus] = useState<Status>({ type: 'idle' });
   const [premium, setPremium] = useState<PremiumResponse | null>(null);
   const [premiumStatus, setPremiumStatus] = useState<Status>({ type: 'idle' });
+  const [subscription, setSubscription] = useState<PremiumStatus | null>(null);
   const [overrideDrafts, setOverrideDrafts] = useState<
     Record<number, { roleId: number | ''; allow: number; deny: number }>
   >({});
@@ -117,6 +124,10 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         if (response.ok) {
           const payload = (await response.json()) as PremiumResponse;
           setPremium(payload);
+        }
+        const statusResponse = await apiFetch('/api/premium/status');
+        if (statusResponse.ok) {
+          setSubscription((await statusResponse.json()) as PremiumStatus);
         }
       } catch (error) {
         console.error(error);
@@ -394,7 +405,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   }
 
   async function purchasePlan(planId: number) {
-    setPremiumStatus({ type: 'loading', message: 'Создаём Vencord Pulse…' });
+    setPremiumStatus({ type: 'loading', message: `Создаём ${premium?.brand ?? 'Nexo Pulse'}…` });
     try {
       const response = await apiFetch('/api/premium/checkout', {
         method: 'POST',
@@ -415,7 +426,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         const payload = await confirm.json().catch(() => ({}));
         throw new Error(payload.message || 'Не удалось подтвердить');
       }
-      setPremiumStatus({ type: 'success', message: 'Vencord Pulse активирован!' });
+      setPremiumStatus({ type: 'success', message: `${premium?.brand ?? 'Nexo Pulse'} активирован!` });
+      const statusResponse = await apiFetch('/api/premium/status');
+      if (statusResponse.ok) {
+        setSubscription((await statusResponse.json()) as PremiumStatus);
+      }
     } catch (error) {
       setPremiumStatus({ type: 'error', message: (error as Error).message });
     }
@@ -428,7 +443,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     return (
       <div className="settings-section">
         <h2>Оформление</h2>
-        <p className="muted">Темы, акценты, фоны. Всё, что делает Vencord узнаваемым.</p>
+        <p className="muted">Темы, акценты, фоны. Всё, что делает Nexo узнаваемым.</p>
         <div className="settings-group">
           <h3>Темы</h3>
           <div className="option-grid">
@@ -492,11 +507,17 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
   function renderPremium() {
     if (!premium) {
-      return <p className="muted">Загружаем Vencord Pulse…</p>;
+      return <p className="muted">Загружаем Nexo Pulse…</p>;
     }
     return (
       <div className="settings-section">
         <h2>{premium.brand}</h2>
+        {subscription?.active && (
+          <p className="status success">
+            Подписка активна{subscription.plan ? ` · ${subscription.plan.name}` : ''}
+            {subscription.renews_at ? ` · до ${subscription.renews_at.slice(0, 10)}` : ''}
+          </p>
+        )}
         <p className="muted">
           Персонализируйте фон, получайте уникальные значки и поддерживайте сервера. Всё, как в Discord Nitro.
         </p>
@@ -519,8 +540,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   </li>
                 ))}
               </ul>
-              <button className="primary" onClick={() => purchasePlan(plan.id)} disabled={premiumStatus.type === 'loading'}>
-                Активировать
+              <button className="primary" onClick={() => purchasePlan(plan.id)} disabled={premiumStatus.type === 'loading' || Boolean(subscription?.active)}>
+                {subscription?.active ? 'Уже активно' : 'Активировать'}
               </button>
             </article>
           ))}
@@ -894,7 +915,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           </button>
           <button className={section === 'premium' ? 'active' : ''} onClick={() => setSection('premium')}>
             <Star size={16} />
-            Vencord Pulse
+            Nexo Pulse
           </button>
           <button className={section === 'servers' ? 'active' : ''} onClick={() => setSection('servers')}>
             <Users size={16} />

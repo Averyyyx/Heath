@@ -3,11 +3,15 @@ const path = require('path');
 const { fork } = require('child_process');
 const http = require('http');
 const fs = require('fs');
+const crypto = require('crypto');
 
 let mainWindow = null;
 let splashWindow = null;
 let tray = null;
 let serverProcess = null;
+let serverReady = false;
+let serverRestarts = 0;
+const MAX_SERVER_RESTARTS = 5;
 let notificationCount = 0;
 const SERVER_PORT = process.env.PORT || 4000;
 
@@ -61,42 +65,48 @@ function setupLogging() {
 function waitForServer(maxAttempts = 60, intervalMs = 500) {
   return new Promise((resolve, reject) => {
     let attempts = 0;
-    let serverHealthy = false;
+
+    const isServerAlive = () =>
+      serverProcess && !serverProcess.killed && serverProcess.exitCode === null;
 
     const checkServerHealth = () => {
       // Проверяем что процесс жив
-      if (!serverProcess || serverProcess.killed || serverProcess.exitCode !== null) {
+      if (!isServerAlive()) {
         reject(new Error('Server process died before becoming ready'));
         return;
       }
 
       attempts += 1;
+      // Одна проверка = одно продолжение. Раньше при таймауте срабатывали и 'timeout',
+      // и 'error' (после destroy), и цикл опроса удваивался.
+      let settled = false;
+      const retry = (reason) => {
+        if (settled) return;
+        settled = true;
+        if (attempts >= maxAttempts) {
+          reject(new Error(`Server failed to start (${reason})`));
+          return;
+        }
+        setTimeout(checkServerHealth, intervalMs);
+      };
+
       const req = http.get(`${SERVER_URL}/api/security/csrf-token`, (res) => {
         res.resume();
-        // Дополнительная проверка - ждем 2 секунды чтобы убедиться что процесс остается живым
+        if (settled) return;
+        settled = true;
+        // Подождём секунду и убедимся, что процесс не упал сразу после открытия порта
         setTimeout(() => {
-          if (!serverProcess || serverProcess.killed || serverProcess.exitCode !== null) {
+          if (!isServerAlive()) {
             reject(new Error('Server process died immediately after opening port'));
             return;
           }
-          serverHealthy = true;
           resolve();
-        }, 2000);
+        }, 1000);
       });
-      req.on('error', () => {
-        if (attempts >= maxAttempts) {
-          reject(new Error('Server failed to start after maximum attempts'));
-          return;
-        }
-        setTimeout(checkServerHealth, intervalMs);
-      });
+      req.on('error', () => retry('connection error'));
       req.setTimeout(1000, () => {
         req.destroy();
-        if (attempts >= maxAttempts) {
-          reject(new Error('Server failed to start - timeout'));
-          return;
-        }
-        setTimeout(checkServerHealth, intervalMs);
+        retry('timeout');
       });
     };
 
@@ -104,33 +114,75 @@ function waitForServer(maxAttempts = 60, intervalMs = 500) {
   });
 }
 
-function getIconPath(iconName) {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'icons', `${iconName}.png`);
-  } else {
-    return path.join(__dirname, 'icons', `${iconName}.png`);
-  }
+function getIconsDir() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'icons')
+    : path.join(__dirname, 'icons');
 }
 
-function getIconPathAny(iconName) {
-  const pngPath = getIconPath(iconName);
-  if (fs.existsSync(pngPath)) {
-    return pngPath;
-  }
-  // Try other extensions
-  const extensions = ['.png', '.ico', '.svg'];
-  for (const ext of extensions) {
-    const tryPath = pngPath.replace('.png', ext);
-    if (fs.existsSync(tryPath)) {
-      return tryPath;
+// Файлы иконок лежат с суффиксом размера (Nexo-Desctop-ico-256.png), поэтому ищем
+// нужный размер, затем имя без суффикса и ближайшие размеры.
+function getIconPath(iconName, size = 256) {
+  const dir = getIconsDir();
+  const candidates = [
+    `${iconName}-${size}.png`,
+    `${iconName}.png`,
+    `${iconName}-256.png`,
+    `${iconName}-128.png`,
+    `${iconName}-64.png`,
+    `${iconName}-48.png`,
+    `${iconName}-32.png`,
+    `${iconName}-16.png`
+  ];
+  for (const file of candidates) {
+    const candidate = path.join(dir, file);
+    if (fs.existsSync(candidate)) {
+      return candidate;
     }
   }
-  return pngPath; // fallback
+  return path.join(dir, `${iconName}-${size}.png`);
 }
 
 function getTrayIconPath() {
   const iconName = notificationCount > 0 ? 'nexo-ico-mini-ping' : 'nexo-ico-mini';
-  return getIconPath(iconName);
+  return getIconPath(iconName, 32);
+}
+
+// Тестовый аккаунт разработчика (dev@nexo.local с премиум-подпиской).
+// Включён при запуске из исходников (`npm start` / `electron:dev`). В установленной сборке
+// включается переменной NEXO_DEV_ACCOUNT=1 или пустым файлом dev-account.enabled в папке
+// пользовательских данных (Windows: %APPDATA%\Nexo). NEXO_DEV_ACCOUNT=0 выключает всегда.
+function isDevAccountEnabled() {
+  const flag = process.env.NEXO_DEV_ACCOUNT;
+  if (flag === 'false' || flag === '0') return false;
+  if (flag === 'true' || flag === '1') return true;
+  return !app.isPackaged || fs.existsSync(path.join(app.getPath('userData'), 'dev-account.enabled'));
+}
+
+// Секреты десктопного сервера генерируются один раз и хранятся в userData,
+// а не зашиты в код (иначе любой мог бы подделать сессию/JWT).
+function getOrCreateSecrets() {
+  const secretsFile = path.join(app.getPath('userData'), 'secrets.json');
+  let secrets = {};
+  try {
+    secrets = JSON.parse(fs.readFileSync(secretsFile, 'utf8'));
+  } catch {
+    secrets = {};
+  }
+
+  let changed = false;
+  for (const key of ['SESSION_SECRET', 'JWT_SECRET']) {
+    if (typeof secrets[key] !== 'string' || secrets[key].length < 32) {
+      secrets[key] = crypto.randomBytes(48).toString('hex');
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    fs.mkdirSync(path.dirname(secretsFile), { recursive: true });
+    fs.writeFileSync(secretsFile, JSON.stringify(secrets), { mode: 0o600 });
+  }
+  return secrets;
 }
 
 function createTray() {
@@ -152,7 +204,7 @@ function createTray() {
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'Nexo',
-      icon: nativeImage.createFromPath(getIconPath('Nexo-Desctop-ico')),
+      icon: nativeImage.createFromPath(getIconPath('Nexo-Desctop-ico', 16)),
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -254,16 +306,21 @@ function updateTrayIcon() {
 }
 
 function setNotificationCount(count) {
-  notificationCount = Math.min(count, 9); // Максимум 9
-  
+  const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Math.floor(Number(count))) : 0;
+  notificationCount = Math.min(safeCount, 9); // Максимум 9
+
   // Обновляем иконку трея
   updateTrayIcon();
-  
+
   // Обновляем иконку главного окна
   if (mainWindow) {
-    const iconName = count > 0 ? `Nexo-desctop-ico-${count}ping` : 'Nexo-Desctop-ico';
+    const iconName = notificationCount > 0
+      ? `Nexo-desctop-ico-${notificationCount}ping`
+      : 'Nexo-Desctop-ico';
     const iconPath = getIconPath(iconName);
-    mainWindow.setIcon(nativeImage.createFromPath(iconPath));
+    if (fs.existsSync(iconPath)) {
+      mainWindow.setIcon(nativeImage.createFromPath(iconPath));
+    }
   }
 }
 
@@ -284,26 +341,10 @@ function checkForUpdates() {
 }
 
 function getServerRuntime() {
-  if (!app.isPackaged) {
-    // В разработке используем Electron как Node runtime
-    return {
-      execPath: process.execPath,
-      useElectronAsNode: true
-    };
-  }
-
-  // В packaged приложении используем встроенный runtime node.exe
-  const runtimePath = path.join(process.resourcesPath, 'runtime', 'node.exe');
-  if (fs.existsSync(runtimePath)) {
-    console.log('Using embedded runtime:', runtimePath);
-    return {
-      execPath: runtimePath,
-      useElectronAsNode: false
-    };
-  }
-
-  // Fallback на Electron как Node runtime
-  console.warn('Embedded runtime not found, falling back to Electron as Node');
+  // И в разработке, и в упакованной сборке сервер запускается самим Electron как Node.
+  // Нативные модули (better-sqlite3) собираются под ABI Electron (postinstall:
+  // electron-builder install-app-deps), поэтому отдельный node.exe с другим ABI
+  // использовать нельзя: он не загрузит better_sqlite3.node.
   return {
     execPath: process.execPath,
     useElectronAsNode: true
@@ -362,7 +403,11 @@ function startServer() {
     throw new Error(error);
   }
 
-  serverProcess = fork(serverPath, [], {
+  const secrets = getOrCreateSecrets();
+
+  // stdout/stderr сервера берём через pipe, чтобы они попадали в main.log
+  // (при stdio: 'inherit' потоков нет, и логи сервера терялись).
+  const child = fork(serverPath, [], {
     cwd: serverCwd,
     execPath: runtime.execPath,
     env: {
@@ -371,37 +416,63 @@ function startServer() {
       ELECTRON_DESKTOP: '1',
       USE_MEMORY_SESSION: 'true',
       PORT: String(SERVER_PORT),
+      HOST: '127.0.0.1',
       NODE_ENV: 'production',
       CLIENT_ORIGIN: SERVER_URL, // Используем локальный URL
-      SESSION_SECRET: process.env.SESSION_SECRET || 'nexo-desktop-session',
-      JWT_SECRET: process.env.JWT_SECRET || 'nexo-desktop-jwt',
+      SESSION_SECRET: process.env.SESSION_SECRET || secrets.SESSION_SECRET,
+      JWT_SECRET: process.env.JWT_SECRET || secrets.JWT_SECRET,
       DATA_DIR: userDataDir,
-      DB_PATH: path.join(userDataDir, 'app.db')
+      DB_PATH: path.join(userDataDir, 'app.db'),
+      NEXO_DEV_ACCOUNT: isDevAccountEnabled() ? 'true' : 'false'
     },
-    stdio: 'inherit'
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc']
   });
+  serverProcess = child;
 
-  serverProcess.on('error', (error) => {
+  child.on('error', (error) => {
     console.error('Server process error:', error);
   });
 
-  serverProcess.on('exit', (code, signal) => {
+  child.on('exit', (code, signal) => {
     console.log(`Server process exited with code ${code} and signal ${signal}`);
-    if (code !== 0) {
+    if (serverProcess === child) {
+      serverProcess = null;
+    }
+
+    // Сервер упал уже после успешного запуска — поднимаем его снова (с ограничением),
+    // чтобы чаты не оставались мёртвыми до перезапуска приложения.
+    const crashed = code !== 0 && signal !== 'SIGTERM';
+    if (crashed && serverReady && !app.isQuitting) {
       console.error('Server crashed! Exit code:', code);
+      if (serverRestarts < MAX_SERVER_RESTARTS) {
+        serverRestarts += 1;
+        const delay = 1000 * serverRestarts;
+        console.log(`Restarting server in ${delay} ms (attempt ${serverRestarts}/${MAX_SERVER_RESTARTS})`);
+        setTimeout(() => {
+          if (!app.isQuitting) {
+            try {
+              startServer();
+            } catch (error) {
+              console.error('Failed to restart server:', error);
+            }
+          }
+        }, delay);
+      } else {
+        console.error('Server restart limit reached; giving up.');
+      }
     }
   });
-  
+
   // Логируем stdout и stderr от сервера
-  serverProcess.stdout?.on('data', (data) => {
+  child.stdout?.on('data', (data) => {
     console.log('[Server stdout]', data.toString());
   });
-  
-  serverProcess.stderr?.on('data', (data) => {
+
+  child.stderr?.on('data', (data) => {
     console.error('[Server stderr]', data.toString());
   });
-  
-  console.log('Server process started with PID:', serverProcess.pid);
+
+  console.log('Server process started with PID:', child.pid);
 }
 
 function createSplashWindow() {
@@ -478,36 +549,32 @@ function createWindow() {
     console.error('Renderer process gone:', details);
   });
 
+  // Сервер уже поднят (см. app.whenReady), поэтому грузим приложение напрямую.
+  // Раньше сначала открывалась welcome.html из file://: её скрипт использовал require('electron')
+  // при nodeIntegration=false и падал, а fetch к серверу из file:// блокировался CORS,
+  // так что окно навсегда зависало на экране «Подключение к серверу…».
   console.log('Loading URL:', SERVER_URL);
-  
-  // Сначала загружаем welcome screen
-  const welcomePath = path.join(__dirname, 'welcome.html');
-  mainWindow.loadFile(welcomePath)
+  mainWindow.loadURL(SERVER_URL)
     .then(() => {
-      console.log('Welcome screen loaded successfully');
+      console.log('URL loaded successfully');
     })
-    .catch(err => {
-      console.error('Failed to load welcome screen:', err);
-      // Если welcome screen не загрузился, загружаем основной URL
-      mainWindow.loadURL(SERVER_URL)
-        .then(() => {
-          console.log('URL loaded successfully');
-        })
-        .catch(loadErr => {
-          console.error('Failed to load URL:', loadErr);
-          // Показываем ошибку пользователю
-          mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(`
-            <html>
-              <head><title>Nexo Error</title></head>
-              <body style="background: #1e1e1e; color: white; font-family: sans-serif; padding: 20px;">
-                <h1>Nexo Failed to Start</h1>
-                <p>Could not load the application. Error: ${err.message}</p>
-                <p>Server URL: ${SERVER_URL}</p>
-                <p>Please check the console for more details.</p>
-              </body>
-            </html>
-          `));
-        });
+    .catch((loadErr) => {
+      console.error('Failed to load URL:', loadErr);
+      const safeMessage = String(loadErr.message || loadErr)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(`
+        <html>
+          <head><title>Nexo Error</title></head>
+          <body style="background: #1e1e1e; color: white; font-family: sans-serif; padding: 20px;">
+            <h1>Nexo Failed to Start</h1>
+            <p>Could not load the application. Error: ${safeMessage}</p>
+            <p>Server URL: ${SERVER_URL}</p>
+            <p>Please check the log file in the Nexo user data folder for more details.</p>
+          </body>
+        </html>
+      `));
     });
 
   mainWindow.once('ready-to-show', () => {
@@ -545,8 +612,26 @@ function createWindow() {
   });
 }
 
+// Только один экземпляр: второй запуск иначе упёрся бы в занятый порт сервера (EADDRINUSE)
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 // Инициализация приложения Electron
 app.whenReady().then(async () => {
+  if (!gotSingleInstanceLock) {
+    return;
+  }
+
   // Инициализируем логирование после того, как app готов
   setupLogging();
   
@@ -579,6 +664,7 @@ app.whenReady().then(async () => {
       splashWindow.webContents.send('loading-status', 'Ожидание сервера...');
     }
     await waitForServer();
+    serverReady = true;
     console.log('Server is ready!');
     
     // Проверяем обновления
@@ -595,15 +681,11 @@ app.whenReady().then(async () => {
     createWindow();
     
     // Когда главное окно готово, закрываем splash screen
+    // Окно показывает/открывает DevTools обработчик в createWindow; здесь только закрываем splash
     mainWindow.once('ready-to-show', () => {
       console.log('Main window ready, closing splash...');
       if (splashWindow) {
         splashWindow.close();
-      }
-      mainWindow.show();
-      
-      if (process.env.NODE_ENV === 'development') {
-        mainWindow.webContents.openDevTools({ mode: 'detach' });
       }
     });
     
@@ -620,7 +702,7 @@ app.whenReady().then(async () => {
         <head><title>Nexo Error</title></head>
         <body style="background: #1e1e1e; color: white; font-family: sans-serif; padding: 40px;">
           <h1 style="color: #ff6b6b;">Nexo Failed to Start</h1>
-          <p><strong>Error:</strong> ${error.message}</p>
+          <p><strong>Error:</strong> ${String(error.message).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
           <p><strong>Server URL:</strong> ${SERVER_URL}</p>
           <p><strong>Is Packaged:</strong> ${app.isPackaged}</p>
           <p>Please check the console logs for more details.</p>
@@ -659,6 +741,9 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  // Без этого флага обработчик 'close' окна отменяет закрытие (прячет в трей),
+  // и приложение не завершается при выходе из меню, перезагрузке или выключении системы.
+  app.isQuitting = true;
   if (serverProcess) {
     serverProcess.kill();
     serverProcess = null;

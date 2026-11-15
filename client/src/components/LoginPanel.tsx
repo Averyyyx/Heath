@@ -91,7 +91,7 @@ export function LoginPanel({ theme, onSuccess }: LoginPanelProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        {mode === 'login' ? 'Войдите, чтобы продолжить' : 'Создайте аккаунт Vencord'}
+        {mode === 'login' ? 'Войдите, чтобы продолжить' : 'Создайте аккаунт Nexo'}
       </motion.h1>
       <p className="muted">
         {mode === 'login'

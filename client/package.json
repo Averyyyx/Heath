@@ -9,9 +9,11 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.12",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@types/simple-peer": "^9.11.9",
+    "tailwindcss": "^4.1.12",
     "typescript": "~5.9.3",
     "vite": "^7.2.2"
   },

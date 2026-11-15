@@ -34,6 +34,8 @@ type WorkspaceMode = 'servers' | 'friends';
 
 type MessengerWorkspaceProps = {
   user: User;
+  /** Диалог, который нужно открыть снаружи (например, после клика по другу в списке друзей) */
+  openConversationId?: number | null;
 };
 
 type MessageStore = Record<number, Message[]>;
@@ -50,7 +52,7 @@ type CallState = {
 
 type Status = { type: 'idle' | 'loading' | 'success' | 'error'; message?: string };
 
-export function MessengerWorkspace({ user }: MessengerWorkspaceProps) {
+export function MessengerWorkspace({ user, openConversationId = null }: MessengerWorkspaceProps) {
   const [mode, setMode] = useState<WorkspaceMode>('servers');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -83,6 +85,15 @@ export function MessengerWorkspace({ user }: MessengerWorkspaceProps) {
     fetchConversations();
     fetchServers();
   }, []);
+
+  // Внешняя команда «открыть диалог»: подгружаем список (диалог мог быть только что создан)
+  // и делаем его активным в разделе личных сообщений.
+  useEffect(() => {
+    if (!openConversationId) return;
+    setMode('friends');
+    setActiveConversationId(openConversationId);
+    fetchConversations();
+  }, [openConversationId]);
 
   useEffect(() => {
     if (!user) return;
@@ -577,7 +588,7 @@ export function MessengerWorkspace({ user }: MessengerWorkspaceProps) {
     if (servers.length === 0) {
       return (
         <div className="empty-state">
-          <h2>Добро пожаловать в Vencord</h2>
+          <h2>Добро пожаловать в Nexo</h2>
           <p>Создайте свой первый сервер и соберите сообщество, как в полном Discord.</p>
           <button className="primary" onClick={() => setShowCreateServer(true)}>
             <Plus size={16} />

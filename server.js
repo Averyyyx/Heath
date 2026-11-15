@@ -11,6 +11,8 @@ if (!process.env.JWT_SECRET) {
 if (!process.env.CLIENT_ORIGIN) process.env.CLIENT_ORIGIN = 'http://localhost:4000';
 if (!process.env.NODE_ENV) process.env.NODE_ENV = 'production';
 
+const isDesktop = process.env.ELECTRON_DESKTOP === '1';
+
 const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
@@ -44,25 +46,12 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 4000;
 
-// Определяем dataDir правильно для packaged Electron app
-let dataDir;
-if (process.env.ELECTRON_DESKTOP === '1') {
-  // В Electron используем userData
-  const { app: electronApp } = require('electron');
-  dataDir = process.env.DATA_DIR || path.join(electronApp.getPath('userData'), 'data');
-} else {
-  dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
-}
+// Каталог данных. Сервер работает как отдельный процесс (Node/Electron-as-Node),
+// поэтому модуль 'electron' здесь недоступен: путь всегда передаёт main.js через DATA_DIR.
+const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 
-// Определяем publicDir правильно для packaged app
-let publicDir;
-if (process.env.ELECTRON_DESKTOP === '1') {
-  // В Electron ищем public рядом с server.js
-  publicDir = path.join(__dirname, 'public');
-} else {
-  // В обычном режиме
-  publicDir = path.join(__dirname, 'public');
-}
+// public лежит рядом с server.js (и в dev, и в упакованном приложении)
+const publicDir = path.join(__dirname, 'public');
 
 // Логируем путь к publicDir
 console.log('Public directory path:', publicDir);
@@ -94,7 +83,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 const PREMIUM_BRAND = process.env.PREMIUM_BRAND || 'Nexo Pulse';
 const PREMIUM_BALANCE_TOKEN = process.env.PREMIUM_BALANCE_TOKEN || '';
 
-const useMemorySession = process.env.USE_MEMORY_SESSION === 'true' || process.env.ELECTRON_DESKTOP === '1';
+const useMemorySession = process.env.USE_MEMORY_SESSION === 'true' || isDesktop;
 let redisClient = null;
 
 if (!useMemorySession) {
@@ -813,6 +802,99 @@ if (!defaultPlan) {
   );
 }
 
+const selectActiveSubscription = db.prepare(`
+  SELECT s.id, s.renews_at, p.id AS plan_id, p.name AS plan_name
+  FROM premium_subscriptions s
+  JOIN premium_plans p ON p.id = s.plan_id
+  WHERE s.user_id = ?
+    AND s.status = 'active'
+    AND (s.renews_at IS NULL OR s.renews_at > CURRENT_TIMESTAMP)
+  ORDER BY s.renews_at DESC
+  LIMIT 1
+`);
+
+// ---------------------------------------------------------------------------
+// Тестовый аккаунт разработчика.
+// Нужен, чтобы заходить в приложение с премиум-подпиской без оплаты и проверять
+// интерфейс. Это обычный пользователь: админских прав (баны, модерация, доступ
+// к чужим данным) он НЕ получает — в проекте такого понятия нет, и мы его не добавляем.
+// Включается только флагом NEXO_DEV_ACCOUNT=true (десктоп-сборка из исходников
+// включает его сама) и никогда — на боевом веб-деплое (HTTPS), чтобы не создать
+// аккаунт с известным паролем на публичном сервере.
+// ---------------------------------------------------------------------------
+function seedDevAccount() {
+  const flag = String(process.env.NEXO_DEV_ACCOUNT || '').toLowerCase();
+  if (flag !== 'true' && flag !== '1') return;
+
+  const looksLikePublicDeployment =
+    REQUIRE_HTTPS || String(process.env.CLIENT_ORIGIN || '').startsWith('https://');
+  if (!isDesktop && looksLikePublicDeployment) {
+    console.warn('NEXO_DEV_ACCOUNT ignored: the dev account is never created on a public HTTPS deployment.');
+    return;
+  }
+
+  const email = String(process.env.NEXO_DEV_EMAIL || 'dev@nexo.local').trim().toLowerCase();
+  const configuredPassword = process.env.NEXO_DEV_PASSWORD || '';
+  let user = selectUserByEmail.get(email);
+
+  if (!user) {
+    const password = configuredPassword || randomBytes(12).toString('base64url');
+    const result = insertUser.run(
+      email,
+      generateHandleFromEmail(email),
+      bcrypt.hashSync(password, 12),
+      '',
+      1,
+      0,
+      null
+    );
+    user = selectUserById.get(result.lastInsertRowid);
+    markProfile.run('Nexo Dev', user.username, '0001', user.id);
+    user = selectUserById.get(user.id);
+
+    if (configuredPassword) {
+      console.log(`Dev account created: ${email} (password from NEXO_DEV_PASSWORD)`);
+    } else {
+      // Сгенерированный пароль в логи не пишем — только в файл, доступный владельцу.
+      const credentialsFile = path.join(dataDir, 'dev-account.txt');
+      fs.writeFileSync(credentialsFile, `email: ${email}\npassword: ${password}\n`, { mode: 0o600 });
+      console.log(`Dev account created: ${email} (password saved to ${credentialsFile})`);
+    }
+  } else if (configuredPassword && !bcrypt.compareSync(configuredPassword, user.password_hash || '')) {
+    // Пароль из окружения — источник истины: меняем его в аккаунте, если он поменялся
+    updatePasswordHash.run(bcrypt.hashSync(configuredPassword, 12), user.id);
+    console.log('Dev account password updated from NEXO_DEV_PASSWORD.');
+  }
+
+  // Значки профиля
+  const settings = getUserSettings(user.id);
+  const badges = Array.from(new Set([...settings.badges, 'dev', 'premium']));
+  updateUserSettings.run(
+    settings.theme,
+    settings.accent,
+    settings.background_url,
+    settings.reduce_motion ? 1 : 0,
+    JSON.stringify(badges),
+    user.id
+  );
+
+  // Бессрочная премиум-подписка без записей об оплате (баланс и транзакции не затрагиваются)
+  const plan = selectPremiumPlanBySlug.get('pulse-monthly');
+  if (plan) {
+    const hasDevSubscription = db
+      .prepare(`SELECT id FROM premium_subscriptions WHERE user_id = ? AND status = 'active' AND metadata LIKE '%"dev":true%'`)
+      .get(user.id);
+    if (!hasDevSubscription) {
+      db.prepare(`
+        INSERT INTO premium_subscriptions (user_id, plan_id, status, started_at, renews_at, metadata)
+        VALUES (?, ?, 'active', CURRENT_TIMESTAMP, DATETIME('now', '+100 years'), ?)
+      `).run(user.id, plan.id, JSON.stringify({ dev: true }));
+    }
+  }
+}
+
+seedDevAccount();
+
 const allowedOrigins = (process.env.CLIENT_ORIGIN || process.env.CORS_ORIGIN || '')
   .split(',')
   .map((origin) => origin.trim())
@@ -826,7 +908,9 @@ if (!allowedOrigins.includes('http://127.0.0.1:4000')) {
   allowedOrigins.push('http://127.0.0.1:4000');
 }
 
-app.set('trust proxy', 1);
+// Десктопный сервер никогда не стоит за прокси: иначе X-Forwarded-For подделывается клиентом
+// и обходит лимиты по IP. Для веб-деплоя число доверенных прокси задаётся TRUST_PROXY (по умолчанию 1).
+app.set('trust proxy', isDesktop ? false : Number(process.env.TRUST_PROXY ?? 1));
 
 if (REQUIRE_HTTPS) {
   app.use((req, res, next) => {
@@ -860,21 +944,30 @@ app.use(mongoSanitize());
 app.use(hpp());
 
 // Rate limiting configuration
-const createRateLimiter = (windowMs, max, message, keyGen = (req) => req.ip) => rateLimit({
+const createRateLimiter = (
+  windowMs,
+  max,
+  message,
+  keyGen = (req) => req.ip,
+  skipFailedRequests = true
+) => rateLimit({
   windowMs,
   max,
   message: { message },
   standardHeaders: true,
   legacyHeaders: false,
-  skipFailedRequests: true,
+  skipFailedRequests,
   keyGenerator: keyGen
 });
 
 // Rate limiters for different endpoints
+// Для входа/регистрации считаем и неудачные попытки, иначе брутфорс пароля не ограничивается.
 const authLimiter = createRateLimiter(
-  15 * 60 * 1000, 
-  20, 
-  'Too many login attempts, please try again later'
+  15 * 60 * 1000,
+  20,
+  'Too many login attempts, please try again later',
+  undefined,
+  false
 );
 
 const apiLimiter = createRateLimiter(
@@ -907,6 +1000,8 @@ const friendActionLimiter = createRateLimiter(
 
 app.use(['/api/auth/login', '/api/auth/register', '/api/auth/github'], authLimiter);
 
+const clientIsHttps = String(process.env.CLIENT_ORIGIN || '').startsWith('https://');
+
 const sessionConfig = {
   store: useMemorySession
     ? new session.MemoryStore()
@@ -920,8 +1015,12 @@ const sessionConfig = {
   rolling: true,
   cookie: {
     httpOnly: true,
-    sameSite: isProduction ? 'none' : 'lax',
-    secure: isProduction,
+    // Раньше secure=true ставился всегда в production. По http (десктоп на 127.0.0.1 и локальный
+    // `npm run dev`) express-session такую cookie не отправляет вообще, и сессия не сохранялась.
+    // 'auto' ставит Secure только на HTTPS-соединении (за прокси — по X-Forwarded-Proto).
+    // sameSite=none нужен только для боевого деплоя с HTTPS-клиентом, иначе используем lax.
+    sameSite: isDesktop ? 'lax' : isProduction && clientIsHttps ? 'none' : 'lax',
+    secure: isDesktop ? false : 'auto',
     maxAge: Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 24 * 7)
   }
 };
@@ -942,7 +1041,13 @@ app.use((req, res, next) => {
   const isElectron = process.env.ELECTRON_DESKTOP === '1';
   
   if ((isDev || isElectron) && req.path.startsWith('/api/')) {
-    // В разработке и Electron для API пропускаем CSRF, но добавляем фейковый метод csrfToken
+    // В разработке и Electron csurf пропускаем, но состояние-меняющие запросы всё равно
+    // защищаем проверкой Origin: чужой сайт не сможет отправить форму на локальный сервер.
+    const isSafeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+    const requestOrigin = req.headers.origin;
+    if (!isSafeMethod && requestOrigin && !allowedOrigins.includes(requestOrigin)) {
+      return res.status(403).json({ message: 'Origin not allowed.' });
+    }
     req.csrfToken = () => isElectron ? 'electron-csrf-token' : 'dev-csrf-token';
     return next();
   }
@@ -1712,6 +1817,9 @@ passport.use(
     },
     (req, email, password, done) => {
       try {
+        if (typeof email !== 'string' || typeof password !== 'string') {
+          return done(null, false, { message: 'Invalid credentials' });
+        }
         const user = selectUserByEmail.get(email.toLowerCase());
         if (!user || !user.password_hash) {
           return done(null, false, { message: 'Invalid credentials' });
@@ -1770,11 +1878,20 @@ if (githubReady) {
             return done(null, sanitizeUser(user));
           }
 
-          const primaryEmail = Array.isArray(profile.emails) && profile.emails.length > 0
-            ? profile.emails[0].value
-            : `${profile.username}@github.local`;
+          // Привязываем вход к существующему аккаунту только по ПОДТВЕРЖДЁННОМУ email GitHub.
+          // Иначе можно добавить в GitHub чужой неподтверждённый email и войти в чужой аккаунт.
+          const emails = Array.isArray(profile.emails) ? profile.emails : [];
+          const verifiedEmail = (
+            emails.find((item) => item?.verified === true && item?.primary) ||
+            emails.find((item) => item?.verified === true)
+          )?.value;
+          const primaryEmail = verifiedEmail || `${profile.username || profile.id}@github.local`;
 
           let user = selectUserByEmail.get(primaryEmail.toLowerCase());
+          if (user && !verifiedEmail) {
+            // Совпадение найдено только по неподтверждённому/подставному адресу — не привязываем.
+            return done(null, false, { message: 'GitHub account has no verified email.' });
+          }
           if (!user) {
             const result = insertUser.run(
               primaryEmail.toLowerCase(),
@@ -1815,10 +1932,13 @@ if (githubReady) {
 }
 
 app.post('/api/auth/register', (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
 
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
+  }
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ message: 'Invalid email or password format.' });
   }
 
   const normalizedEmail = email.toLowerCase();
@@ -1856,7 +1976,13 @@ app.post('/api/auth/register', (req, res) => {
       });
     });
   } catch (error) {
-    res.status(500).json({ message: 'Registration failed.', error: error.message });
+    // Ошибки валидации (например, слабый пароль) несут statusCode и безопасны для показа;
+    // внутренние ошибки не раскрываем.
+    if (error.statusCode && error.statusCode < 500) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+    console.error('Registration failed:', error);
+    res.status(500).json({ message: 'Registration failed.' });
   }
 });
 
@@ -1890,7 +2016,7 @@ app.post('/api/auth/2fa/initiate', ensureAuthenticated, async (req, res) => {
     return res.status(400).json({ message: 'Two-factor authentication already enabled.' });
   }
   const secret = speakeasy.generateSecret({
-    name: `Vencord (${req.user.email})`,
+    name: `Nexo (${req.user.email})`,
     length: 20
   });
   req.session.twofaSetup = {
@@ -2573,6 +2699,15 @@ app.get('/api/premium/plans', ensureAuthenticated, (_req, res) => {
   res.json({ brand: PREMIUM_BRAND, plans });
 });
 
+app.get('/api/premium/status', ensureAuthenticated, (req, res) => {
+  const active = selectActiveSubscription.get(req.user.id);
+  res.json({
+    active: Boolean(active),
+    plan: active ? { id: active.plan_id, name: active.plan_name } : null,
+    renews_at: active ? active.renews_at : null
+  });
+});
+
 app.post('/api/premium/checkout', ensureAuthenticated, (req, res) => {
   const planId = Number(req.body?.planId);
   if (!Number.isFinite(planId)) {
@@ -2783,12 +2918,20 @@ app.use((err, _req, res, next) => {
   return next(err);
 });
 
+// Неизвестные API-маршруты — честный 404 в JSON, а не index.html со статусом 200
+app.use('/api', (_req, res) => {
+  res.status(404).json({ message: 'Not found.' });
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(publicDir, 'index.html'));
 });
 
-server.listen(PORT, () => {
-  console.log(`Auth service listening on http://localhost:${PORT}`);
+// Десктопный сервер слушает только loopback, чтобы он не был виден из локальной сети.
+const HOST = process.env.HOST || (isDesktop ? '127.0.0.1' : '0.0.0.0');
+
+server.listen(PORT, HOST, () => {
+  console.log(`Auth service listening on http://${HOST}:${PORT}`);
   console.log(`Public directory: ${publicDir}`);
   console.log(`Data directory: ${dataDir}`);
   if (!githubReady) {
@@ -2808,7 +2951,8 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+// Необработанный rejection (например, обрыв Redis или сбой одного запроса) не должен
+// убивать весь сервер и все активные чаты — только логируем.
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason);
 });
