@@ -1,23 +1,19 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useState, useCallback } from 'react';
 import { LoginPanel } from './components/LoginPanel';
-import { MessengerPreview } from './components/MessengerPreview';
 import { ProfileSetup } from './components/ProfileSetup';
 import { MessengerWorkspace } from './components/MessengerWorkspace';
 import { FriendsList } from './components/FriendsList';
 import { apiFetch } from './lib/api';
+import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
+import { t } from './lib/strings';
 import type { User } from './types';
 
-const themes = ['nebula', 'midnight', 'lilac'] as const;
-
-function pickNextTheme(current: typeof themes[number]) {
-  const index = themes.indexOf(current);
-  return themes[(index + 1) % themes.length];
-}
+type UserSettingsPayload = {
+  settings?: { theme?: string };
+};
 
 export default function App() {
-  const [theme, setTheme] = useState<(typeof themes)[number]>('nebula');
-  const [isPreviewFocused, setIsPreviewFocused] = useState(true);
+  const [theme, setTheme] = useState<ThemeChoice>('system');
   const [user, setUser] = useState<User | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
 
@@ -28,6 +24,11 @@ export default function App() {
 
   // В десктопной версии (Electron) окно без рамки — показываем свои кнопки управления окном
   const desktopApi = typeof window !== 'undefined' ? window.nexoAPI : undefined;
+
+  // Тема применяется к <html data-theme>; 'system' разрешается в CSS через prefers-color-scheme.
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     async function bootstrapSession() {
@@ -49,24 +50,30 @@ export default function App() {
     bootstrapSession();
   }, []);
 
-  const backgroundClass = useMemo<string>(() => {
-    switch (theme) {
-      case 'midnight':
-        return 'app-surface midnight';
-      case 'lilac':
-        return 'app-surface lilac';
-      default:
-        return 'app-surface nebula';
-    }
-  }, [theme]);
-
-  const stage: 'login' | 'profile' | 'social' = useMemo(() => {
-    if (!user) return 'login';
-    return user.profile_complete ? 'social' : 'profile';
+  // Подтягиваем сохранённую тему после входа в аккаунт.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    apiFetch('/api/settings/me')
+      .then(async (response) => {
+        if (!response.ok || cancelled) return;
+        const payload = (await response.json()) as UserSettingsPayload;
+        const saved = payload.settings?.theme;
+        if (!cancelled && isThemeChoice(saved)) {
+          setTheme(saved);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
-  const panelKey = `${stage}-${theme}`;
-  const previewActive = stage === 'social' ? true : isPreviewFocused;
+  const stage: 'login' | 'profile' | 'social' = user
+    ? user.profile_complete
+      ? 'social'
+      : 'profile'
+    : 'login';
 
   async function handleLogout() {
     try {
@@ -78,13 +85,7 @@ export default function App() {
     }
   }
 
-  // Handle theme change
-  const handleThemeChange = useCallback(() => {
-    setTheme(pickNextTheme(theme));
-  }, [theme]);
-
   // Выбор друга в списке: открываем (или создаём) личный диалог и показываем сообщения.
-  // Раньше аргумент игнорировался, и клик по другу просто переключал вкладку.
   const handleSelectFriend = useCallback(async (friend: { username: string }) => {
     try {
       const response = await apiFetch('/api/conversations/dm', {
@@ -109,34 +110,23 @@ export default function App() {
   }, []);
 
   return (
-    <div className={`min-h-screen flex flex-col ${backgroundClass}`}>
-      <motion.header
-        className="app-nav"
-        initial={{ y: -40, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-      >
+    <div className="min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)]">
+      <header className="app-nav flex items-center justify-between px-5 py-3 border-b border-[var(--border)]">
         <div className="brand">
-          <span className="pulse-dot" />
-          <strong>Nexo</strong>
-          <span className="tagline">new era of presence</span>
+          <strong>{t('appName')}</strong>
         </div>
         <div className="nav-actions">
           {stage === 'social' && (
             <button className="ghost subtle" onClick={handleLogout}>
-              Выйти
+              {t('logout')}
             </button>
           )}
-          <button className="ghost" onClick={handleThemeChange}>
-            Cycle theme
-          </button>
-          {stage !== 'social' && <button className="primary">Get early access</button>}
           {desktopApi && (
             <div className="window-controls">
               <button
                 type="button"
                 className="window-control"
-                aria-label="Свернуть"
+                aria-label={t('windowMinimize')}
                 onClick={() => desktopApi.minimizeWindow()}
               >
                 &#8211;
@@ -144,7 +134,7 @@ export default function App() {
               <button
                 type="button"
                 className="window-control"
-                aria-label="Развернуть"
+                aria-label={t('windowMaximize')}
                 onClick={() => desktopApi.maximizeWindow()}
               >
                 &#9633;
@@ -152,7 +142,7 @@ export default function App() {
               <button
                 type="button"
                 className="window-control close"
-                aria-label="Закрыть"
+                aria-label={t('windowClose')}
                 onClick={() => desktopApi.closeWindow()}
               >
                 &#10005;
@@ -160,95 +150,58 @@ export default function App() {
             </div>
           )}
         </div>
-      </motion.header>
+      </header>
 
-      <main className="app-stage">
-        <AnimatePresence initial={false} mode="wait">
-          <motion.div
-            key={panelKey}
-            className={`panel ${stage} ${
-              stage === 'login' && isPreviewFocused ? 'dimmed' : ''
-            }`}
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-            onMouseEnter={() => stage === 'login' && setIsPreviewFocused(false)}
-            onMouseLeave={() => stage === 'login' && setIsPreviewFocused(true)}
-          >
-            {loadingSession && (
-              <div className="panel-loading">
-                <p>Загружаем сессию…</p>
-              </div>
+      <main className="app-stage flex-1">
+        {loadingSession && <p className="muted">{t('loadingSession')}</p>}
+
+        {!loadingSession && stage === 'login' && <LoginPanel onSuccess={setUser} />}
+
+        {!loadingSession && stage === 'profile' && user && (
+          <ProfileSetup user={user} onComplete={setUser} />
+        )}
+
+        {!loadingSession && stage === 'social' && user && (
+          <div className="workspace-shell flex-1 min-h-0">
+            {/* Боковая навигация: диалоги / друзья */}
+            <nav className="app-view-nav flex flex-col items-center gap-2 py-4 border-r border-[var(--border)] bg-[var(--bg-secondary)]">
+              <button
+                type="button"
+                className={`view-nav-button ${activeView === 'messages' ? 'active' : ''}`}
+                aria-label="Сообщения"
+                onClick={() => setActiveView('messages')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className={`view-nav-button ${activeView === 'friends' ? 'active' : ''}`}
+                aria-label="Друзья"
+                onClick={() => setActiveView('friends')}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </button>
+            </nav>
+
+            {/* Список друзей (серверы и диалоги показывает сам MessengerWorkspace) */}
+            {activeView === 'friends' && (
+              <aside className="w-72 shrink-0 border-r border-[var(--border)] bg-[var(--bg-secondary)] overflow-y-auto">
+                <FriendsList onSelectFriend={handleSelectFriend} />
+              </aside>
             )}
 
-            {!loadingSession && stage === 'login' && (
-              <LoginPanel
-                theme={theme}
-                onSuccess={(nextUser) => {
-                  setUser(nextUser);
-                }}
-              />
-            )}
-
-            {!loadingSession && stage === 'profile' && user && (
-              <ProfileSetup
-                user={user}
-                onComplete={(updatedUser) => {
-                  setUser(updatedUser);
-                }}
-              />
-            )}
-
-            {!loadingSession && stage === 'social' && user && (
-              <div className="flex flex-1 overflow-hidden">
-                {/* Sidebar */}
-                <div className="w-16 bg-gray-900 flex flex-col items-center py-4">
-                  <button
-                    onClick={() => setActiveView('messages')}
-                    className={`p-3 rounded-2xl mb-2 ${activeView === 'messages' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setActiveView('friends')}
-                    className={`p-3 rounded-2xl ${activeView === 'friends' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Main content */}
-                <div className="flex-1 flex overflow-hidden">
-                  {/* Список друзей (серверы и диалоги показывает сам MessengerWorkspace) */}
-                  {activeView === 'friends' && (
-                    <div className="w-60 bg-gray-800 flex flex-col border-r border-gray-700">
-                      <FriendsList onSelectFriend={handleSelectFriend} />
-                    </div>
-                  )}
-
-                  {/* Main chat area */}
-                  <div className="flex-1 flex flex-col bg-gray-700">
-                    <MessengerWorkspace user={user} openConversationId={openConversationId} />
-                  </div>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
-
-        <motion.div
-          className="panel preview"
-          layout
-          transition={{ type: 'spring', stiffness: 80, damping: 16 }}
-          onMouseEnter={() => stage === 'login' && setIsPreviewFocused(true)}
-        >
-          <MessengerPreview theme={theme} isFocused={previewActive} />
-        </motion.div>
+            <div className="flex-1 flex flex-col min-w-0 min-h-0">
+              <MessengerWorkspace user={user} openConversationId={openConversationId} />
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

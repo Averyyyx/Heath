@@ -14,6 +14,8 @@ import {
   Trash2
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { applyTheme, isThemeChoice } from '../lib/theme';
+import { t } from '../lib/strings';
 import type { Channel, Server, ServerRole } from '../types';
 
 type SettingsSection = 'appearance' | 'privacy' | 'notifications' | 'premium' | 'servers';
@@ -64,8 +66,12 @@ type TransactionResponse = {
 
 type Status = { type: 'idle' | 'loading' | 'success' | 'error'; message?: string };
 
-const themeOptions = ['nebula', 'midnight', 'lilac', 'onyx', 'solstice'] as const;
-const accentOptions = ['violet', 'teal', 'amber', 'rose', 'sky'] as const;
+const themeOptions = ['light', 'dark', 'system'] as const;
+const themeLabels: Record<(typeof themeOptions)[number], string> = {
+  light: t('themeLight'),
+  dark: t('themeDark'),
+  system: t('themeSystem')
+};
 const soundscapeThemes = ['', 'Aurora Pulse', 'Neon Drift', 'Forest Bloom', 'Retro Wave'];
 const CHANNEL_OVERRIDE_FLAGS = [
   { label: 'Просмотр', value: 1 << 4 },
@@ -204,7 +210,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       }
       const data = await response.json();
       setSettings(data.settings);
-      setStatus({ type: 'success', message: 'Обновлено' });
+      const savedTheme = data.settings?.theme;
+      if (isThemeChoice(savedTheme)) {
+        applyTheme(savedTheme);
+      }
+      setStatus({ type: 'success', message: t('settingsSaved') });
     } catch (error) {
       setStatus({ type: 'error', message: (error as Error).message });
     } finally {
@@ -443,9 +453,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     return (
       <div className="settings-section">
         <h2>Оформление</h2>
-        <p className="muted">Темы, акценты, фоны. Всё, что делает Nexo узнаваемым.</p>
+        <p className="muted">Тема интерфейса: светлая, тёмная или как в системе.</p>
         <div className="settings-group">
-          <h3>Темы</h3>
+          <h3>Тема</h3>
           <div className="option-grid">
             {themeOptions.map((theme) => (
               <button
@@ -455,23 +465,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 disabled={saving}
               >
                 <span className="swatch" data-theme={theme} />
-                <strong>{theme}</strong>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="settings-group">
-          <h3>Акцент</h3>
-          <div className="option-grid">
-            {accentOptions.map((accent) => (
-              <button
-                key={accent}
-                className={`option-pill ${settings.accent === accent ? 'selected' : ''}`}
-                onClick={() => saveAppearance({ accent })}
-                disabled={saving}
-              >
-                <span className="dot" data-accent={accent} />
-                {accent}
+                <strong>{themeLabels[theme]}</strong>
               </button>
             ))}
           </div>

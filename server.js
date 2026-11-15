@@ -416,13 +416,26 @@ db.prepare(`
 db.prepare(`
   CREATE TABLE IF NOT EXISTS user_settings (
     user_id INTEGER PRIMARY KEY,
-    theme TEXT DEFAULT 'nebula',
-    accent TEXT DEFAULT 'violet',
+    theme TEXT DEFAULT 'system',
+    accent TEXT DEFAULT 'terracotta',
     background_url TEXT DEFAULT '',
     reduce_motion INTEGER DEFAULT 0,
     badges TEXT DEFAULT '[]',
     FOREIGN KEY(user_id) REFERENCES users(id)
   )
+`).run();
+
+// Миграция старых цветных тем (nebula/midnight/lilac/onyx/solstice) и акцентов:
+// прежний интерфейс был тёмным, поэтому всё сводим к 'dark'; новые значения — light/dark/system.
+db.prepare(`
+  UPDATE user_settings
+  SET theme = 'dark'
+  WHERE theme NOT IN ('light', 'dark', 'system')
+`).run();
+db.prepare(`
+  UPDATE user_settings
+  SET accent = 'terracotta'
+  WHERE accent != 'terracotta'
 `).run();
 
 db.prepare(`
@@ -1544,10 +1557,10 @@ function getUserSettings(userId) {
 }
 
 function updateUserSettingsRecord(userId, payload) {
-  const allowedThemes = ['nebula', 'midnight', 'lilac', 'onyx', 'solstice'];
-  const allowedAccents = ['violet', 'teal', 'amber', 'rose', 'sky'];
-  const theme = allowedThemes.includes(payload.theme) ? payload.theme : 'nebula';
-  const accent = allowedAccents.includes(payload.accent) ? payload.accent : 'violet';
+  const allowedThemes = ['light', 'dark', 'system'];
+  const allowedAccents = ['terracotta'];
+  const theme = allowedThemes.includes(payload.theme) ? payload.theme : 'system';
+  const accent = allowedAccents.includes(payload.accent) ? payload.accent : 'terracotta';
   const background = (payload.background_url || '').trim().slice(0, 512);
   const reduceMotion = payload.reduce_motion ? 1 : 0;
   const badges = JSON.stringify(payload.badges || []);
