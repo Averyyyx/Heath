@@ -162,7 +162,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
       }
     );
     socket.on('voice:state', ({ channelId, participants }: { channelId: number; participants: VoiceParticipantRecord[] }) => {
-      if (channelId === activeChannelId) setVoiceParticipants(participants || []);
+      setVoiceParticipants(participants || []);
     });
     socket.on('error', (payload) => {
       console.warn('Socket error', payload);
@@ -187,7 +187,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
   }, [activeServerId]);
 
   useEffect(() => {
-    if (!socketRef.current || !activeChannelId || !activeServerId || activeChannel?.type !== 'text') return;
+    if (!socketRef.current || !activeChannelId || !activeServerId || servers.find((item) => item.id === activeServerId)?.channels.find((item) => item.id === activeChannelId)?.type !== 'text') return;
     const socket = socketRef.current;
     socket.emit('channel:join', { serverId: activeServerId, channelId: activeChannelId });
     loadChannelMessages(activeServerId, activeChannelId);
@@ -198,7 +198,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
         socket.emit('channel:leave', previousChannel);
       }
     };
-  }, [activeServerId, activeChannelId, activeChannel?.type]);
+  }, [activeServerId, activeChannelId, servers]);
 
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId) || null,
