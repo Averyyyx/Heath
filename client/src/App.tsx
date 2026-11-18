@@ -152,7 +152,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="app-stage flex-1">
+      <main className={`app-stage flex-1 ${stage === 'social' ? 'app-stage-social' : ''}`}>
         {loadingSession && <p className="muted">{t('loadingSession')}</p>}
 
         {!loadingSession && stage === 'login' && <LoginPanel onSuccess={setUser} />}
