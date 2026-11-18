@@ -78,6 +78,7 @@ export default function App() {
     try { await apiFetch('/api/auth/logout', { method: 'POST' }); }
     finally {
       setUser(null);
+      setShowSettings(false);
       setTabs([{ id: 'home', title: 'Главная', kind: 'home' }]);
       setActiveTabId('home');
     }
