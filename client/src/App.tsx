@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Home, Plus, X, Minus, Square, PanelsTopLeft, MessageCircle, Users } from 'lucide-react';
 import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
 import { MessengerWorkspace } from './components/MessengerWorkspace';
@@ -8,27 +10,21 @@ import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { t } from './lib/strings';
 import type { User } from './types';
 
-type UserSettingsPayload = {
-  settings?: { theme?: string };
-};
+type UserSettingsPayload = { settings?: { theme?: string } };
+type WorkspaceTab = { id: string; title: string; kind: 'home' | 'workspace' };
 
 export default function App() {
   const [theme, setTheme] = useState<ThemeChoice>('system');
   const [user, setUser] = useState<User | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
-
-  // Боковая навигация: друзья / сообщения
   const [activeView, setActiveView] = useState<'friends' | 'messages'>('messages');
-  // Диалог, который нужно открыть после выбора друга в списке
   const [openConversationId, setOpenConversationId] = useState<number | null>(null);
-
-  // В десктопной версии (Electron) окно без рамки — показываем свои кнопки управления окном
+  const [tabs, setTabs] = useState<WorkspaceTab[]>([{ id: 'home', title: 'Главная', kind: 'home' }]);
+  const [activeTabId, setActiveTabId] = useState('home');
+  const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const desktopApi = typeof window !== 'undefined' ? window.nexoAPI : undefined;
 
-  // Тема применяется к <html data-theme>; 'system' разрешается в CSS через prefers-color-scheme.
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+  useEffect(() => { applyTheme(theme); }, [theme]);
 
   useEffect(() => {
     async function bootstrapSession() {
@@ -37,55 +33,54 @@ export default function App() {
         if (response.ok) {
           const payload = await response.json();
           setUser(payload.user ?? null);
-        } else {
-          setUser(null);
-        }
-      } catch {
-        setUser(null);
-      } finally {
-        setLoadingSession(false);
-      }
+        } else setUser(null);
+      } catch { setUser(null); }
+      finally { setLoadingSession(false); }
     }
-
     bootstrapSession();
   }, []);
 
-  // Подтягиваем сохранённую тему после входа в аккаунт.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    apiFetch('/api/settings/me')
-      .then(async (response) => {
-        if (!response.ok || cancelled) return;
-        const payload = (await response.json()) as UserSettingsPayload;
-        const saved = payload.settings?.theme;
-        if (!cancelled && isThemeChoice(saved)) {
-          setTheme(saved);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    apiFetch('/api/settings/me').then(async (response) => {
+      if (!response.ok || cancelled) return;
+      const payload = (await response.json()) as UserSettingsPayload;
+      const saved = payload.settings?.theme;
+      if (!cancelled && isThemeChoice(saved)) setTheme(saved);
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, [user]);
 
+  useEffect(() => {
+    if (!welcomeName) return;
+    const timer = window.setTimeout(() => setWelcomeName(null), 2300);
+    return () => window.clearTimeout(timer);
+  }, [welcomeName]);
+
   const stage: 'login' | 'profile' | 'social' = user
-    ? user.profile_complete
-      ? 'social'
-      : 'profile'
+    ? user.profile_complete ? 'social' : 'profile'
     : 'login';
 
+  function acceptAuth(nextUser: User) {
+    setUser(nextUser);
+    if (nextUser.profile_complete) setWelcomeName(nextUser.display_name || nextUser.username);
+  }
+
+  function completeProfile(nextUser: User) {
+    setUser(nextUser);
+    setWelcomeName(nextUser.display_name || nextUser.username);
+  }
+
   async function handleLogout() {
-    try {
-      await apiFetch('/api/auth/logout', {
-        method: 'POST'
-      });
-    } finally {
+    try { await apiFetch('/api/auth/logout', { method: 'POST' }); }
+    finally {
       setUser(null);
+      setTabs([{ id: 'home', title: 'Главная', kind: 'home' }]);
+      setActiveTabId('home');
     }
   }
 
-  // Выбор друга в списке: открываем (или создаём) личный диалог и показываем сообщения.
   const handleSelectFriend = useCallback(async (friend: { username: string }) => {
     try {
       const response = await apiFetch('/api/conversations/dm', {
@@ -96,113 +91,109 @@ export default function App() {
       if (response.ok) {
         const payload = await response.json();
         const conversationId = payload?.conversation?.id;
-        if (typeof conversationId === 'number') {
-          setOpenConversationId(conversationId);
-        }
-      } else {
-        console.warn('Не удалось открыть диалог:', response.status);
-      }
-    } catch (error) {
-      console.error('Не удалось открыть диалог', error);
-    } finally {
-      setActiveView('messages');
-    }
+        if (typeof conversationId === 'number') setOpenConversationId(conversationId);
+      } else console.warn('Не удалось открыть диалог:', response.status);
+    } catch (error) { console.error('Не удалось открыть диалог', error); }
+    finally { setActiveView('messages'); openWorkspaceTab(); }
   }, []);
+
+  function openWorkspaceTab() {
+    const existing = tabs.find((tab) => tab.kind === 'workspace');
+    if (existing) { setActiveTabId(existing.id); return; }
+    const id = `workspace-${Date.now()}`;
+    setTabs((current) => [...current, { id, title: 'Сообщения', kind: 'workspace' }]);
+    setActiveTabId(id);
+  }
+
+  function addTab() {
+    const id = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    setTabs((current) => [...current, { id, title: 'Главная', kind: 'home' }]);
+    setActiveTabId(id);
+  }
+
+  function closeTab(id: string) {
+    if (id === 'home') return;
+    const index = tabs.findIndex((tab) => tab.id === id);
+    const next = tabs.filter((tab) => tab.id !== id);
+    setTabs(next);
+    if (activeTabId === id) setActiveTabId(next[Math.max(0, index - 1)]?.id || 'home');
+  }
+
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) || tabs[0];
 
   return (
     <div className="app-root min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)]">
-      <header className="app-nav flex items-center justify-between px-5 py-3 border-b border-[var(--border)]">
-        <div className="brand">
-          <strong>{t('appName')}</strong>
-        </div>
-        <div className="nav-actions">
-          {stage === 'social' && (
-            <button className="ghost subtle" onClick={handleLogout}>
-              {t('logout')}
-            </button>
-          )}
-          {desktopApi && (
-            <div className="window-controls">
-              <button
-                type="button"
-                className="window-control"
-                aria-label={t('windowMinimize')}
-                onClick={() => desktopApi.minimizeWindow()}
-              >
-                &#8211;
-              </button>
-              <button
-                type="button"
-                className="window-control"
-                aria-label={t('windowMaximize')}
-                onClick={() => desktopApi.maximizeWindow()}
-              >
-                &#9633;
-              </button>
-              <button
-                type="button"
-                className="window-control close"
-                aria-label={t('windowClose')}
-                onClick={() => desktopApi.closeWindow()}
-              >
-                &#10005;
-              </button>
-            </div>
-          )}
+      <header className="app-nav">
+        <div className="titlebar-brand"><span className="brand-mark">N</span><strong>Nexo</strong><span className="titlebar-version">ALPHA</span></div>
+        <div className="titlebar-actions">
+          {stage === 'social' && <button className="titlebar-logout" onClick={handleLogout}>Выйти</button>}
+          {desktopApi && <div className="window-controls">
+            <button type="button" className="window-control" aria-label={t('windowMinimize')} onClick={() => desktopApi.minimizeWindow()}><Minus size={15} strokeWidth={1.7} /></button>
+            <button type="button" className="window-control" aria-label={t('windowMaximize')} onClick={() => desktopApi.maximizeWindow()}><Square size={12} strokeWidth={1.7} /></button>
+            <button type="button" className="window-control close" aria-label={t('windowClose')} onClick={() => desktopApi.closeWindow()}><X size={16} strokeWidth={1.7} /></button>
+          </div>}
         </div>
       </header>
 
       <main className={`app-stage flex-1 ${stage === 'social' ? 'app-stage-social' : ''}`}>
-        {loadingSession && <p className="muted">{t('loadingSession')}</p>}
-
-        {!loadingSession && stage === 'login' && <LoginPanel onSuccess={setUser} />}
-
-        {!loadingSession && stage === 'profile' && user && (
-          <ProfileSetup user={user} onComplete={setUser} />
-        )}
-
+        {loadingSession && <p className="muted">Подключаем Nexo…</p>}
+        {!loadingSession && stage === 'login' && <LoginPanel onSuccess={acceptAuth} />}
+        {!loadingSession && stage === 'profile' && user && <ProfileSetup user={user} onComplete={completeProfile} />}
         {!loadingSession && stage === 'social' && user && (
-          <div className="workspace-shell flex-1 min-h-0">
-            {/* Боковая навигация: диалоги / друзья */}
-            <nav className="app-view-nav flex flex-col items-center gap-2 py-4 border-r border-[var(--border)] bg-[var(--bg-secondary)]">
-              <button
-                type="button"
-                className={`view-nav-button ${activeView === 'messages' ? 'active' : ''}`}
-                aria-label="Сообщения"
-                onClick={() => setActiveView('messages')}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className={`view-nav-button ${activeView === 'friends' ? 'active' : ''}`}
-                aria-label="Друзья"
-                onClick={() => setActiveView('friends')}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              </button>
-            </nav>
-
-            {/* Список друзей (серверы и диалоги показывает сам MessengerWorkspace) */}
-            {activeView === 'friends' && (
-              <aside className="w-72 shrink-0 border-r border-[var(--border)] bg-[var(--bg-secondary)] overflow-y-auto">
-                <FriendsList onSelectFriend={handleSelectFriend} />
-              </aside>
-            )}
-
-            <div className="flex-1 flex flex-col min-w-0 min-h-0">
-              <MessengerWorkspace user={user} openConversationId={openConversationId} />
+          <div className="signed-in-shell">
+            <div className="tab-strip">
+              <div className="tab-list" role="tablist" aria-label="Вкладки Nexo">
+                {tabs.map((tab) => (
+                  <button key={tab.id} role="tab" aria-selected={activeTabId === tab.id} className={`workspace-tab ${activeTabId === tab.id ? 'active' : ''}`} onClick={() => setActiveTabId(tab.id)}>
+                    {tab.kind === 'home' ? <Home size={14} /> : <MessageCircle size={14} />}
+                    <span>{tab.title}</span>
+                    {tab.id !== 'home' && <span className="tab-close" role="button" aria-label="Закрыть вкладку" onClick={(event) => { event.stopPropagation(); closeTab(tab.id); }}><X size={12} /></span>}
+                  </button>
+                ))}
+              </div>
+              <button className="new-tab-button" onClick={addTab} title="Новая вкладка" aria-label="Новая вкладка"><Plus size={17} /></button>
+              <div className="tab-strip-spacer" />
+              <span className="workspace-indicator"><PanelsTopLeft size={13} /> WORKSPACE</span>
+            </div>
+            <div className="tab-content">
+              <AnimatePresence mode="wait">
+                {activeTab.kind === 'home' ? (
+                  <motion.section key={activeTab.id} className="home-dashboard" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.18 }}>
+                    <div className="dashboard-heading">
+                      <div><span className="eyebrow">ВАШЕ ПРОСТРАНСТВО</span><h1>С возвращением, {user.display_name || user.username}</h1><p>Всё важное — в одном месте.</p></div>
+                      <div className="dashboard-avatar">{(user.display_name || user.username || 'N').slice(0, 1).toUpperCase()}</div>
+                    </div>
+                    <div className="dashboard-cards">
+                      <button className="dashboard-card" onClick={openWorkspaceTab}><span className="dashboard-card-icon"><MessageCircle size={19} /></span><strong>Сообщения и серверы</strong><span>Продолжить общение и открыть рабочее пространство</span></button>
+                      <button className="dashboard-card" onClick={() => { setActiveView('friends'); openWorkspaceTab(); }}><span className="dashboard-card-icon"><Users size={19} /></span><strong>Друзья</strong><span>Управлять контактами и находить новых людей</span></button>
+                    </div>
+                    <div className="activity-panel"><div className="activity-panel-heading"><div><span className="eyebrow">NEXO FEED</span><h2>Последняя активность</h2></div><span className="live-dot">ЛИЧНОЕ ПРОСТРАНСТВО</span></div><div className="activity-empty"><div className="activity-empty-icon"><PanelsTopLeft size={22} /></div><strong>Здесь будет ваша активность</strong><p>Новые сообщения, события серверов и обновления друзей появятся здесь.</p></div></div>
+                  </motion.section>
+                ) : (
+                  <motion.div key={activeTab.id} className="workspace-tab-page" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }}>
+                    <div className="workspace-shell flex-1 min-h-0">
+                      <nav className="app-view-nav flex flex-col items-center gap-2 py-4 border-r border-[var(--border)] bg-[var(--bg-secondary)]">
+                        <button type="button" className={`view-nav-button ${activeView === 'messages' ? 'active' : ''}`} aria-label="Сообщения" onClick={() => setActiveView('messages')}><MessageCircle size={19} /></button>
+                        <button type="button" className={`view-nav-button ${activeView === 'friends' ? 'active' : ''}`} aria-label="Друзья" onClick={() => setActiveView('friends')}><Users size={19} /></button>
+                      </nav>
+                      {activeView === 'friends' && <aside className="friends-sidebar"><FriendsList onSelectFriend={handleSelectFriend} /></aside>}
+                      <div className="workspace-content"><MessengerWorkspace user={user} openConversationId={openConversationId} /></div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         )}
       </main>
+
+      <AnimatePresence>
+        {welcomeName && <motion.div className="welcome-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }}>
+          <motion.div className="welcome-content" initial={{ opacity: 0, y: 34, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -18, scale: 0.99 }} transition={{ type: 'spring', stiffness: 95, damping: 18 }}>
+            <span className="welcome-kicker">NEXO / YOUR SPACE</span><h1>Приветствую,</h1><strong>{welcomeName}</strong><span className="welcome-line" />
+          </motion.div>
+        </motion.div>}
+      </AnimatePresence>
     </div>
   );
 }
