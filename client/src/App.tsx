@@ -126,7 +126,6 @@ export default function App() {
       <header className="app-nav">
         <div className="titlebar-brand"><span className="brand-mark">N</span><strong>Nexo</strong><span className="titlebar-version">ALPHA</span></div>
         <div className="titlebar-actions">
-          {stage === 'social' && <button className="titlebar-logout" onClick={handleLogout}>Выйти</button>}
           {desktopApi && <div className="window-controls">
             <button type="button" className="window-control" aria-label={t('windowMinimize')} onClick={() => desktopApi.minimizeWindow()}><Minus size={15} strokeWidth={1.7} /></button>
             <button type="button" className="window-control" aria-label={t('windowMaximize')} onClick={() => desktopApi.maximizeWindow()}><Square size={12} strokeWidth={1.7} /></button>
@@ -177,7 +176,7 @@ export default function App() {
                         <button type="button" className={`view-nav-button ${activeView === 'friends' ? 'active' : ''}`} aria-label="Друзья" onClick={() => setActiveView('friends')}><Users size={19} /></button>
                       </nav>
                       {activeView === 'friends' && <aside className="friends-sidebar"><FriendsList onSelectFriend={handleSelectFriend} /></aside>}
-                      <div className="workspace-content"><MessengerWorkspace user={user} openConversationId={openConversationId} /></div>
+                      <div className="workspace-content"><MessengerWorkspace user={user} openConversationId={openConversationId} onLogout={handleLogout} /></div>
                     </div>
                   </motion.div>
                 )}
