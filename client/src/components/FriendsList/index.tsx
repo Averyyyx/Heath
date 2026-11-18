@@ -22,9 +22,10 @@ export const FriendsList: FC<FriendsListProps> = ({ onSelectFriend }) => {
     try {
       const response = await apiFetch('/api/friends');
       if (!response.ok) throw new Error('Не удалось загрузить список друзей');
-      const data: { friends: FriendRecord[]; pending: FriendRecord[] } = await response.json();
-      setFriends(data.friends as ExtendedFriendRecord[]);
-      setPendingRequests(data.pending as ExtendedFriendRecord[]);
+      const data: { friends: FriendRecord[]; incoming?: FriendRecord[]; outgoing?: FriendRecord[]; pending?: FriendRecord[] } = await response.json();
+      setFriends((data.friends || []) as ExtendedFriendRecord[]);
+      const requests = data.pending || [...(data.incoming || []), ...(data.outgoing || [])];
+      setPendingRequests(requests as ExtendedFriendRecord[]);
       setRequestError('');
     } catch (error) {
       console.error('Failed to load friends:', error);
