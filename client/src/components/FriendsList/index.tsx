@@ -35,7 +35,7 @@ export const FriendsList: FC<FriendsListProps> = ({ onSelectFriend }) => {
 
   const respondToRequest = async (requestId: number, action: 'accept' | 'reject') => {
     try {
-      const response = await apiFetch(`/api/friends/requests/${requestId}/${action}`, { method: 'POST' });
+      const response = await apiFetch('/api/friends/respond', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId, action: action === 'reject' ? 'decline' : 'accept' }) });
       if (!response.ok) throw new Error('Не удалось обновить запрос');
       await loadFriends();
     } catch (error) { setRequestError((error as Error).message); }
