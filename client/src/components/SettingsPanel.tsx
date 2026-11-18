@@ -11,7 +11,8 @@ import {
   Hash,
   Volume2,
   Save,
-  Trash2
+  Trash2,
+  LogOut
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { applyTheme, isThemeChoice } from '../lib/theme';
@@ -22,6 +23,7 @@ type SettingsSection = 'appearance' | 'privacy' | 'notifications' | 'premium' | 
 
 type SettingsPanelProps = {
   onClose: () => void;
+  onLogout?: () => void;
 };
 
 type UserSettings = {
@@ -93,7 +95,7 @@ const PERMISSION_FLAGS = [
   { label: 'Транслировать экран', value: 1 << 9 }
 ];
 
-export function SettingsPanel({ onClose }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, onLogout }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>('appearance');
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -924,9 +926,10 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             Уведомления
           </button>
         </nav>
-        <button className="ghost" onClick={onClose}>
-          Закрыть
-        </button>
+        <div className="settings-nav-footer">
+          {onLogout && <button className="settings-logout" onClick={onLogout}><LogOut size={16} />Выйти из аккаунта</button>}
+          <button className="ghost" onClick={onClose}>Закрыть</button>
+        </div>
       </motion.aside>
       <motion.section className="settings-content" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}>
         {renderSection()}
