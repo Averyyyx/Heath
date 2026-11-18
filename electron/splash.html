@@ -1,186 +1,59 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexo Loading</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            background: #0D0A1A;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            overflow: hidden;
-            -webkit-app-region: drag; /* Позволяет перетаскивать окно */
-        }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-        }
-
-        .logo-container {
-            position: relative;
-            width: 200px;
-            height: 200px;
-        }
-
-        .logo {
-            width: 100%;
-            height: 100%;
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        /* Анимация вращения молекул по орбитам SVG */
-        .logo-svg circle {
-            animation: orbit 4s linear infinite;
-            transform-origin: center;
-        }
-
-        .logo-svg circle:nth-child(7) {
-            animation-delay: 0s;
-        }
-
-        .logo-svg circle:nth-child(8) {
-            animation-delay: 1.3s;
-        }
-
-        .logo-svg circle:nth-child(9) {
-            animation-delay: 2.6s;
-        }
-
-        @keyframes orbit {
-            0% {
-                transform: rotate(0deg) translateX(60px) rotate(0deg);
-            }
-            100% {
-                transform: rotate(360deg) translateX(60px) rotate(-360deg);
-            }
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: scale(0.8);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-
-        .loading-text {
-            color: white;
-            font-size: 16px;
-            font-weight: 500;
-            margin-top: 20px;
-            opacity: 0.9;
-        }
-
-        .update-text {
-            color: #66FFF2;
-            font-size: 14px;
-            margin-top: 8px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .update-text.visible {
-            opacity: 1;
-        }
-
-        .progress-container {
-            width: 200px;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 2px;
-            margin-top: 15px;
-            overflow: hidden;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .progress-container.visible {
-            opacity: 1;
-        }
-
-        .progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #66FFF2, #33BFE6, #734DE6);
-            border-radius: 2px;
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-
-        .version-text {
-            position: absolute;
-            bottom: 20px;
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 12px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexo</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body {
+      display: grid; place-items: center; overflow: hidden;
+      background: #262624; color: #ece9e3;
+      font-family: "Segoe UI", Arial, sans-serif;
+      -webkit-app-region: drag; user-select: none;
+    }
+    .window { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 26px 30px 22px; }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 27px; }
+    .brand-mark { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #55504b; border-radius: 10px; color: #df805e; font: 600 23px Georgia, serif; }
+    .brand-name { color: #f0ece6; font: 24px Georgia, serif; letter-spacing: .01em; }
+    .status { min-height: 22px; color: #e5e0d9; font-size: 13px; font-weight: 500; text-align: center; }
+    .detail { min-height: 18px; margin-top: 7px; color: #96918a; font-size: 11px; text-align: center; }
+    .progress-track { width: 100%; height: 3px; margin-top: 22px; overflow: hidden; border-radius: 4px; background: #41413e; }
+    .progress-fill { width: 28%; height: 100%; border-radius: inherit; background: #df805e; animation: loading 1.5s ease-in-out infinite; }
+    .progress-track.determinate .progress-fill { width: 0; animation: none; transition: width .25s ease; }
+    .progress-track.hidden { visibility: hidden; }
+    .footer { position: absolute; bottom: 15px; color: #77736e; font-size: 10px; letter-spacing: .04em; }
+    @keyframes loading { 0% { transform: translateX(-110%); } 100% { transform: translateX(390%); } }
+    @media (prefers-reduced-motion: reduce) { .progress-fill { animation-duration: 4s; } }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo-container">
-            <img src="nexo-loading-logo.svg" alt="Nexo Logo" class="logo logo-svg">
-        </div>
-        <div class="loading-text" id="loadingText">Загрузка...</div>
-        <div class="update-text" id="updateText">Обновление до версии 1.0.1</div>
-        <div class="progress-container" id="progressContainer">
-            <div class="progress-bar" id="progressBar"></div>
-        </div>
-    </div>
-    <div class="version-text" id="versionText">Nexo v1.0.0</div>
-
-    <script>
-        const { ipcRenderer } = require('electron');
-        
-        const loadingText = document.getElementById('loadingText');
-        const updateText = document.getElementById('updateText');
-        const progressContainer = document.getElementById('progressContainer');
-        const progressBar = document.getElementById('progressBar');
-        const versionText = document.getElementById('versionText');
-
-        // Обновляем текст загрузки
-        ipcRenderer.on('loading-status', (event, status) => {
-            loadingText.textContent = status;
-        });
-
-        // Показываем обновление
-        ipcRenderer.on('update-available', (event, version) => {
-            updateText.textContent = `Обновление до версии ${version}`;
-            updateText.classList.add('visible');
-            progressContainer.classList.add('visible');
-        });
-
-        // Обновляем прогресс
-        ipcRenderer.on('update-progress', (event, progress) => {
-            progressBar.style.width = `${progress}%`;
-        });
-
-        // Скрываем обновление
-        ipcRenderer.on('update-complete', () => {
-            updateText.classList.remove('visible');
-            progressContainer.classList.remove('visible');
-        });
-
-        // Обновляем версию
-        ipcRenderer.on('app-version', (event, version) => {
-            versionText.textContent = `Nexo v${version}`;
-        });
-    </script>
+  <main class="window">
+    <div class="brand"><span class="brand-mark">N</span><span class="brand-name">Nexo</span></div>
+    <div class="status" id="loadingText">Подготовка приложения…</div>
+    <div class="detail" id="detailText">Пожалуйста, подождите</div>
+    <div class="progress-track" id="progressTrack"><div class="progress-fill" id="progressBar"></div></div>
+    <div class="footer" id="versionText">NEXO · ALPHA</div>
+  </main>
+  <script>
+    const { ipcRenderer } = require('electron');
+    const status = document.getElementById('loadingText');
+    const detail = document.getElementById('detailText');
+    const track = document.getElementById('progressTrack');
+    const bar = document.getElementById('progressBar');
+    const version = document.getElementById('versionText');
+    ipcRenderer.on('loading-status', (_event, value) => { status.textContent = value; });
+    ipcRenderer.on('app-version', (_event, value) => { version.textContent = 'NEXO · VERSION ' + value; });
+    ipcRenderer.on('update-available', (_event, value) => {
+      status.textContent = 'Доступно обновление';
+      detail.textContent = 'Загрузка версии ' + value;
+      track.classList.add('determinate'); track.classList.remove('hidden');
+    });
+    ipcRenderer.on('update-progress', (_event, value) => { bar.style.width = Math.max(0, Math.min(100, Number(value) || 0)) + '%'; });
+    ipcRenderer.on('update-complete', () => { status.textContent = 'Обновление установлено'; detail.textContent = 'Продолжаем запуск Nexo'; });
+    ipcRenderer.on('update-not-available', (_event, message) => { status.textContent = message || 'Обновлений нет'; detail.textContent = 'Запускаем приложение'; track.classList.add('hidden'); });
+    ipcRenderer.on('update-error', (_event, message) => { status.textContent = 'Не удалось проверить обновления'; detail.textContent = message || 'Запуск продолжится без обновления'; track.classList.add('hidden'); });
+  </script>
 </body>
 </html>
