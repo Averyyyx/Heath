@@ -5,6 +5,7 @@ import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
 import { MessengerWorkspace } from './components/MessengerWorkspace';
 import { FriendsList } from './components/FriendsList';
+import { SettingsPanel } from './components/SettingsPanel';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { t } from './lib/strings';
@@ -22,6 +23,7 @@ export default function App() {
   const [tabs, setTabs] = useState<WorkspaceTab[]>([{ id: 'home', title: 'Главная', kind: 'home' }]);
   const [activeTabId, setActiveTabId] = useState('home');
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const desktopApi = typeof window !== 'undefined' ? window.nexoAPI : undefined;
 
   useEffect(() => { applyTheme(theme); }, [theme]);
@@ -165,6 +167,7 @@ export default function App() {
                     <div className="dashboard-cards">
                       <button className="dashboard-card" onClick={openWorkspaceTab}><span className="dashboard-card-icon"><MessageCircle size={19} /></span><strong>Сообщения и серверы</strong><span>Продолжить общение и открыть рабочее пространство</span></button>
                       <button className="dashboard-card" onClick={() => { setActiveView('friends'); openWorkspaceTab(); }}><span className="dashboard-card-icon"><Users size={19} /></span><strong>Друзья</strong><span>Управлять контактами и находить новых людей</span></button>
+                      <button className="dashboard-card" onClick={() => setShowSettings(true)}><span className="dashboard-card-icon"><PanelsTopLeft size={19} /></span><strong>Настройки</strong><span>Аккаунт, оформление и параметры Nexo</span></button>
                     </div>
                     <div className="activity-panel"><div className="activity-panel-heading"><div><span className="eyebrow">NEXO FEED</span><h2>Последняя активность</h2></div><span className="live-dot">ЛИЧНОЕ ПРОСТРАНСТВО</span></div><div className="activity-empty"><div className="activity-empty-icon"><PanelsTopLeft size={22} /></div><strong>Здесь будет ваша активность</strong><p>Новые сообщения, события серверов и обновления друзей появятся здесь.</p></div></div>
                   </motion.section>
@@ -176,7 +179,7 @@ export default function App() {
                         <button type="button" className={`view-nav-button ${activeView === 'friends' ? 'active' : ''}`} aria-label="Друзья" onClick={() => setActiveView('friends')}><Users size={19} /></button>
                       </nav>
                       {activeView === 'friends' && <aside className="friends-sidebar"><FriendsList onSelectFriend={handleSelectFriend} /></aside>}
-                      <div className="workspace-content"><MessengerWorkspace user={user} openConversationId={openConversationId} onLogout={handleLogout} /></div>
+                      <div className="workspace-content"><MessengerWorkspace user={user} openConversationId={openConversationId} onLogout={handleLogout} onOpenSettings={() => setShowSettings(true)} /></div>
                     </div>
                   </motion.div>
                 )}
@@ -185,6 +188,8 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} onLogout={handleLogout} />}
 
       <AnimatePresence>
         {welcomeName && <motion.div className="welcome-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }}>
