@@ -239,3 +239,24 @@ None. All changes are backward compatible.
 - User data location changed from `project/data` to `%APPDATA%/nexo/data`
 - Old data in project folder will not be automatically migrated
 - Users may need to re-register or re-login after update
+
+## Version 0.0.11-alpha.1 — Workspace Update
+
+### Interface and workspace
+- Reworked the signed-in interface into a full-window workspace.
+- Added browser-inspired tabs with a permanent Home tab, new-tab action, switching and closing.
+- Added a Home dashboard with shortcuts to Messages/Servers and Friends.
+- Added a first activity-feed surface with an explicit empty state.
+- Replaced title-bar text glyphs with consistent Lucide minimize, maximize and close icons.
+- Restyled the title bar, tab strip, cards, panels and empty states.
+
+### Onboarding
+- Added a short animated welcome screen after sign-in and profile completion.
+
+### Build
+- Updated the CI build runtime to Node.js 22 for the Vite 7 toolchain.
+- Added a dedicated Windows alpha-release workflow.
+
+### Alpha limitations
+- The activity feed is currently a visual starting point; live activity aggregation is not included.
+- Tabs currently support Home pages and a shared Messages/Servers workspace. Independent per-tab chat sessions and tab persistence are planned for a later alpha.
