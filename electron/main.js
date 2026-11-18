@@ -1,4 +1,5 @@
-const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const { fork } = require('child_process');
 const http = require('http');
@@ -13,6 +14,8 @@ let serverReady = false;
 let serverRestarts = 0;
 const MAX_SERVER_RESTARTS = 5;
 let notificationCount = 0;
+let updateCheckInProgress = false;
+let manualUpdateCheck = false;
 const SERVER_PORT = process.env.PORT || 4000;
 
 // ВАЖНО: Electron должен всегда использовать локальный сервер
@@ -324,20 +327,124 @@ function setNotificationCount(count) {
   }
 }
 
-function checkForUpdates() {
-  console.log('Checking for updates...');
-  
+function setupAutoUpdater() {
+  if (!app.isPackaged) {
+    console.log('Auto updates are disabled in development mode.');
+    return;
+  }
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowDowngrade = false;
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for Nexo updates...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    updateCheckInProgress = false;
+    console.log('Nexo update available:', info.version);
+    if (manualUpdateCheck && mainWindow) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Доступно обновление Nexo',
+        message: `Найдена версия ${info.version}. Она загружается в фоновом режиме.`,
+        buttons: ['Понятно']
+      });
+    }
+    manualUpdateCheck = false;
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    updateCheckInProgress = false;
+    console.log('Nexo is up to date:', info.version);
+    if (manualUpdateCheck && mainWindow) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Обновления Nexo',
+        message: 'У вас установлена последняя версия Nexo.',
+        buttons: ['OK']
+      });
+    }
+    manualUpdateCheck = false;
+  });
+
+  autoUpdater.on('error', (error) => {
+    updateCheckInProgress = false;
+    console.error('Nexo auto-update error:', error);
+    if (manualUpdateCheck && mainWindow) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        title: 'Не удалось проверить обновления',
+        message: 'Проверьте подключение к интернету и попробуйте позже.',
+        detail: error.message,
+        buttons: ['OK']
+      });
+    }
+    manualUpdateCheck = false;
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(`Nexo update download: ${Math.round(progress.percent)}%`);
+  });
+
+  autoUpdater.on('update-downloaded', async (info) => {
+    console.log('Nexo update downloaded:', info.version);
+    const result = await dialog.showMessageBox(mainWindow || undefined, {
+      type: 'info',
+      title: 'Обновление Nexo готово',
+      message: `Версия ${info.version} загружена и готова к установке.`,
+      detail: 'Перезапустите Nexo сейчас, чтобы завершить обновление. Можно отложить установку — она выполнится при следующем выходе.',
+      buttons: ['Перезапустить сейчас', 'Позже'],
+      defaultId: 0,
+      cancelId: 1
+    });
+
+    if (result.response === 0) {
+      app.isQuitting = true;
+      autoUpdater.quitAndInstall(false, true);
+    }
+  });
+}
+
+async function checkForUpdates(manual = false) {
+  if (!app.isPackaged) {
+    console.log('Skipping update check in development mode.');
+    if (manual && mainWindow) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Обновления Nexo',
+        message: 'Автоматические обновления доступны в установленной версии приложения.',
+        buttons: ['OK']
+      });
+    }
+    return;
+  }
+
+  if (updateCheckInProgress) return;
+  updateCheckInProgress = true;
+  manualUpdateCheck = manual;
+
   if (splashWindow) {
     splashWindow.webContents.send('loading-status', 'Проверка обновлений...');
   }
-  
-  // Заглушка для обновлений - в реальном приложении здесь будет настоящая проверка
-  setTimeout(() => {
-    console.log('No updates available');
-    if (splashWindow) {
-      splashWindow.webContents.send('loading-status', 'Загрузка...');
+
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (error) {
+    updateCheckInProgress = false;
+    manualUpdateCheck = false;
+    console.error('Could not check for Nexo updates:', error);
+    if (manual && mainWindow) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        title: 'Не удалось проверить обновления',
+        message: 'Проверьте подключение к интернету и попробуйте позже.',
+        detail: error.message,
+        buttons: ['OK']
+      });
     }
-  }, 500);
+  }
 }
 
 function getServerRuntime() {
@@ -637,6 +744,7 @@ app.whenReady().then(async () => {
   
   // Регистрируем IPC handlers
   setupIPCHandlers();
+  setupAutoUpdater();
   
   try {
     console.log('=== Nexo Electron App Starting ===');
