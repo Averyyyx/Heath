@@ -1,6 +1,6 @@
 {
   "name": "nexo",
-  "version": "1.0.0",
+  "version": "0.0.11-alpha.1",
   "description": "Next-gen Discord-style messenger prototype",
   "main": "electron/main.js",
   "scripts": {
