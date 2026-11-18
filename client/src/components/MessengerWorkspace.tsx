@@ -36,6 +36,7 @@ type MessengerWorkspaceProps = {
   user: User;
   /** Диалог, который нужно открыть снаружи (например, после клика по другу в списке друзей) */
   openConversationId?: number | null;
+  onLogout?: () => void;
 };
 
 type MessageStore = Record<number, Message[]>;
@@ -52,7 +53,7 @@ type CallState = {
 
 type Status = { type: 'idle' | 'loading' | 'success' | 'error'; message?: string };
 
-export function MessengerWorkspace({ user, openConversationId = null }: MessengerWorkspaceProps) {
+export function MessengerWorkspace({ user, openConversationId = null, onLogout }: MessengerWorkspaceProps) {
   const [mode, setMode] = useState<WorkspaceMode>('servers');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -757,7 +758,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
         />
       )}
 
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} onLogout={onLogout} />}
     </div>
   );
 }
