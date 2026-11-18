@@ -47,9 +47,10 @@
     ipcRenderer.on('app-version', (_event, value) => { version.textContent = 'NEXO · VERSION ' + value; });
     ipcRenderer.on('update-available', (_event, value) => {
       status.textContent = 'Доступно обновление';
-      detail.textContent = 'Загрузка версии ' + value;
+      detail.textContent = 'Найдена версия ' + value + ' на GitHub';
       track.classList.add('determinate'); track.classList.remove('hidden');
     });
+    ipcRenderer.on('update-details', (_event, value) => { detail.textContent = value; });
     ipcRenderer.on('update-progress', (_event, value) => { bar.style.width = Math.max(0, Math.min(100, Number(value) || 0)) + '%'; });
     ipcRenderer.on('update-complete', () => { status.textContent = 'Обновление установлено'; detail.textContent = 'Продолжаем запуск Nexo'; });
     ipcRenderer.on('update-not-available', (_event, message) => { status.textContent = message || 'Обновлений нет'; detail.textContent = 'Запускаем приложение'; track.classList.add('hidden'); });
