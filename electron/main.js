@@ -326,18 +326,18 @@ function setNotificationCount(count) {
 
 function checkForUpdates() {
   console.log('Checking for updates...');
-  
   if (splashWindow) {
-    splashWindow.webContents.send('loading-status', 'Проверка обновлений...');
+    splashWindow.webContents.send('loading-status', 'Проверяем наличие обновлений…');
   }
-  
-  // Заглушка для обновлений - в реальном приложении здесь будет настоящая проверка
+
+  // Автообновление пока не подключено: не сообщаем пользователю, что
+  // удалённый сервер действительно проверен или новая версия найдена.
   setTimeout(() => {
-    console.log('No updates available');
-    if (splashWindow) {
-      splashWindow.webContents.send('loading-status', 'Загрузка...');
+    console.log('Automatic updates are not configured in this alpha build');
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.webContents.send('update-not-available', 'Автообновления пока не подключены');
     }
-  }, 500);
+  }, 700);
 }
 
 function getServerRuntime() {
@@ -479,8 +479,8 @@ function createSplashWindow() {
   console.log('Creating splash window...');
   
   splashWindow = new BrowserWindow({
-    width: 300,
-    height: 400,
+    width: 360,
+    height: 250,
     resizable: false,
     frame: false,
     alwaysOnTop: true,
@@ -490,7 +490,7 @@ function createSplashWindow() {
       contextIsolation: false
     },
     show: false,
-    backgroundColor: '#0D0A1A'
+    backgroundColor: '#262624'
   });
 
   const splashPath = path.join(__dirname, 'splash.html');
