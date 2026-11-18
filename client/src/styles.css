@@ -60,6 +60,38 @@
 
 /* ==================== Кнопки и формы ==================== */
 
+button,
+a,
+input,
+textarea,
+select {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.server-circle,
+.channel,
+.view-nav-button {
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.server-circle:hover,
+.view-nav-button:hover {
+  transform: translateY(-1px);
+}
+
 .ghost,
 .primary,
 .ghost-icon,
@@ -1651,5 +1683,107 @@
     grid-template-columns: 1fr;
     padding: 16px;
     overflow-y: auto;
+  }
+}
+
+
+/* Неброское появление и отклик элементов интерфейса */
+.panel.login {
+  transform-origin: center;
+}
+
+.auth-form input:focus,
+.profile-form input:focus {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.modal-backdrop {
+  animation: nexo-backdrop-in 180ms ease-out both;
+}
+
+.modal-panel {
+  animation: nexo-modal-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes nexo-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes nexo-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop,
+  .modal-panel {
+    animation: none !important;
+  }
+
+  button:not(:disabled):active,
+  .server-circle:hover,
+  .view-nav-button:hover {
+    transform: none !important;
+  }
+}
+
+
+/* Плавность основных переходов Nexo без изменения исходной визуальной темы. */
+.app-stage.app-stage-workspace {
+  min-height: 0;
+  padding: 0;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.app-stage-workspace > .workspace-shell {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.stage-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.stage-loading {
+  align-self: center;
+}
+
+.workspace-shell > .workspace-main {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+}
+
+.workspace-transition {
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspace-transition > .workspace-grid {
+  width: 100%;
+}
+
+.friends-mode {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -1,0 +1,45 @@
+name: Release Nexo
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify release version matches package.json
+        shell: bash
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if [ "v$PACKAGE_VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version v$PACKAGE_VERSION"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check backend and Electron entry points
+        run: npm test
+
+      - name: Build application
+        run: npm run build:app
+
+      - name: Publish Windows installer and update metadata to GitHub Releases
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

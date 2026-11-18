@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import SimplePeer, { type SignalData } from 'simple-peer';
 import {
   Hash,
@@ -14,7 +14,9 @@ import {
   Settings,
   Users,
   Volume2,
-  Cog
+  Cog,
+  Link2,
+  UserPlus
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
 import { FriendsPanel } from './FriendsPanel';
@@ -40,6 +42,12 @@ type MessengerWorkspaceProps = {
 
 type MessageStore = Record<number, Message[]>;
 type ChannelMessageStore = Record<number, ChannelMessage[]>;
+type VoiceParticipantRecord = {
+  user: { id: number; username: string; display_name: string; avatar_url: string };
+  muted: boolean;
+  deafened: boolean;
+  joined_at: string;
+};
 
 type CallState = {
   conversationId: number;
@@ -68,14 +76,20 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
   const [loadingChannelMessages, setLoadingChannelMessages] = useState(false);
   const [channelComposer, setChannelComposer] = useState('');
   const [channelUpload, setChannelUpload] = useState<File | null>(null);
+  const [voiceParticipants, setVoiceParticipants] = useState<VoiceParticipantRecord[]>([]);
+  const [joinedVoiceChannelId, setJoinedVoiceChannelId] = useState<number | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState('');
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [serverModalStatus, setServerModalStatus] = useState<Status>({ type: 'idle' });
+  const inviteHandledRef = useRef(false);
 
   const socketRef = useRef<Socket | null>(null);
   const [callState, setCallState] = useState<CallState | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const callStateRef = useRef<CallState | null>(null);
   const previousChannelRef = useRef<number | null>(null);
+  const activeChannelIdRef = useRef<number | null>(activeChannelId);
+  activeChannelIdRef.current = activeChannelId;
 
   useEffect(() => {
     callStateRef.current = callState;
@@ -84,6 +98,15 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
   useEffect(() => {
     fetchConversations();
     fetchServers();
+  }, []);
+
+  useEffect(() => {
+    if (inviteHandledRef.current) return;
+    const inviteCode = new URLSearchParams(window.location.search).get('invite');
+    if (!inviteCode) return;
+    inviteHandledRef.current = true;
+    window.history.replaceState({}, '', window.location.pathname);
+    joinServerWithInvite(inviteCode);
   }, []);
 
   // Внешняя команда «открыть диалог»: подгружаем список (диалог мог быть только что создан)
@@ -152,6 +175,9 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
         });
       }
     );
+    socket.on('voice:state', ({ channelId, participants }: { channelId: number; participants: VoiceParticipantRecord[] }) => {
+      if (channelId === activeChannelIdRef.current) setVoiceParticipants(participants || []);
+    });
     socket.on('error', (payload) => {
       console.warn('Socket error', payload);
     });
@@ -177,8 +203,19 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
   useEffect(() => {
     if (!socketRef.current || !activeChannelId || !activeServerId) return;
     const socket = socketRef.current;
+    const selectedChannel = servers.find((item) => item.id === activeServerId)?.channels.find((item) => item.id === activeChannelId);
     socket.emit('channel:join', { serverId: activeServerId, channelId: activeChannelId });
-    loadChannelMessages(activeServerId, activeChannelId);
+    if (selectedChannel?.type === 'text') {
+      loadChannelMessages(activeServerId, activeChannelId);
+    } else {
+      apiFetch(`/api/servers/${activeServerId}/channels/${activeChannelId}/voice`)
+        .then(async (response) => {
+          if (!response.ok) return;
+          const payload = await response.json();
+          setVoiceParticipants(payload.participants || []);
+        })
+        .catch((error) => console.error('Failed to load voice participants', error));
+    }
     const previousChannel = previousChannelRef.current;
     previousChannelRef.current = activeChannelId;
     return () => {
@@ -186,7 +223,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
         socket.emit('channel:leave', previousChannel);
       }
     };
-  }, [activeServerId, activeChannelId]);
+  }, [activeServerId, activeChannelId, servers]);
 
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId) || null,
@@ -256,6 +293,68 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
       console.error(error);
     } finally {
       setLoadingMessages(false);
+    }
+  }
+
+  async function joinVoiceChannel(channel: Channel) {
+    if (!activeServerId) return;
+    setVoiceStatus('Подключаемся…');
+    try {
+      const response = await apiFetch(`/api/servers/${activeServerId}/channels/${channel.id}/voice/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ muted: false, deafened: false })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось войти в голосовой канал');
+      if (joinedVoiceChannelId && joinedVoiceChannelId !== channel.id) {
+        await apiFetch(`/api/servers/${activeServerId}/channels/${joinedVoiceChannelId}/voice/leave`, { method: 'POST' });
+      }
+      setJoinedVoiceChannelId(channel.id);
+      setVoiceParticipants(payload.participants || []);
+      setVoiceStatus('Вы подключены к голосовому каналу. Передача голоса между участниками пока не реализована.');
+    } catch (error) {
+      setVoiceStatus((error as Error).message);
+    }
+  }
+
+  async function leaveVoiceChannel() {
+    if (!activeServerId || !joinedVoiceChannelId) return;
+    const channelId = joinedVoiceChannelId;
+    try {
+      const response = await apiFetch(`/api/servers/${activeServerId}/channels/${channelId}/voice/leave`, { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось покинуть канал');
+      setVoiceParticipants(payload.participants || []);
+      setJoinedVoiceChannelId(null);
+      setVoiceStatus('');
+    } catch (error) {
+      setVoiceStatus((error as Error).message);
+    }
+  }
+
+  async function createChannel(type: 'text' | 'voice') {
+    if (!activeServerId) return;
+    const name = window.prompt(type === 'voice' ? 'Название голосового канала' : 'Название текстового канала');
+    if (!name?.trim()) return;
+    try {
+      const response = await apiFetch(`/api/servers/${activeServerId}/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), type })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось создать канал');
+      if (payload.server) {
+        const updatedServer = payload.server as Server;
+        setServers((previous) => previous.map((server) => server.id === updatedServer.id ? updatedServer : server));
+        const createdChannel = [...(updatedServer.channels || [])].sort((a, b) => b.id - a.id)[0];
+        if (createdChannel) setActiveChannelId(createdChannel.id);
+      } else {
+        await fetchServers();
+      }
+    } catch (error) {
+      setVoiceStatus((error as Error).message);
     }
   }
 
@@ -366,6 +465,53 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
       setActiveServerId(data.server.id);
     } catch (error) {
       setServerModalStatus({ type: 'error', message: (error as Error).message });
+    }
+  }
+
+  async function createServerInvite() {
+    if (!activeServerId) return;
+    try {
+      const response = await apiFetch(`/api/servers/${activeServerId}/invites`, { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось создать приглашение');
+      const inviteUrl = new URL(`/?invite=${encodeURIComponent(payload.invite.code)}`, window.location.origin).toString();
+      try {
+        await navigator.clipboard.writeText(inviteUrl);
+        setVoiceStatus('Ссылка-приглашение скопирована. Она действует 7 дней.');
+      } catch {
+        window.prompt('Скопируйте ссылку-приглашение (действует 7 дней):', inviteUrl);
+      }
+    } catch (error) {
+      setVoiceStatus((error as Error).message);
+    }
+  }
+
+  async function joinServerWithInvite(rawCode?: string) {
+    const entered = rawCode ?? window.prompt('Вставьте ссылку-приглашение или её код:');
+    if (!entered?.trim()) return;
+    let code = entered.trim();
+    try {
+      if (code.includes('://')) {
+        const parsed = new URL(code);
+        code = parsed.searchParams.get('invite') || parsed.pathname.split('/').filter(Boolean).pop() || '';
+      } else if (code.startsWith('?')) {
+        code = new URLSearchParams(code.slice(1)).get('invite') || '';
+      }
+      const response = await apiFetch(`/api/invites/${encodeURIComponent(code)}/join`, { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось вступить в сервер');
+      const joinedServer = payload.server as Server;
+      setServers((previous) => {
+        const exists = previous.some((server) => server.id === joinedServer.id);
+        return exists
+          ? previous.map((server) => server.id === joinedServer.id ? joinedServer : server)
+          : [joinedServer, ...previous];
+      });
+      setActiveServerId(joinedServer.id);
+      setMode('servers');
+      setVoiceStatus(payload.alreadyMember ? 'Вы уже состоите в этом сервере.' : 'Вы успешно вступили в сервер.');
+    } catch (error) {
+      setVoiceStatus((error as Error).message);
     }
   }
 
@@ -481,9 +627,11 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
           </header>
           <div className="conversation-items">
             {conversations.length === 0 && <p className="muted">Нет диалогов — добавьте друзей.</p>}
+            <AnimatePresence initial={false}>
             {conversations.map((conversation) => (
-              <button
-                key={conversation.id}
+              <motion.button key={conversation.id} layout
+                initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
                 className={`conversation-item ${conversation.id === activeConversationId ? 'active' : ''}`}
                 onClick={() => setActiveConversationId(conversation.id)}
               >
@@ -501,8 +649,9 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                     })}
                   </small>
                 </div>
-              </button>
+              </motion.button>
             ))}
+            </AnimatePresence>
           </div>
         </aside>
         <section className="chat-window">
@@ -525,11 +674,16 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                   </button>
                 </div>
               </header>
-              <div className="message-stream">
+              <motion.div key={activeConversationId ?? 'empty-conversation'} className="message-stream"
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}>
                 {loadingMessages && <p className="muted">Загружаем…</p>}
-                {!loadingMessages &&
-                  activeMessages.map((message) => (
-                    <article key={message.id} className="message-bubble">
+                {!loadingMessages && (
+                  <AnimatePresence initial={false}>
+                  {activeMessages.map((message) => (
+                    <motion.article key={message.id} layout className="message-bubble"
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}>
                       <header>
                         <strong>{message.author.display_name || message.author.username}</strong>
                         <time>
@@ -543,10 +697,14 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                       {message.attachment && (
                         <AttachmentPreview attachment={message.attachment} />
                       )}
-                    </article>
+                    </motion.article>
                   ))}
-              </div>
-              <div className="composer">
+                  </AnimatePresence>
+                )}
+              </motion.div>
+              <motion.div className="composer"
+                initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05, duration: 0.18 }}>
                 <label className="file-pill">
                   <Paperclip size={16} />
                   <input
@@ -567,16 +725,20 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                 <button className="primary tiny" onClick={handleSendMessage}>
                   <SendHorizontal size={16} />
                 </button>
-              </div>
+              </motion.div>
+              <AnimatePresence initial={false}>
               {uploadFile && (
-                <div className="upload-preview">
+                <motion.div className="upload-preview"
+                  initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16 }}>
                   <ImageIcon size={16} />
                   <span>{uploadFile.name}</span>
                   <button className="link" onClick={() => setUploadFile(null)}>
                     Удалить
                   </button>
-                </div>
+                </motion.div>
               )}
+              </AnimatePresence>
             </>
           )}
         </section>
@@ -606,6 +768,8 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
               server={activeServer}
               activeChannelId={activeChannelId}
               onSelectChannel={setActiveChannelId}
+              onCreateChannel={createChannel}
+              onCreateInvite={createServerInvite}
             />
           ) : (
             <div className="muted">Выберите сервер из списка слева.</div>
@@ -613,7 +777,35 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
         </section>
         <section className="chat-window">
           {!activeChannel && <p className="muted">Выберите канал, чтобы начать общение.</p>}
-          {activeChannel && (
+          {activeChannel?.type === 'voice' ? (
+            <section className="voice-channel-view p-6">
+              <header className="chat-header">
+                <div className="title"><Volume2 size={16} /> {activeChannel.name}</div>
+                {joinedVoiceChannelId === activeChannel.id ? (
+                  <button className="primary tiny" onClick={() => void leaveVoiceChannel()}>Покинуть канал</button>
+                ) : (
+                  <button className="primary tiny" onClick={() => void joinVoiceChannel(activeChannel)}>Подключиться</button>
+                )}
+              </header>
+              {voiceStatus && <p className="muted my-3" role="status">{voiceStatus}</p>}
+              <h3 className="mt-5 mb-3">Участники ({voiceParticipants.length})</h3>
+              {voiceParticipants.length ? (
+                <AnimatePresence initial={false}>
+                {voiceParticipants.map((participant) => (
+                <motion.div key={participant.user.id} layout
+                  className="flex items-center gap-3 py-2 border-b border-[var(--border)]"
+                  initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16 }}>
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  <span>{participant.user.display_name || participant.user.username}</span>
+                  {participant.muted && <span className="muted text-xs">Микрофон выключен</span>}
+                </motion.div>
+                ))}
+                </AnimatePresence>
+              ) : <p className="muted">В канале пока никого нет.</p>}
+              <p className="muted text-sm mt-5">Сейчас работает вход и список участников. Голосовая передача в серверных каналах ещё не подключена.</p>
+            </section>
+          ) : activeChannel?.type === 'text' ? (
             <>
               <header className="chat-header">
                 <div className="title">
@@ -632,11 +824,16 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                   </button>
                 </div>
               </header>
-              <div className="message-stream">
+              <motion.div key={activeChannelId ?? 'empty-channel'} className="message-stream"
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}>
                 {loadingChannelMessages && <p className="muted">Загружаем…</p>}
-                {!loadingChannelMessages &&
-                  activeChannelMessages.map((message) => (
-                    <article key={message.id} className="message-bubble">
+                {!loadingChannelMessages && (
+                  <AnimatePresence initial={false}>
+                  {activeChannelMessages.map((message) => (
+                    <motion.article key={message.id} layout className="message-bubble"
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}>
                       <header>
                         <strong>{message.author.display_name || message.author.username}</strong>
                         <time>
@@ -650,10 +847,14 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                       {message.attachment && (
                         <AttachmentPreview attachment={message.attachment} />
                       )}
-                    </article>
+                    </motion.article>
                   ))}
-              </div>
-              <div className="composer">
+                  </AnimatePresence>
+                )}
+              </motion.div>
+              <motion.div className="composer"
+                initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05, duration: 0.18 }}>
                 <label className="file-pill">
                   <Paperclip size={16} />
                   <input
@@ -674,18 +875,22 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                 <button className="primary tiny" onClick={handleSendChannelMessage}>
                   <SendHorizontal size={16} />
                 </button>
-              </div>
+              </motion.div>
+              <AnimatePresence initial={false}>
               {channelUpload && (
-                <div className="upload-preview">
+                <motion.div className="upload-preview"
+                  initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16 }}>
                   <ImageIcon size={16} />
                   <span>{channelUpload.name}</span>
                   <button className="link" onClick={() => setChannelUpload(null)}>
                     Удалить
                   </button>
-                </div>
+                </motion.div>
               )}
+              </AnimatePresence>
             </>
-          )}
+          ) : null}
         </section>
       </div>
     );
@@ -703,6 +908,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
           setActiveServerId(serverId);
         }}
         onCreateServer={() => setShowCreateServer(true)}
+        onJoinServer={() => joinServerWithInvite()}
         onOpenSettings={() => setShowSettings(true)}
       />
       <div className="workspace-main">
@@ -720,8 +926,11 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
             Друзья
           </button>
         </div>
+        <AnimatePresence mode="wait" initial={false}>
         {mode === 'friends' ? (
-          <div className="friends-mode">
+          <motion.div key="friends-mode" className="friends-mode"
+            initial={{ opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}>
             <div className="friends-wrapper">
               <FriendsPanel
                 user={user}
@@ -732,14 +941,21 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
               />
             </div>
             {renderDirectMessages()}
-          </div>
+          </motion.div>
         ) : (
-          renderServerView()
+          <motion.div key="servers-mode" className="workspace-transition"
+            initial={{ opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}>
+            {renderServerView()}
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
 
+      <AnimatePresence initial={false}>
       {callState && (
         <CallOverlay
+          key={`call-${callState.conversationId}`}
           state={callState}
           onHangUp={endCall}
           onShareScreen={shareScreen}
@@ -747,7 +963,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
       )}
 
       {showCreateServer && (
-        <CreateServerModal
+        <CreateServerModal key="create-server-modal"
           status={serverModalStatus}
           onClose={() => {
             setShowCreateServer(false);
@@ -758,6 +974,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
       )}
 
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
@@ -769,6 +986,7 @@ function ServersRail({
   onSelectHome,
   onSelectServer,
   onCreateServer,
+  onJoinServer,
   onOpenSettings
 }: {
   mode: WorkspaceMode;
@@ -777,6 +995,7 @@ function ServersRail({
   onSelectHome: () => void;
   onSelectServer: (serverId: number) => void;
   onCreateServer: () => void;
+  onJoinServer: () => void;
   onOpenSettings: () => void;
 }) {
   return (
@@ -801,8 +1020,11 @@ function ServersRail({
           )}
         </button>
       ))}
-      <button className="server-circle ghost" onClick={onCreateServer}>
+      <button className="server-circle ghost" onClick={onCreateServer} title="Создать сервер">
         <Plus size={18} />
+      </button>
+      <button className="server-circle ghost" onClick={onJoinServer} title="Присоединиться по приглашению">
+        <UserPlus size={16} />
       </button>
       <button className="server-circle ghost" onClick={onOpenSettings}>
         <Cog size={16} />
@@ -814,11 +1036,15 @@ function ServersRail({
 function ServerSidebar({
   server,
   activeChannelId,
-  onSelectChannel
+  onSelectChannel,
+  onCreateChannel,
+  onCreateInvite
 }: {
   server: Server;
   activeChannelId: number | null;
   onSelectChannel: (channelId: number) => void;
+  onCreateChannel: (type: 'text' | 'voice') => void;
+  onCreateInvite: () => void;
 }) {
   const textChannels = server.channels.filter((channel) => channel.type === 'text');
   const voiceChannels = server.channels.filter((channel) => channel.type !== 'text');
@@ -826,32 +1052,46 @@ function ServerSidebar({
     <>
       <div className="channel-header">
         {server.name}
-        <button className="ghost-icon" title="Настройки сервера">
-          <Settings size={16} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button className="ghost-icon" title="Создать ссылку-приглашение" onClick={onCreateInvite}>
+            <Link2 size={16} />
+          </button>
+          <button className="ghost-icon" title="Настройки сервера">
+            <Settings size={16} />
+          </button>
+        </div>
       </div>
       <div className="channel-group">
-        <p className="group-title">текстовые</p>
+        <div className="flex items-center justify-between"><p className="group-title">текстовые</p><button className="ghost-icon" title="Создать текстовый канал" onClick={() => onCreateChannel('text')}><Plus size={14} /></button></div>
+        <AnimatePresence initial={false}>
         {textChannels.map((channel) => (
-          <button
-            key={channel.id}
+          <motion.button key={channel.id} layout
+            initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -5 }}
+            transition={{ duration: 0.16 }}
             className={`channel ${activeChannelId === channel.id ? 'active' : ''}`}
             onClick={() => onSelectChannel(channel.id)}
           >
             <Hash size={14} />
             {channel.name}
-          </button>
+          </motion.button>
         ))}
+        </AnimatePresence>
         {textChannels.length === 0 && <p className="muted">Пока нет текстовых каналов.</p>}
       </div>
       <div className="channel-group">
-        <p className="group-title">голосовые</p>
+        <div className="flex items-center justify-between"><p className="group-title">голосовые</p><button className="ghost-icon" title="Создать голосовой канал" onClick={() => onCreateChannel('voice')}><Plus size={14} /></button></div>
+        <AnimatePresence initial={false}>
         {voiceChannels.map((channel) => (
-          <button key={channel.id} className="channel voice">
+          <motion.button key={channel.id} layout
+            initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -5 }}
+            transition={{ duration: 0.16 }}
+            className={`channel voice ${activeChannelId === channel.id ? 'active' : ''}`}
+            onClick={() => onSelectChannel(channel.id)}>
             <Volume2 size={14} />
             {channel.name}
-          </button>
+          </motion.button>
         ))}
+        </AnimatePresence>
         {voiceChannels.length === 0 && <p className="muted">Добавьте голосовой канал.</p>}
       </div>
       <footer className="self-card">

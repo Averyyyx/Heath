@@ -350,6 +350,20 @@ db.prepare(`
 `).run();
 
 db.prepare(`
+  CREATE TABLE IF NOT EXISTS server_invites (
+    code TEXT PRIMARY KEY,
+    server_id INTEGER NOT NULL,
+    creator_id INTEGER NOT NULL,
+    uses INTEGER NOT NULL DEFAULT 0,
+    max_uses INTEGER NOT NULL DEFAULT 0,
+    expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(server_id) REFERENCES servers(id),
+    FOREIGN KEY(creator_id) REFERENCES users(id)
+  )
+`).run();
+
+db.prepare(`
   CREATE TABLE IF NOT EXISTS channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     server_id INTEGER NOT NULL,
@@ -634,6 +648,17 @@ const listServersForUser = db.prepare(`
 `);
 const insertServerMember = db.prepare('INSERT INTO server_members (server_id, user_id, role, nickname) VALUES (?, ?, ?, ?)');
 const selectServerMember = db.prepare('SELECT * FROM server_members WHERE server_id = ? AND user_id = ?');
+const insertServerInvite = db.prepare(`
+  INSERT INTO server_invites (code, server_id, creator_id, max_uses, expires_at)
+  VALUES (?, ?, ?, 0, datetime('now', '+7 days'))
+`);
+const selectUsableServerInvite = db.prepare(`
+  SELECT * FROM server_invites
+  WHERE code = ?
+    AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))
+    AND (max_uses = 0 OR uses < max_uses)
+`);
+const incrementServerInviteUses = db.prepare('UPDATE server_invites SET uses = uses + 1 WHERE code = ?');
 const listServerMembers = db.prepare('SELECT * FROM server_members WHERE server_id = ?');
 const listServerMembersDetailed = db.prepare(`
   SELECT sm.*, u.username, u.display_name, u.avatar_url
@@ -2273,24 +2298,76 @@ app.post('/api/servers', ensureAuthenticated, (req, res) => {
   }
   const safeDescription = (description || '').trim().slice(0, 240);
   try {
-    const result = insertServer.run(req.user.id, trimmedName, '', safeDescription);
-    insertServerMember.run(result.lastInsertRowid, req.user.id, 'owner', '');
-    insertRole.run(result.lastInsertRowid, 'Owner', '#f97316', 1000, PERMISSIONS.ADMIN, 0);
-    insertRole.run(
-      result.lastInsertRowid,
-      'Community',
-      '#a78bfa',
-      0,
-      PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.SEND_MESSAGES,
-      1
-    );
-    insertChannel.run(result.lastInsertRowid, 'text', 'general', 'Welcome to your server', 0);
-    const server = selectServerById.get(result.lastInsertRowid);
+    const server = db.transaction(() => {
+      const result = insertServer.run(req.user.id, trimmedName, '', safeDescription);
+      const serverId = Number(result.lastInsertRowid);
+      insertServerMember.run(serverId, req.user.id, 'owner', '');
+      insertRole.run(serverId, 'Owner', '#f97316', 1000, PERMISSIONS.ADMIN, 0);
+      insertRole.run(
+        serverId,
+        'Community',
+        '#a78bfa',
+        0,
+        PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.SEND_MESSAGES,
+        1
+      );
+      insertChannel.run(serverId, 'text', 'general', 'Welcome to your server', 0);
+      return selectServerById.get(serverId);
+    })();
     const payload = serializeServerEntity(server, req.user.id);
     broadcastServerUpdate(server.id);
     return res.status(201).json({ server: payload });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create server.', error: error.message });
+  }
+});
+
+app.post('/api/servers/:serverId/invites', ensureAuthenticated, (req, res) => {
+  const serverId = Number(req.params.serverId);
+  if (!Number.isSafeInteger(serverId) || serverId <= 0) {
+    return res.status(400).json({ message: 'Invalid server id.' });
+  }
+  try {
+    ensureServerOwnership(serverId, req.user.id);
+    const code = randomBytes(24).toString('base64url');
+    insertServerInvite.run(code, serverId, req.user.id);
+    return res.status(201).json({ invite: { code, expires_in_days: 7 } });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message });
+  }
+});
+
+app.post('/api/invites/:code/join', ensureAuthenticated, (req, res) => {
+  const code = String(req.params.code || '').trim();
+  if (!/^[A-Za-z0-9_-]{24,64}$/.test(code)) {
+    return res.status(400).json({ message: 'Некорректная ссылка-приглашение.' });
+  }
+  try {
+    const invite = selectUsableServerInvite.get(code);
+    if (!invite) {
+      return res.status(404).json({ message: 'Приглашение недействительно, истекло или достигло лимита.' });
+    }
+    const result = db.transaction(() => {
+      const server = selectServerById.get(invite.server_id);
+      if (!server) {
+        const error = new Error('Сервер больше не существует.');
+        error.statusCode = 404;
+        throw error;
+      }
+      const existing = selectServerMember.get(server.id, req.user.id);
+      if (!existing) {
+        insertServerMember.run(server.id, req.user.id, 'member', '');
+        incrementServerInviteUses.run(code);
+      }
+      return {
+        server: serializeServerEntity(selectServerById.get(server.id), req.user.id),
+        alreadyMember: Boolean(existing)
+      };
+    })();
+    if (!result.alreadyMember) broadcastServerUpdate(invite.server_id);
+    return res.json({ server: result.server, alreadyMember: result.alreadyMember });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message });
   }
 });
 

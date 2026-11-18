@@ -59,7 +59,12 @@ export function LoginPanel({ onSuccess }: LoginPanelProps) {
   }
 
   return (
-    <div className="panel login">
+    <motion.div
+      className="panel login"
+      initial={{ opacity: 0, y: 16, scale: 0.985 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+    >
       <div className="login-panel">
         <div>
           <h1>{mode === 'login' ? t('loginTitle') : t('registerTitle')}</h1>
@@ -69,6 +74,7 @@ export function LoginPanel({ onSuccess }: LoginPanelProps) {
         </div>
 
         <motion.form
+          key={mode}
           className="auth-form"
           onSubmit={handleSubmit}
           initial={{ opacity: 0, y: 12 }}
@@ -154,7 +160,7 @@ export function LoginPanel({ onSuccess }: LoginPanelProps) {
 
         <AnimateStatus status={status} mode={mode} />
       </div>
-    </div>
+    </motion.div>
   );
 }
 

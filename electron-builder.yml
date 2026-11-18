@@ -33,6 +33,12 @@ win:
   signAndEditExecutable: false
   icon: "electron/icons/Nexo-Desctop-ico.ico"
 
+publish:
+  - provider: github
+    owner: Averyyyx
+    repo: Nexo
+    releaseType: release
+
 nsis:
   oneClick: false
   perMachine: false

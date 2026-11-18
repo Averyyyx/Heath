@@ -896,7 +896,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   }
 
   return (
-    <div className="settings-shell">
+    <motion.div className="settings-shell"
+      initial={{ opacity: 0, scale: 0.992 }} animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.996 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
       <motion.aside className="settings-nav" initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
         <header>
           <h1>Настройки</h1>
@@ -928,10 +930,12 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           Закрыть
         </button>
       </motion.aside>
-      <motion.section className="settings-content" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}>
+      <motion.section key={section} className="settings-content"
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}>
         {renderSection()}
       </motion.section>
-    </div>
+    </motion.div>
   );
 }
 
