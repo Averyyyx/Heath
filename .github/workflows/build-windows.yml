@@ -1,0 +1,40 @@
+name: Build Nexo for Windows
+
+on:
+  push:
+    branches:
+      - nexo-0.0.1-alpha-fixes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check backend and Electron entry points
+        run: npm test
+
+      - name: Build Windows installer
+        run: npm run electron:build
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nexo-0.0.1-alpha-Windows-x64
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
