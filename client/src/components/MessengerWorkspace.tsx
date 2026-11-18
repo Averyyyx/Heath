@@ -3,21 +3,17 @@ import { motion } from 'framer-motion';
 import SimplePeer, { type SignalData } from 'simple-peer';
 import {
   Hash,
-  Headphones,
   Image as ImageIcon,
-  Mic,
   Monitor,
   Paperclip,
   Phone,
   Plus,
   SendHorizontal,
   Settings,
-  Users,
-  Volume2,
-  Cog
+  MessageCircle,
+  Volume2
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
-import { FriendsPanel } from './FriendsPanel';
 import type {
   Channel,
   ChannelMessage,
@@ -33,9 +29,12 @@ type WorkspaceMode = 'servers' | 'friends';
 
 type MessengerWorkspaceProps = {
   user: User;
-  /** Диалог, который нужно открыть снаружи (например, после клика по другу в списке друзей) */
   openConversationId?: number | null;
   onOpenSettings?: () => void;
+  onFindFriends?: () => void;
+  initialMode?: WorkspaceMode;
+  hideNavigation?: boolean;
+  showServersRail?: boolean;
 };
 
 type MessageStore = Record<number, Message[]>;
@@ -52,8 +51,16 @@ type CallState = {
 
 type Status = { type: 'idle' | 'loading' | 'success' | 'error'; message?: string };
 
-export function MessengerWorkspace({ user, openConversationId = null, onOpenSettings }: MessengerWorkspaceProps) {
-  const [mode, setMode] = useState<WorkspaceMode>('servers');
+export function MessengerWorkspace({
+  user,
+  openConversationId = null,
+  onOpenSettings,
+  onFindFriends,
+  initialMode = 'servers',
+  hideNavigation = false,
+  showServersRail = true
+}: MessengerWorkspaceProps) {
+  const [mode, setMode] = useState<WorkspaceMode>(initialMode);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [messageStore, setMessageStore] = useState<MessageStore>({});
@@ -472,11 +479,8 @@ export function MessengerWorkspace({ user, openConversationId = null, onOpenSett
       <div className="workspace-grid">
         <aside className="conversation-list">
           <header>
-            <h3>
-              <Users size={16} />
-              Друзья
-            </h3>
-            <button className="ghost">Найти</button>
+            <h3><MessageCircle size={16} />Диалоги</h3>
+            {onFindFriends && <button type="button" className="ghost subtle" onClick={onFindFriends}>Найти людей</button>}
           </header>
           <div className="conversation-items">
             {conversations.length === 0 && <p className="muted">Нет диалогов — добавьте друзей.</p>}
@@ -510,40 +514,38 @@ export function MessengerWorkspace({ user, openConversationId = null, onOpenSett
             <>
               <header className="chat-header">
                 <div className="title">
-                  <Hash size={14} />
+                  <MessageCircle size={15} />
                   {activeConversation.title}
                 </div>
                 <div className="chat-actions">
-                  <button className="ghost" onClick={() => startCall(activeConversation.id)}>
-                    <Phone size={16} />
-                    Позвонить
-                  </button>
-                  <button className="ghost" onClick={() => startCall(activeConversation.id, { initiator: true })}>
-                    <Monitor size={16} />
-                    Камера
+                  <button type="button" className="ghost" onClick={() => startCall(activeConversation.id)}>
+                    <Phone size={16} />Позвонить
                   </button>
                 </div>
               </header>
               <div className="message-stream">
                 {loadingMessages && <p className="muted">Загружаем…</p>}
                 {!loadingMessages &&
-                  activeMessages.map((message) => (
-                    <article key={message.id} className="message-bubble">
-                      <header>
-                        <strong>{message.author.display_name || message.author.username}</strong>
-                        <time>
-                          {new Date(message.created_at).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </time>
-                      </header>
-                      {message.content && <p>{message.content}</p>}
-                      {message.attachment && (
-                        <AttachmentPreview attachment={message.attachment} />
-                      )}
-                    </article>
-                  ))}
+                  activeMessages.map((message, index) => {
+                    const previous = activeMessages[index - 1];
+                    const grouped = Boolean(previous && previous.author.id === message.author.id &&
+                      new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() < 5 * 60 * 1000);
+                    const authorName = message.author.display_name || message.author.username;
+                    return (
+                      <article key={message.id} className={`message-row ${grouped ? 'grouped' : ''}`}>
+                        {grouped ? <span className="message-avatar-spacer" /> : (
+                          <span className="message-avatar" style={{ backgroundColor: message.author.avatar_color || '#D97757' }}>
+                            {(authorName[0] || 'N').toUpperCase()}
+                          </span>
+                        )}
+                        <div className="message-body">
+                          {!grouped && <header><strong>{authorName}</strong><time>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                          {message.content && <p>{message.content}</p>}
+                          {message.attachment && <AttachmentPreview attachment={message.attachment} />}
+                        </div>
+                      </article>
+                    );
+                  })}
               </div>
               <div className="composer">
                 <label className="file-pill">
@@ -588,7 +590,7 @@ export function MessengerWorkspace({ user, openConversationId = null, onOpenSett
       return (
         <div className="empty-state">
           <h2>Добро пожаловать в Nexo</h2>
-          <p>Создайте свой первый сервер и соберите сообщество, как в полном Discord.</p>
+          <p>Создайте первое пространство для команды, проекта или сообщества.</p>
           <button className="primary" onClick={() => setShowCreateServer(true)}>
             <Plus size={16} />
             Создать сервер
@@ -605,6 +607,7 @@ export function MessengerWorkspace({ user, openConversationId = null, onOpenSett
               server={activeServer}
               activeChannelId={activeChannelId}
               onSelectChannel={setActiveChannelId}
+              onOpenSettings={onOpenSettings}
             />
           ) : (
             <div className="muted">Выберите сервер из списка слева.</div>
@@ -621,36 +624,34 @@ export function MessengerWorkspace({ user, openConversationId = null, onOpenSett
                   <small>{activeChannel.topic}</small>
                 </div>
                 <div className="chat-actions">
-                  <button className="ghost">
-                    <Users size={16} />
-                    Участники
-                  </button>
-                  <button className="ghost">
-                    <Settings size={16} />
-                    Настройки
+                  <button type="button" className="ghost" onClick={onOpenSettings}>
+                    <Settings size={16} />Настройки пространства
                   </button>
                 </div>
               </header>
               <div className="message-stream">
                 {loadingChannelMessages && <p className="muted">Загружаем…</p>}
                 {!loadingChannelMessages &&
-                  activeChannelMessages.map((message) => (
-                    <article key={message.id} className="message-bubble">
-                      <header>
-                        <strong>{message.author.display_name || message.author.username}</strong>
-                        <time>
-                          {new Date(message.created_at).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </time>
-                      </header>
-                      {message.content && <p>{message.content}</p>}
-                      {message.attachment && (
-                        <AttachmentPreview attachment={message.attachment} />
-                      )}
-                    </article>
-                  ))}
+                  activeChannelMessages.map((message, index) => {
+                    const previous = activeChannelMessages[index - 1];
+                    const grouped = Boolean(previous && previous.author.id === message.author.id &&
+                      new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() < 5 * 60 * 1000);
+                    const authorName = message.author.display_name || message.author.username;
+                    return (
+                      <article key={message.id} className={`message-row ${grouped ? 'grouped' : ''}`}>
+                        {grouped ? <span className="message-avatar-spacer" /> : (
+                          <span className="message-avatar" style={{ backgroundColor: message.author.avatar_color || '#D97757' }}>
+                            {(authorName[0] || 'N').toUpperCase()}
+                          </span>
+                        )}
+                        <div className="message-body">
+                          {!grouped && <header><strong>{authorName}</strong><time>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                          {message.content && <p>{message.content}</p>}
+                          {message.attachment && <AttachmentPreview attachment={message.attachment} />}
+                        </div>
+                      </article>
+                    );
+                  })}
               </div>
               <div className="composer">
                 <label className="file-pill">
@@ -692,20 +693,14 @@ export function MessengerWorkspace({ user, openConversationId = null, onOpenSett
 
   return (
     <div className="workspace-shell">
-      <ServersRail
-        mode={mode}
+      {mode === 'servers' && showServersRail && <ServersRail
         servers={servers}
-        activeServerId={mode === 'servers' ? activeServerId : null}
-        onSelectHome={() => setMode('friends')}
-        onSelectServer={(serverId) => {
-          setMode('servers');
-          setActiveServerId(serverId);
-        }}
+        activeServerId={activeServerId}
+        onSelectServer={(serverId) => { setMode('servers'); setActiveServerId(serverId); }}
         onCreateServer={() => setShowCreateServer(true)}
-        onOpenSettings={() => onOpenSettings?.()}
-      />
+      />}
       <div className="workspace-main">
-        <div className="workspace-nav">
+        {!hideNavigation && <div className="workspace-nav">
           <button
             className={mode === 'servers' ? 'active' : ''}
             onClick={() => setMode('servers')}
@@ -718,23 +713,8 @@ export function MessengerWorkspace({ user, openConversationId = null, onOpenSett
           >
             Друзья
           </button>
-        </div>
-        {mode === 'friends' ? (
-          <div className="friends-mode">
-            <div className="friends-wrapper">
-              <FriendsPanel
-                user={user}
-                onRefresh={() => {
-                  fetchConversations();
-                  fetchServers();
-                }}
-              />
-            </div>
-            {renderDirectMessages()}
-          </div>
-        ) : (
-          renderServerView()
-        )}
+        </div>}
+        {mode === 'friends' ? renderDirectMessages() : renderServerView()}
       </div>
 
       {callState && (
@@ -760,50 +740,28 @@ export function MessengerWorkspace({ user, openConversationId = null, onOpenSett
 }
 
 function ServersRail({
-  mode,
   servers,
   activeServerId,
-  onSelectHome,
   onSelectServer,
-  onCreateServer,
-  onOpenSettings
+  onCreateServer
 }: {
-  mode: WorkspaceMode;
   servers: Server[];
   activeServerId: number | null;
-  onSelectHome: () => void;
   onSelectServer: (serverId: number) => void;
   onCreateServer: () => void;
-  onOpenSettings: () => void;
 }) {
   return (
-    <aside className="servers-rail">
-      <button
-        className={`server-circle home ${mode === 'friends' ? 'active' : ''}`}
-        onClick={onSelectHome}
-      >
-        <Users size={18} />
-      </button>
+    <aside className="servers-rail" aria-label="Ваши пространства">
+      <span className="servers-rail-label">ПРОСТРАНСТВА</span>
       {servers.map((server) => (
-        <button
-          key={server.id}
+        <button key={server.id} type="button"
           className={`server-circle ${activeServerId === server.id ? 'active' : ''}`}
-          onClick={() => onSelectServer(server.id)}
-          title={server.name}
-        >
-          {server.icon ? (
-            <img src={server.icon} alt={server.name} />
-          ) : (
-            (server.name[0] || '?').toUpperCase()
-          )}
+          onClick={() => onSelectServer(server.id)} title={server.name} aria-label={server.name}>
+          {server.icon ? <img src={server.icon} alt="" /> : (server.name[0] || '?').toUpperCase()}
         </button>
       ))}
-      <button className="server-circle ghost" onClick={onCreateServer}>
-        <Plus size={18} />
-      </button>
-      <button className="server-circle ghost" onClick={onOpenSettings}>
-        <Cog size={16} />
-      </button>
+      <button type="button" className="server-circle ghost" onClick={onCreateServer}
+        title="Создать пространство" aria-label="Создать пространство"><Plus size={18} /></button>
     </aside>
   );
 }
@@ -811,11 +769,13 @@ function ServersRail({
 function ServerSidebar({
   server,
   activeChannelId,
-  onSelectChannel
+  onSelectChannel,
+  onOpenSettings
 }: {
   server: Server;
   activeChannelId: number | null;
   onSelectChannel: (channelId: number) => void;
+  onOpenSettings?: () => void;
 }) {
   const textChannels = server.channels.filter((channel) => channel.type === 'text');
   const voiceChannels = server.channels.filter((channel) => channel.type !== 'text');
@@ -823,7 +783,7 @@ function ServerSidebar({
     <>
       <div className="channel-header">
         {server.name}
-        <button className="ghost-icon" title="Настройки сервера">
+        <button type="button" className="ghost-icon" title="Настройки пространства" onClick={onOpenSettings}>
           <Settings size={16} />
         </button>
       </div>
@@ -844,10 +804,9 @@ function ServerSidebar({
       <div className="channel-group">
         <p className="group-title">голосовые</p>
         {voiceChannels.map((channel) => (
-          <button key={channel.id} className="channel voice">
-            <Volume2 size={14} />
-            {channel.name}
-          </button>
+          <div key={channel.id} className="channel voice channel-unavailable" title="Голосовая связь в сообществах ещё не подключена">
+            <Volume2 size={14} />{channel.name}<small>позже</small>
+          </div>
         ))}
         {voiceChannels.length === 0 && <p className="muted">Добавьте голосовой канал.</p>}
       </div>
@@ -856,14 +815,7 @@ function ServerSidebar({
           <p>{server.role === 'owner' ? 'Вы — владелец' : 'Участник'}</p>
           <small>{server.description || 'Настройте сервер в любой момент'}</small>
         </div>
-        <div className="controls">
-          <button className="ghost-icon">
-            <Mic size={16} />
-          </button>
-          <button className="ghost-icon">
-            <Headphones size={16} />
-          </button>
-        </div>
+        <span className="self-status"><span className="status-dot" />В сети</span>
       </footer>
     </>
   );

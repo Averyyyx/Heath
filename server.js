@@ -84,9 +84,10 @@ const PREMIUM_BRAND = process.env.PREMIUM_BRAND || 'Nexo Pulse';
 const PREMIUM_BALANCE_TOKEN = process.env.PREMIUM_BALANCE_TOKEN || '';
 
 const useMemorySession = process.env.USE_MEMORY_SESSION === 'true' || isDesktop;
+const useSQLiteSession = isDesktop || useMemorySession;
 let redisClient = null;
 
-if (!useMemorySession) {
+if (!useSQLiteSession) {
   redisClient = createRedisClient({
     url: process.env.REDIS_URL || 'redis://127.0.0.1:6379'
   });
@@ -220,6 +221,67 @@ const db = new Database(process.env.DB_PATH || path.join(dataDir, 'nexo.db'));
 db.pragma('journal_mode = WAL');
 
 db.prepare(`
+  CREATE TABLE IF NOT EXISTS app_sessions (
+    sid TEXT PRIMARY KEY,
+    sess TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  )
+`).run();
+
+class SQLiteSessionStore extends session.Store {
+  constructor(database) {
+    super();
+    this.readSession = database.prepare('SELECT sess, expires_at FROM app_sessions WHERE sid = ?');
+    this.writeSession = database.prepare(`
+      INSERT INTO app_sessions (sid, sess, expires_at) VALUES (?, ?, ?)
+      ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expires_at = excluded.expires_at
+    `);
+    this.touchSession = database.prepare('UPDATE app_sessions SET expires_at = ? WHERE sid = ?');
+    this.deleteSession = database.prepare('DELETE FROM app_sessions WHERE sid = ?');
+    this.deleteExpired = database.prepare('DELETE FROM app_sessions WHERE expires_at <= ?');
+    this.cleanupTimer = setInterval(() => {
+      try { this.deleteExpired.run(Date.now()); } catch (error) {
+        console.warn('Session cleanup failed:', error.message);
+      }
+    }, 60 * 60 * 1000);
+    this.cleanupTimer.unref?.();
+  }
+
+  get(sid, callback) {
+    try {
+      const row = this.readSession.get(sid);
+      if (!row) return callback(null, null);
+      if (row.expires_at <= Date.now()) {
+        this.deleteSession.run(sid);
+        return callback(null, null);
+      }
+      return callback(null, JSON.parse(row.sess));
+    } catch (error) { return callback(error); }
+  }
+
+  set(sid, sess, callback) {
+    try {
+      const expiry = sess.cookie?.expires ? new Date(sess.cookie.expires).getTime() : Date.now() + 30 * 24 * 60 * 60 * 1000;
+      this.writeSession.run(sid, JSON.stringify(sess), Number.isFinite(expiry) ? expiry : Date.now() + 30 * 24 * 60 * 60 * 1000);
+      callback?.(null);
+    } catch (error) { callback?.(error); }
+  }
+
+  touch(sid, sess, callback) {
+    try {
+      const expiry = sess.cookie?.expires ? new Date(sess.cookie.expires).getTime() : Date.now() + 30 * 24 * 60 * 60 * 1000;
+      this.touchSession.run(Number.isFinite(expiry) ? expiry : Date.now() + 30 * 24 * 60 * 60 * 1000, sid);
+      callback?.(null);
+    } catch (error) { callback?.(error); }
+  }
+
+  destroy(sid, callback) {
+    try { this.deleteSession.run(sid); callback?.(null); }
+    catch (error) { callback?.(error); }
+  }
+}
+
+db.prepare(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE NOT NULL,
@@ -253,6 +315,8 @@ ensureUserColumn('display_name', `display_name TEXT DEFAULT ''`);
 ensureUserColumn('discriminator', `discriminator TEXT DEFAULT '0001'`);
 ensureUserColumn('profile_complete', `profile_complete INTEGER DEFAULT 0`);
 ensureUserColumn('bio', `bio TEXT DEFAULT ''`);
+ensureUserColumn('avatar_color', `avatar_color TEXT DEFAULT '#D97757'`);
+db.prepare("UPDATE users SET avatar_color = '#D97757' WHERE avatar_color IS NULL OR avatar_color = ''").run();
 ensureUserColumn('email_verified', `email_verified INTEGER DEFAULT 0`);
 ensureUserColumn('twofa_secret', `twofa_secret TEXT`);
 ensureUserColumn('twofa_enabled', `twofa_enabled INTEGER DEFAULT 0`);
@@ -557,7 +621,7 @@ const updateTwoFactor = db.prepare('UPDATE users SET twofa_secret = ?, twofa_ena
 const updatePasswordHash = db.prepare('UPDATE users SET password_hash = ? WHERE id = ?');
 const markProfile = db.prepare(`
   UPDATE users
-  SET display_name = ?, username = ?, discriminator = ?, profile_complete = 1
+  SET display_name = ?, username = ?, discriminator = ?, bio = ?, avatar_color = ?, profile_complete = 1
   WHERE id = ?
 `);
 const selectOAuthAccount = db.prepare('SELECT * FROM oauth_accounts WHERE provider = ? AND provider_user_id = ?');
@@ -595,13 +659,13 @@ const listConversationsForUser = db.prepare(`
 const insertMessage = db.prepare('INSERT INTO messages (conversation_id, author_id, content, attachment) VALUES (?, ?, ?, ?)');
 const selectMessageById = db.prepare('SELECT * FROM messages WHERE id = ?');
 const selectMessageWithAuthor = db.prepare(`
-  SELECT m.*, u.username, u.display_name, u.avatar_url
+  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color
   FROM messages m
   JOIN users u ON u.id = m.author_id
   WHERE m.id = ?
 `);
 const listMessages = db.prepare(`
-  SELECT m.*, u.username, u.display_name, u.avatar_url
+  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color
   FROM messages m
   JOIN users u ON u.id = m.author_id
   WHERE m.conversation_id = ?
@@ -636,7 +700,7 @@ const insertServerMember = db.prepare('INSERT INTO server_members (server_id, us
 const selectServerMember = db.prepare('SELECT * FROM server_members WHERE server_id = ? AND user_id = ?');
 const listServerMembers = db.prepare('SELECT * FROM server_members WHERE server_id = ?');
 const listServerMembersDetailed = db.prepare(`
-  SELECT sm.*, u.username, u.display_name, u.avatar_url
+  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color
   FROM server_members sm
   JOIN users u ON u.id = sm.user_id
   WHERE sm.server_id = ?
@@ -648,13 +712,13 @@ const listChannelsForServer = db.prepare('SELECT * FROM channels WHERE server_id
 const insertServerMessage = db.prepare('INSERT INTO server_messages (server_id, channel_id, author_id, content, attachment) VALUES (?, ?, ?, ?, ?)');
 const selectServerMessageById = db.prepare('SELECT * FROM server_messages WHERE id = ?');
 const selectServerMessageWithAuthor = db.prepare(`
-  SELECT sm.*, u.username, u.display_name, u.avatar_url
+  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color
   FROM server_messages sm
   JOIN users u ON u.id = sm.author_id
   WHERE sm.id = ?
 `);
 const listChannelMessages = db.prepare(`
-  SELECT sm.*, u.username, u.display_name, u.avatar_url
+  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color
   FROM server_messages sm
   JOIN users u ON u.id = sm.author_id
   WHERE sm.channel_id = ?
@@ -745,7 +809,7 @@ const selectOverridesForChannel = db.prepare(`
   SELECT * FROM channel_permission_overrides WHERE channel_id = ?
 `);
 const selectVoiceSessionsByChannel = db.prepare(`
-  SELECT vs.*, u.username, u.display_name, u.avatar_url
+  SELECT vs.*, u.username, u.display_name, u.avatar_url, u.avatar_color
   FROM voice_sessions vs
   JOIN users u ON u.id = vs.user_id
   WHERE vs.channel_id = ?
@@ -862,7 +926,7 @@ function seedDevAccount() {
       null
     );
     user = selectUserById.get(result.lastInsertRowid);
-    markProfile.run('Nexo Dev', user.username, '0001', user.id);
+    markProfile.run('Nexo Dev', user.username, '0001', '', '#D97757', user.id);
     user = selectUserById.get(user.id);
 
     if (configuredPassword) {
@@ -1016,8 +1080,8 @@ app.use(['/api/auth/login', '/api/auth/register', '/api/auth/github'], authLimit
 const clientIsHttps = String(process.env.CLIENT_ORIGIN || '').startsWith('https://');
 
 const sessionConfig = {
-  store: useMemorySession
-    ? new session.MemoryStore()
+  store: useSQLiteSession
+    ? new SQLiteSessionStore(db)
     : new RedisStore({
         client: redisClient,
         prefix: process.env.SESSION_PREFIX || 'nexo:sess:'
@@ -1343,7 +1407,8 @@ function serializeMessage(row) {
       id: row.author_id,
       username: row.username,
       display_name: row.display_name,
-      avatar_url: row.avatar_url
+      avatar_url: row.avatar_url,
+      avatar_color: row.avatar_color || '#D97757'
     },
     content: row.content,
     attachment: serializeAttachment(row.attachment),
@@ -1361,7 +1426,8 @@ function serializeServerMessage(row) {
       id: row.author_id,
       username: row.username,
       display_name: row.display_name,
-      avatar_url: row.avatar_url
+      avatar_url: row.avatar_url,
+      avatar_color: row.avatar_color || '#D97757'
     },
     content: row.content,
     attachment: serializeAttachment(row.attachment),
@@ -1517,7 +1583,8 @@ function listServerMembersSerialized(serverId) {
       id: member.user_id,
       username: member.username,
       display_name: member.display_name,
-      avatar_url: member.avatar_url
+      avatar_url: member.avatar_url,
+      avatar_color: member.avatar_color || '#D97757'
     },
     role: member.role,
     nickname: member.nickname,
@@ -1617,7 +1684,8 @@ function listVoiceParticipants(channelId) {
       id: session.user_id,
       username: session.username,
       display_name: session.display_name,
-      avatar_url: session.avatar_url
+      avatar_url: session.avatar_url,
+      avatar_color: session.avatar_color || '#D97757'
     },
     muted: Boolean(session.muted),
     deafened: Boolean(session.deafened),
@@ -1923,7 +1991,7 @@ if (githubReady) {
               ? generateUniqueHandle(profile.username)
               : user.username;
             const preferredName = profile.displayName || profile.username || user.email.split('@')[0];
-            markProfile.run(preferredName, desiredHandle, randomDiscriminator(), user.id);
+            markProfile.run(preferredName, desiredHandle, randomDiscriminator(), user.bio || '', user.avatar_color || '#D97757', user.id);
             user = selectUserById.get(user.id);
           }
 
@@ -1981,6 +2049,7 @@ app.post('/api/auth/register', (req, res) => {
       if (regenErr) {
         return res.status(500).json({ message: 'Session initialization failed.' });
       }
+      req.session.cookie.maxAge = req.body?.remember === false ? null : 30 * 24 * 60 * 60 * 1000;
       req.login(safeUser, (err) => {
         if (err) {
           return res.status(500).json({ message: 'Login failed after registration.' });
@@ -2014,6 +2083,7 @@ app.post('/api/auth/login', (req, res, next) => {
       if (regenErr) {
         return res.status(500).json({ message: 'Session initialization failed.' });
       }
+      req.session.cookie.maxAge = req.body?.remember === false ? null : 30 * 24 * 60 * 60 * 1000;
       req.login(user, (loginErr) => {
         if (loginErr) {
           return res.status(500).json({ message: 'Login failed.' });
@@ -2105,8 +2175,19 @@ app.post('/api/auth/password', ensureAuthenticated, (req, res) => {
   res.json({ updated: true });
 });
 
+app.get('/api/profile/username-availability', ensureAuthenticated, (req, res) => {
+  const rawUsername = typeof req.query.username === 'string' ? req.query.username : '';
+  const normalizedHandle = normalizeHandle(rawUsername);
+  if (normalizedHandle.length < 3 || normalizedHandle.length > 24) {
+    return res.json({ available: false, reason: 'Ник должен содержать от 3 до 24 символов.' });
+  }
+  const existing = selectUserByUsername.get(normalizedHandle);
+  const available = !existing || existing.id === req.user.id;
+  return res.json({ available, reason: available ? null : 'Этот ник уже занят.' });
+});
+
 app.post('/api/profile', ensureAuthenticated, (req, res) => {
-  const { displayName, username } = req.body;
+  const { displayName, username, bio, avatarColor } = req.body;
   const trimmedName = (displayName || '').trim();
   const normalizedHandle = normalizeHandle(username);
 
@@ -2118,6 +2199,8 @@ app.post('/api/profile', ensureAuthenticated, (req, res) => {
     return res.status(400).json({ message: 'Username must be 3-24 characters, letters/numbers/._- only.' });
   }
 
+  const safeBio = typeof bio === 'string' ? bio.trim().slice(0, 160) : '';
+  const safeAvatarColor = typeof avatarColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(avatarColor) ? avatarColor : '#D97757';
   const existingHandle = selectUserByUsername.get(normalizedHandle);
   if (existingHandle && existingHandle.id !== req.user.id) {
     return res.status(409).json({ message: 'Username already taken.' });
@@ -2125,7 +2208,7 @@ app.post('/api/profile', ensureAuthenticated, (req, res) => {
 
   try {
     const discriminator = randomDiscriminator();
-    markProfile.run(trimmedName, normalizedHandle, discriminator, req.user.id);
+    markProfile.run(trimmedName, normalizedHandle, discriminator, safeBio, safeAvatarColor, req.user.id);
     const updated = sanitizeUser(selectUserById.get(req.user.id));
     req.user = updated;
     return res.json({ user: updated });
@@ -2889,6 +2972,10 @@ app.post('/api/auth/logout', (req, res) => {
       res.json({ success: true });
     });
   });
+});
+
+app.get('/api/auth/providers', (_req, res) => {
+  res.json({ github: githubReady });
 });
 
 app.get('/api/auth/session', (req, res) => {

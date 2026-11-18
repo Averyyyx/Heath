@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Shield,
   Palette,
-  CreditCard,
+  RefreshCw,
   Star,
   Users,
   Check,
@@ -19,11 +18,13 @@ import { applyTheme, isThemeChoice } from '../lib/theme';
 import { t } from '../lib/strings';
 import type { Channel, Server, ServerRole } from '../types';
 
-type SettingsSection = 'appearance' | 'privacy' | 'notifications' | 'premium' | 'servers';
+type SettingsSection = 'appearance' | 'premium' | 'servers' | 'updates';
 
 type SettingsPanelProps = {
   onClose: () => void;
   onLogout?: () => void;
+  appVersion?: string;
+  onCheckUpdates?: () => Promise<{ status: string; version?: string; message: string }>;
 };
 
 type UserSettings = {
@@ -95,7 +96,7 @@ const PERMISSION_FLAGS = [
   { label: 'Транслировать экран', value: 1 << 9 }
 ];
 
-export function SettingsPanel({ onClose, onLogout }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, onLogout, appVersion = '0.0.3-alpha', onCheckUpdates }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>('appearance');
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -111,6 +112,7 @@ export function SettingsPanel({ onClose, onLogout }: SettingsPanelProps) {
   const [channelStatus, setChannelStatus] = useState<Status>({ type: 'idle' });
   const [premium, setPremium] = useState<PremiumResponse | null>(null);
   const [premiumStatus, setPremiumStatus] = useState<Status>({ type: 'idle' });
+  const [updateStatus, setUpdateStatus] = useState<Status>({ type: 'idle' });
   const [subscription, setSubscription] = useState<PremiumStatus | null>(null);
   const [overrideDrafts, setOverrideDrafts] = useState<
     Record<number, { roleId: number | ''; allow: number; deny: number }>
@@ -879,6 +881,44 @@ export function SettingsPanel({ onClose, onLogout }: SettingsPanelProps) {
     );
   }
 
+  async function handleCheckUpdates() {
+    if (!onCheckUpdates) {
+      setUpdateStatus({ type: 'error', message: 'Проверка обновлений недоступна в этой сборке.' });
+      return;
+    }
+    setUpdateStatus({ type: 'loading', message: 'Проверяем релизы Nexo…' });
+    try {
+      const result = await onCheckUpdates();
+      setUpdateStatus({
+        type: result.status === 'error' ? 'error' : result.status === 'unavailable' ? 'idle' : 'success',
+        message: result.message
+      });
+    } catch (error) {
+      setUpdateStatus({ type: 'error', message: (error as Error).message || 'Не удалось проверить обновления.' });
+    }
+  }
+
+  function renderUpdates() {
+    return (
+      <div className="settings-section">
+        <p className="eyebrow">NEXO DESKTOP</p>
+        <h2>Обновления</h2>
+        <p className="muted">Nexo проверяет новые Alpha-релизы автоматически при запуске. Здесь можно запустить проверку вручную.</p>
+        <div className="update-version-card">
+          <div><span>Установленная версия</span><strong>{appVersion}</strong></div>
+          <span className="update-version-mark">ALPHA</span>
+        </div>
+        <button type="button" className="primary update-check-button" onClick={handleCheckUpdates}
+          disabled={updateStatus.type === 'loading'}>
+          <RefreshCw size={16} className={updateStatus.type === 'loading' ? 'spin' : ''} />
+          {updateStatus.type === 'loading' ? 'Проверяем…' : 'Проверить обновления'}
+        </button>
+        {updateStatus.message && <p className={`status ${updateStatus.type}`}>{updateStatus.message}</p>}
+        <p className="muted update-help">Когда появится новая версия, установщик скачается автоматически. Перед установкой Nexo предложит закрыть приложение и запустить обновление.</p>
+      </div>
+    );
+  }
+
   function renderSection() {
     switch (section) {
       case 'appearance':
@@ -887,6 +927,8 @@ export function SettingsPanel({ onClose, onLogout }: SettingsPanelProps) {
         return renderPremium();
       case 'servers':
         return renderServers();
+      case 'updates':
+        return renderUpdates();
       default:
         return (
           <div className="settings-section">
@@ -917,13 +959,9 @@ export function SettingsPanel({ onClose, onLogout }: SettingsPanelProps) {
             <Users size={16} />
             Серверы
           </button>
-          <button className={section === 'privacy' ? 'active' : ''} onClick={() => setSection('privacy')}>
-            <Shield size={16} />
-            Приватность
-          </button>
-          <button className={section === 'notifications' ? 'active' : ''} onClick={() => setSection('notifications')}>
-            <CreditCard size={16} />
-            Уведомления
+          <button className={section === 'updates' ? 'active' : ''} onClick={() => setSection('updates')}>
+            <RefreshCw size={16} />
+            Обновления
           </button>
         </nav>
         <div className="settings-nav-footer">

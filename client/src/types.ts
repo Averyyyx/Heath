@@ -13,6 +13,8 @@ export type User = {
   username: string;
   display_name: string;
   avatar_url: string;
+  avatar_color?: string;
+  bio?: string;
   discriminator?: string;
   profile_complete: number;
   status: UserStatus;
@@ -75,6 +77,7 @@ export type MessageAuthor = {
   username: string;
   display_name: string;
   avatar_url: string;
+  avatar_color?: string;
 };
 
 export type Message = {

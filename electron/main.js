@@ -1,8 +1,10 @@
-const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog, nativeTheme } = require('electron');
 const path = require('path');
-const { fork } = require('child_process');
+const { fork, spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
+const { Readable } = require('stream');
+const { pipeline } = require('stream/promises');
 const crypto = require('crypto');
 
 let mainWindow = null;
@@ -11,6 +13,7 @@ let tray = null;
 let serverProcess = null;
 let serverReady = false;
 let serverRestarts = 0;
+let updateCheckPromise = null;
 const MAX_SERVER_RESTARTS = 5;
 let notificationCount = 0;
 const SERVER_PORT = process.env.PORT || 4000;
@@ -216,7 +219,11 @@ function createTray() {
     {
       label: 'Проверить обновления',
       click: () => {
-        checkForUpdates();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+        checkForUpdates({ interactive: true });
       }
     },
     {
@@ -287,8 +294,16 @@ function setupIPCHandlers() {
     }
   });
 
-  ipcMain.handle('get-app-version', () => {
-    return app.getVersion();
+  ipcMain.handle('get-app-version', () => app.getVersion());
+  ipcMain.handle('check-for-updates', () => checkForUpdates({ interactive: true }));
+  ipcMain.on('set-window-theme', (_event, theme) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const dark = theme === 'dark' || (theme === 'system' && nativeTheme.shouldUseDarkColors);
+    mainWindow.setTitleBarOverlay({
+      color: dark ? '#262624' : '#FAF9F5',
+      symbolColor: dark ? '#ECE9E3' : '#262624',
+      height: 34
+    });
   });
 }
 
@@ -324,39 +339,136 @@ function setNotificationCount(count) {
   }
 }
 
-async function checkForUpdates() {
-  console.log('Checking GitHub releases for Nexo updates...');
-  const sendSplash = (channel, value) => {
-    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.webContents.send(channel, value);
+function compareReleaseVersions(left, right) {
+  const parse = (value) => {
+    const raw = String(value || '').replace(/^v/i, '');
+    const [core, pre = ''] = raw.split('-', 2);
+    return { numbers: core.split('.').map((part) => Number(part) || 0), pre, hasPre: raw.includes('-') };
   };
-  sendSplash('loading-status', 'Проверяем наличие обновлений…');
-
-  try {
-    const response = await fetch('https://api.github.com/repos/Averyyyx/Nexo/releases?per_page=10', {
-      headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'Nexo-Desktop-App' },
-      signal: AbortSignal.timeout(6000)
-    });
-    if (!response.ok) throw new Error('GitHub API ответил: ' + response.status);
-
-    const releases = await response.json();
-    const latest = releases.find((release) => !release.draft && release.prerelease);
-    if (!latest) {
-      sendSplash('update-not-available', 'Пока нет опубликованных обновлений');
-      return;
-    }
-
-    const currentVersion = app.getVersion().replace(/^v/, '');
-    const latestVersion = String(latest.tag_name || '').replace(/^v/, '');
-    if (latestVersion && latestVersion !== currentVersion) {
-      sendSplash('update-available', latestVersion);
-      sendSplash('update-details', 'Новая версия опубликована на GitHub. Автоматическая установка пока не поддерживается.');
-    } else {
-      sendSplash('update-not-available', 'Установлена последняя версия');
-    }
-  } catch (error) {
-    console.warn('Unable to check Nexo updates:', error.message);
-    sendSplash('update-error', 'Не удалось связаться с GitHub. Запуск продолжится.');
+  const a = parse(left);
+  const b = parse(right);
+  for (let i = 0; i < Math.max(a.numbers.length, b.numbers.length, 3); i += 1) {
+    const difference = (a.numbers[i] || 0) - (b.numbers[i] || 0);
+    if (difference !== 0) return difference > 0 ? 1 : -1;
   }
+  if (a.hasPre !== b.hasPre) return a.hasPre ? -1 : 1;
+  return a.pre.localeCompare(b.pre);
+}
+
+function sendUpdateStatus(status, message, version) {
+  const payload = { status, message, ...(version ? { version } : {}) };
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-status', payload);
+  if (splashWindow && !splashWindow.isDestroyed()) splashWindow.webContents.send('update-status', payload);
+}
+
+async function checkForUpdates({ interactive = true } = {}) {
+  if (!app.isPackaged) {
+    return { status: 'unavailable', message: 'Проверка обновлений доступна в установленной версии Nexo.' };
+  }
+  if (updateCheckPromise) return updateCheckPromise;
+
+  updateCheckPromise = (async () => {
+    sendUpdateStatus('checking', 'Проверяем наличие новой версии…');
+    try {
+      const response = await fetch('https://api.github.com/repos/Averyyyx/Nexo/releases?per_page=20', {
+        headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'Nexo-Desktop-App' },
+        signal: AbortSignal.timeout(12000)
+      });
+      if (!response.ok) throw new Error('GitHub API ответил кодом ' + response.status);
+
+      const releases = await response.json();
+      const latest = releases
+        .filter((release) => !release.draft && release.prerelease)
+        .sort((a, b) => new Date(b.published_at || b.created_at).getTime() - new Date(a.published_at || a.created_at).getTime())[0];
+
+      if (!latest) {
+        const message = 'Пока нет опубликованных Alpha-обновлений.';
+        sendUpdateStatus('up-to-date', message);
+        return { status: 'up-to-date', message };
+      }
+
+      const currentVersion = app.getVersion().replace(/^v/, '');
+      const latestVersion = String(latest.tag_name || '').replace(/^v/, '');
+      if (!latestVersion || compareReleaseVersions(latestVersion, currentVersion) <= 0) {
+        const message = `Установлена актуальная версия Nexo ${currentVersion}.`;
+        sendUpdateStatus('up-to-date', message, currentVersion);
+        return { status: 'up-to-date', version: currentVersion, message };
+      }
+
+      const asset = (latest.assets || []).find((item) =>
+        /.exe$/i.test(item.name || '') && /setup/i.test(item.name || '')
+      ) || (latest.assets || []).find((item) => /.exe$/i.test(item.name || ''));
+      if (!asset?.browser_download_url) {
+        throw new Error('В релизе ' + latestVersion + ' нет установщика Windows (.exe).');
+      }
+
+      sendUpdateStatus('available', `Доступна версия ${latestVersion}. Скачиваем установщик…`, latestVersion);
+      const updatesDirectory = path.join(app.getPath('userData'), 'updates');
+      fs.mkdirSync(updatesDirectory, { recursive: true });
+      const safeVersion = latestVersion.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const installerPath = path.join(updatesDirectory, `Nexo-${safeVersion}-Setup.exe`);
+
+      let installerReady = false;
+      try {
+        const existing = await fs.promises.stat(installerPath);
+        installerReady = existing.isFile() && existing.size > 0 &&
+          (!asset.size || existing.size === asset.size);
+      } catch { installerReady = false; }
+
+      if (!installerReady) {
+        try { await fs.promises.unlink(installerPath); } catch {}
+        const download = await fetch(asset.browser_download_url, {
+          headers: { 'User-Agent': 'Nexo-Desktop-App' },
+          signal: AbortSignal.timeout(20 * 60 * 1000)
+        });
+        if (!download.ok || !download.body) {
+          throw new Error('Не удалось скачать установщик (' + download.status + ').');
+        }
+        await pipeline(Readable.fromWeb(download.body), fs.createWriteStream(installerPath));
+        const downloaded = await fs.promises.stat(installerPath);
+        if (downloaded.size < 1024 || (asset.size && downloaded.size !== asset.size)) {
+          await fs.promises.unlink(installerPath).catch(() => {});
+          throw new Error('Скачанный установщик неполный. Проверьте подключение и повторите попытку.');
+        }
+      }
+
+      sendUpdateStatus('downloaded', `Установщик Nexo ${latestVersion} готов.`, latestVersion);
+      const updateDialog = {
+        type: 'info',
+        title: 'Обновление Nexo',
+        message: `Доступна новая версия Nexo ${latestVersion}`,
+        detail: 'Установщик уже скачан. Перед запуском закройте текущую версию приложения.',
+        buttons: ['Установить сейчас', 'Позже'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true
+      };
+      const choice = mainWindow && !mainWindow.isDestroyed()
+        ? await dialog.showMessageBox(mainWindow, updateDialog)
+        : await dialog.showMessageBox(updateDialog);
+
+      if (choice.response === 0) {
+        sendUpdateStatus('installing', `Запускаем установщик Nexo ${latestVersion}…`, latestVersion);
+        const installer = spawn(installerPath, [], { detached: true, stdio: 'ignore', windowsHide: false });
+        installer.unref();
+        app.isQuitting = true;
+        app.quit();
+        return { status: 'installing', version: latestVersion, message: 'Установщик запущен. Завершите установку в появившемся окне.' };
+      }
+
+      const message = `Обновление ${latestVersion} скачано. Установить его можно при следующей проверке.`;
+      sendUpdateStatus('downloaded', message, latestVersion);
+      return { status: 'downloaded', version: latestVersion, message };
+    } catch (error) {
+      console.warn('Unable to check or download Nexo updates:', error.message);
+      const message = error.message || 'Не удалось проверить обновления Nexo.';
+      sendUpdateStatus('error', message);
+      return { status: 'error', message };
+    }
+  })();
+
+  try { return await updateCheckPromise; }
+  finally { updateCheckPromise = null; }
 }
 
 function getServerRuntime() {
@@ -498,8 +610,8 @@ function createSplashWindow() {
   console.log('Creating splash window...');
   
   splashWindow = new BrowserWindow({
-    width: 360,
-    height: 250,
+    width: 440,
+    height: 286,
     resizable: false,
     frame: false,
     alwaysOnTop: true,
@@ -541,8 +653,8 @@ function createWindow() {
     height: 800,
     minWidth: 1024,
     minHeight: 768,
-    frame: false, // Убираем стандартную рамку
     titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#262624', symbolColor: '#ECE9E3', height: 34 },
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -686,9 +798,7 @@ app.whenReady().then(async () => {
     serverReady = true;
     console.log('Server is ready!');
     
-    // Проверяем обновления
-    checkForUpdates();
-    
+    // Обновления проверяются после показа основного окна, чтобы системный диалог не прерывал запуск.
     // Создаем system tray
     createTray();
     
@@ -703,8 +813,9 @@ app.whenReady().then(async () => {
     // Окно показывает/открывает DevTools обработчик в createWindow; здесь только закрываем splash
     mainWindow.once('ready-to-show', () => {
       console.log('Main window ready, closing splash...');
-      if (splashWindow) {
-        splashWindow.close();
+      if (splashWindow) splashWindow.close();
+      if (app.isPackaged) {
+        setTimeout(() => { void checkForUpdates({ interactive: false }); }, 5500);
       }
     });
     

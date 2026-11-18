@@ -10,6 +10,9 @@ declare global {
       maximizeWindow: () => void;
       closeWindow: () => void;
       getAppVersion: () => Promise<string>;
+      setWindowTheme: (theme: 'light' | 'dark' | 'system') => void;
+      checkForUpdates: () => Promise<{ status: string; version?: string; message: string }>;
+      onUpdateStatus: (callback: (payload: { status: string; version?: string; message?: string }) => void) => void;
       onNotificationUpdate: (callback: (...args: unknown[]) => void) => void;
       removeAllListeners: (channel: string) => void;
     };

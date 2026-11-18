@@ -1,60 +1,88 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nexo</title>
-  <style>
-    * { box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; margin: 0; }
-    body {
-      display: grid; place-items: center; overflow: hidden;
-      background: #262624; color: #ece9e3;
-      font-family: "Segoe UI", Arial, sans-serif;
-      -webkit-app-region: drag; user-select: none;
-    }
-    .window { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 26px 30px 22px; }
-    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 27px; }
-    .brand-mark { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #55504b; border-radius: 10px; color: #df805e; font: 600 23px Georgia, serif; }
-    .brand-name { color: #f0ece6; font: 24px Georgia, serif; letter-spacing: .01em; }
-    .status { min-height: 22px; color: #e5e0d9; font-size: 13px; font-weight: 500; text-align: center; }
-    .detail { min-height: 18px; margin-top: 7px; color: #96918a; font-size: 11px; text-align: center; }
-    .progress-track { width: 100%; height: 3px; margin-top: 22px; overflow: hidden; border-radius: 4px; background: #41413e; }
-    .progress-fill { width: 28%; height: 100%; border-radius: inherit; background: #df805e; animation: loading 1.5s ease-in-out infinite; }
-    .progress-track.determinate .progress-fill { width: 0; animation: none; transition: width .25s ease; }
-    .progress-track.hidden { visibility: hidden; }
-    .footer { position: absolute; bottom: 15px; color: #77736e; font-size: 10px; letter-spacing: .04em; }
-    @keyframes loading { 0% { transform: translateX(-110%); } 100% { transform: translateX(390%); } }
-    @media (prefers-reduced-motion: reduce) { .progress-fill { animation-duration: 4s; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexo</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,"Segoe UI",sans-serif;background:#262624;color:#faf9f5}
+*{box-sizing:border-box}
+body{margin:0;width:100vw;height:100vh;display:grid;place-items:center;background:#262624;overflow:hidden}
+.card{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 38px 24px;text-align:center}
+.mark{display:grid;width:58px;height:58px;place-items:center;border:1px solid rgba(217,119,87,.38);border-radius:18px;background:rgba(217,119,87,.12);color:#e38a6a;font:600 34px Georgia,serif;box-shadow:0 0 0 8px rgba(217,119,87,.035);animation:mark-in .7s cubic-bezier(.2,.8,.2,1) both}
+h1{margin:14px 0 2px;font:600 26px Georgia,serif;letter-spacing:-.4px}
+.version{color:#817f78;font:600 8px "Segoe UI",sans-serif;letter-spacing:.19em}
+.status{margin-top:20px;color:#c7c4bc;font-size:11px;min-height:16px}
+.phrase{margin-top:8px;color:#918e85;font:italic 12px Georgia,serif;min-height:34px;max-width:310px;line-height:1.45}
+.track{width:220px;height:2px;margin-top:21px;background:#42413e;overflow:hidden;border-radius:10px}
+.fill{height:100%;width:30%;background:#d97757;transform-origin:left;animation:load 2.6s ease-in-out infinite}
+.footer{margin-top:17px;color:#66645e;font-size:8px;letter-spacing:.12em}
+@keyframes load{0%{transform:translateX(-110%) scaleX(.25)}50%{transform:translateX(100%) scaleX(1.4)}100%{transform:translateX(360%) scaleX(.25)}}
+@keyframes mark-in{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
+</style>
 </head>
 <body>
-  <main class="window">
-    <div class="brand"><span class="brand-mark">N</span><span class="brand-name">Nexo</span></div>
-    <div class="status" id="loadingText">Подготовка приложения…</div>
-    <div class="detail" id="detailText">Пожалуйста, подождите</div>
-    <div class="progress-track" id="progressTrack"><div class="progress-fill" id="progressBar"></div></div>
-    <div class="footer" id="versionText">NEXO · ALPHA</div>
-  </main>
-  <script>
-    const { ipcRenderer } = require('electron');
-    const status = document.getElementById('loadingText');
-    const detail = document.getElementById('detailText');
-    const track = document.getElementById('progressTrack');
-    const bar = document.getElementById('progressBar');
-    const version = document.getElementById('versionText');
-    ipcRenderer.on('loading-status', (_event, value) => { status.textContent = value; });
-    ipcRenderer.on('app-version', (_event, value) => { version.textContent = 'NEXO · VERSION ' + value; });
-    ipcRenderer.on('update-available', (_event, value) => {
-      status.textContent = 'Доступно обновление';
-      detail.textContent = 'Найдена версия ' + value + ' на GitHub';
-      track.classList.add('determinate'); track.classList.remove('hidden');
-    });
-    ipcRenderer.on('update-details', (_event, value) => { detail.textContent = value; });
-    ipcRenderer.on('update-progress', (_event, value) => { bar.style.width = Math.max(0, Math.min(100, Number(value) || 0)) + '%'; });
-    ipcRenderer.on('update-complete', () => { status.textContent = 'Обновление установлено'; detail.textContent = 'Продолжаем запуск Nexo'; });
-    ipcRenderer.on('update-not-available', (_event, message) => { status.textContent = message || 'Обновлений нет'; detail.textContent = 'Запускаем приложение'; track.classList.add('hidden'); });
-    ipcRenderer.on('update-error', (_event, message) => { status.textContent = 'Не удалось проверить обновления'; detail.textContent = message || 'Запуск продолжится без обновления'; track.classList.add('hidden'); });
-  </script>
+<div class="card">
+  <div class="mark">N</div>
+  <h1>Nexo</h1>
+  <div class="version" id="version">ALPHA · CONNECTING</div>
+  <div class="status" id="status">Подготавливаем ваше пространство…</div>
+  <div class="phrase" id="phrase">Связь начинается с простого приветствия.</div>
+  <div class="track"><div class="fill"></div></div>
+  <div class="footer">A QUIETER PLACE TO CONNECT</div>
+</div>
+<script>
+const { ipcRenderer } = require('electron');
+const phrases = [
+  'Здесь разговоры находят своё продолжение.',
+  'Хорошие идеи редко рождаются в одиночку.',
+  'Настраиваем место для следующей мысли.',
+  'Пусть важное не потеряется в потоке.',
+  'Каждое пространство начинается с людей.',
+  'Собираем ваши разговоры в одном месте.',
+  'Тишина перед началом хорошего проекта.',
+  'Связь — это больше, чем список контактов.',
+  'Ваша команда уже почти на месте.',
+  'Идеи любят ясное пространство.',
+  'Подключаемся к тому, что действительно важно.',
+  'Небольшая пауза — и можно продолжать.',
+  'Ни одна хорошая мысль не должна затеряться.',
+  'Рабочее место для людей, а не для шума.',
+  'Пусть путь от идеи до разговора будет короче.',
+  'Скоро здесь появится что-то интересное.',
+  'Ваше пространство, ваш ритм, ваши правила.',
+  'Собираем детали, чтобы вы могли собирать идеи.',
+  'Вместе проще довести начатое до конца.',
+  'Каждой команде нужно своё место встречи.',
+  'Подготавливаем каналы для новых открытий.',
+  'Общение без лишних перегородок.',
+  'Пусть нужные люди будут на расстоянии одного клика.',
+  'Запускаем инструменты для совместной работы.',
+  'Новый день — новый повод что-то создать.',
+  'Сначала связь. Затем всё остальное.',
+  'Оставим сложность внутри, а снаружи — ясность.',
+  'Ваши люди, проекты и мысли скоро встретятся.',
+  'Пусть разговор двигает работу вперёд.',
+  'Nexo готовит для вас место.'
+];
+const phrase=document.getElementById('phrase');
+const status=document.getElementById('status');
+const version=document.getElementById('version');
+let last=-1;
+function rotatePhrase(){
+  let next=Math.floor(Math.random()*phrases.length);
+  if(next===last) next=(next+1)%phrases.length;
+  last=next;
+  phrase.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:450,easing:'ease-out'});
+  phrase.textContent=phrases[next];
+}
+rotatePhrase();
+setInterval(rotatePhrase,2900);
+ipcRenderer.on('loading-status',(_event,text)=>{status.textContent=text;});
+ipcRenderer.on('app-version',(_event,value)=>{version.textContent='ALPHA · '+value;});
+ipcRenderer.on('update-status',(_event,payload)=>{
+  if(payload?.message) status.textContent=payload.message;
+});
+</script>
 </body>
 </html>
