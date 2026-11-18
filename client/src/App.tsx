@@ -66,6 +66,7 @@ export default function App() {
 
   function acceptAuth(nextUser: User) {
     setUser(nextUser);
+    // Для нового аккаунта приветствие показывается после завершения настройки профиля.
     if (nextUser.profile_complete) setWelcomeName(nextUser.display_name || nextUser.username);
   }
 
@@ -101,16 +102,17 @@ export default function App() {
   }, [tabs]);
 
   function openWorkspaceTab() {
-    const existing = tabs.find((tab) => tab.kind === 'workspace');
-    if (existing) { setActiveTabId(existing.id); return; }
-    const id = `workspace-${Date.now()}`;
-    setTabs((current) => [...current, { id, title: 'Сообщения', kind: 'workspace' }]);
+    const workspaceCount = tabs.filter((tab) => tab.kind === 'workspace').length;
+    const id = `workspace-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+    const title = workspaceCount === 0 ? 'Сообщения' : `Сообщения ${workspaceCount + 1}`;
+    setTabs((current) => [...current, { id, title, kind: 'workspace' }]);
     setActiveTabId(id);
   }
 
   function addTab() {
     const id = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    setTabs((current) => [...current, { id, title: 'Главная', kind: 'home' }]);
+    const homeCount = tabs.filter((tab) => tab.kind === 'home').length;
+    setTabs((current) => [...current, { id, title: homeCount === 0 ? 'Главная' : `Главная ${homeCount + 1}`, kind: 'home' }]);
     setActiveTabId(id);
   }
 
@@ -155,7 +157,7 @@ export default function App() {
               </div>
               <button className="new-tab-button" onClick={addTab} title="Новая вкладка" aria-label="Новая вкладка"><Plus size={17} /></button>
               <div className="tab-strip-spacer" />
-              <span className="workspace-indicator"><PanelsTopLeft size={13} /> WORKSPACE</span>
+              <span className="workspace-indicator"><PanelsTopLeft size={13} /> NEXO WORKSPACE</span>
             </div>
             <div className="tab-content">
               <AnimatePresence mode="wait">
