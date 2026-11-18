@@ -390,7 +390,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-downloaded', async (info) => {
     console.log('Nexo update downloaded:', info.version);
-    const result = await dialog.showMessageBox(mainWindow || undefined, {
+    const options = {
       type: 'info',
       title: 'Обновление Nexo готово',
       message: `Версия ${info.version} загружена и готова к установке.`,
@@ -398,7 +398,10 @@ function setupAutoUpdater() {
       buttons: ['Перезапустить сейчас', 'Позже'],
       defaultId: 0,
       cancelId: 1
-    });
+    };
+    const result = mainWindow
+      ? await dialog.showMessageBox(mainWindow, options)
+      : await dialog.showMessageBox(options);
 
     if (result.response === 0) {
       app.isQuitting = true;
