@@ -38,6 +38,7 @@ jobs:
           cd /var/www/nexo
           git pull origin main
           npm install
+          npm ci --prefix client
           npm run build:app
           pm2 restart nexo
           
