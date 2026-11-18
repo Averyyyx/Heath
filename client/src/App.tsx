@@ -180,7 +180,7 @@ export default function App() {
                         <button type="button" className={`view-nav-button ${activeView === 'friends' ? 'active' : ''}`} aria-label="Друзья" onClick={() => setActiveView('friends')}><Users size={19} /></button>
                       </nav>
                       {activeView === 'friends' && <aside className="friends-sidebar"><FriendsList onSelectFriend={handleSelectFriend} /></aside>}
-                      <div className="workspace-content"><MessengerWorkspace user={user} openConversationId={openConversationId} onLogout={handleLogout} onOpenSettings={() => setShowSettings(true)} /></div>
+                      <div className="workspace-content"><MessengerWorkspace user={user} openConversationId={openConversationId} onOpenSettings={() => setShowSettings(true)} /></div>
                     </div>
                   </motion.div>
                 )}
