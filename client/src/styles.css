@@ -1727,3 +1727,63 @@ button:not(:disabled):active {
     transform: none !important;
   }
 }
+
+
+/* Плавность основных переходов Nexo без изменения исходной визуальной темы. */
+.app-stage.app-stage-workspace {
+  min-height: 0;
+  padding: 0;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.app-stage-workspace > .workspace-shell {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.stage-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.stage-loading {
+  align-self: center;
+}
+
+.workspace-shell > .workspace-main {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+}
+
+.workspace-transition {
+  display: flex;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspace-transition > .workspace-grid {
+  width: 100%;
+}
+
+.friends-mode {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

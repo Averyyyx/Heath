@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import SimplePeer, { type SignalData } from 'simple-peer';
 import {
   Hash,
@@ -627,9 +627,11 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
           </header>
           <div className="conversation-items">
             {conversations.length === 0 && <p className="muted">Нет диалогов — добавьте друзей.</p>}
+            <AnimatePresence initial={false}>
             {conversations.map((conversation) => (
-              <button
-                key={conversation.id}
+              <motion.button key={conversation.id} layout
+                initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
                 className={`conversation-item ${conversation.id === activeConversationId ? 'active' : ''}`}
                 onClick={() => setActiveConversationId(conversation.id)}
               >
@@ -647,8 +649,9 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                     })}
                   </small>
                 </div>
-              </button>
+              </motion.button>
             ))}
+            </AnimatePresence>
           </div>
         </aside>
         <section className="chat-window">
@@ -671,11 +674,16 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                   </button>
                 </div>
               </header>
-              <div className="message-stream">
+              <motion.div key={activeConversationId ?? 'empty-conversation'} className="message-stream"
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}>
                 {loadingMessages && <p className="muted">Загружаем…</p>}
-                {!loadingMessages &&
-                  activeMessages.map((message) => (
-                    <article key={message.id} className="message-bubble">
+                {!loadingMessages && (
+                  <AnimatePresence initial={false}>
+                  {activeMessages.map((message) => (
+                    <motion.article key={message.id} layout className="message-bubble"
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}>
                       <header>
                         <strong>{message.author.display_name || message.author.username}</strong>
                         <time>
@@ -689,10 +697,14 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                       {message.attachment && (
                         <AttachmentPreview attachment={message.attachment} />
                       )}
-                    </article>
+                    </motion.article>
                   ))}
-              </div>
-              <div className="composer">
+                  </AnimatePresence>
+                )}
+              </motion.div>
+              <motion.div className="composer"
+                initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05, duration: 0.18 }}>
                 <label className="file-pill">
                   <Paperclip size={16} />
                   <input
@@ -713,16 +725,20 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                 <button className="primary tiny" onClick={handleSendMessage}>
                   <SendHorizontal size={16} />
                 </button>
-              </div>
+              </motion.div>
+              <AnimatePresence initial={false}>
               {uploadFile && (
-                <div className="upload-preview">
+                <motion.div className="upload-preview"
+                  initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16 }}>
                   <ImageIcon size={16} />
                   <span>{uploadFile.name}</span>
                   <button className="link" onClick={() => setUploadFile(null)}>
                     Удалить
                   </button>
-                </div>
+                </motion.div>
               )}
+              </AnimatePresence>
             </>
           )}
         </section>
@@ -773,13 +789,20 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
               </header>
               {voiceStatus && <p className="muted my-3" role="status">{voiceStatus}</p>}
               <h3 className="mt-5 mb-3">Участники ({voiceParticipants.length})</h3>
-              {voiceParticipants.length ? voiceParticipants.map((participant) => (
-                <div key={participant.user.id} className="flex items-center gap-3 py-2 border-b border-[var(--border)]">
+              {voiceParticipants.length ? (
+                <AnimatePresence initial={false}>
+                {voiceParticipants.map((participant) => (
+                <motion.div key={participant.user.id} layout
+                  className="flex items-center gap-3 py-2 border-b border-[var(--border)]"
+                  initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16 }}>
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                   <span>{participant.user.display_name || participant.user.username}</span>
                   {participant.muted && <span className="muted text-xs">Микрофон выключен</span>}
-                </div>
-              )) : <p className="muted">В канале пока никого нет.</p>}
+                </motion.div>
+                ))}
+                </AnimatePresence>
+              ) : <p className="muted">В канале пока никого нет.</p>}
               <p className="muted text-sm mt-5">Сейчас работает вход и список участников. Голосовая передача в серверных каналах ещё не подключена.</p>
             </section>
           ) : activeChannel?.type === 'text' ? (
@@ -801,11 +824,16 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                   </button>
                 </div>
               </header>
-              <div className="message-stream">
+              <motion.div key={activeChannelId ?? 'empty-channel'} className="message-stream"
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}>
                 {loadingChannelMessages && <p className="muted">Загружаем…</p>}
-                {!loadingChannelMessages &&
-                  activeChannelMessages.map((message) => (
-                    <article key={message.id} className="message-bubble">
+                {!loadingChannelMessages && (
+                  <AnimatePresence initial={false}>
+                  {activeChannelMessages.map((message) => (
+                    <motion.article key={message.id} layout className="message-bubble"
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}>
                       <header>
                         <strong>{message.author.display_name || message.author.username}</strong>
                         <time>
@@ -819,10 +847,14 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                       {message.attachment && (
                         <AttachmentPreview attachment={message.attachment} />
                       )}
-                    </article>
+                    </motion.article>
                   ))}
-              </div>
-              <div className="composer">
+                  </AnimatePresence>
+                )}
+              </motion.div>
+              <motion.div className="composer"
+                initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05, duration: 0.18 }}>
                 <label className="file-pill">
                   <Paperclip size={16} />
                   <input
@@ -843,16 +875,20 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                 <button className="primary tiny" onClick={handleSendChannelMessage}>
                   <SendHorizontal size={16} />
                 </button>
-              </div>
+              </motion.div>
+              <AnimatePresence initial={false}>
               {channelUpload && (
-                <div className="upload-preview">
+                <motion.div className="upload-preview"
+                  initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16 }}>
                   <ImageIcon size={16} />
                   <span>{channelUpload.name}</span>
                   <button className="link" onClick={() => setChannelUpload(null)}>
                     Удалить
                   </button>
-                </div>
+                </motion.div>
               )}
+              </AnimatePresence>
             </>
           ) : null}
         </section>
@@ -890,8 +926,11 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
             Друзья
           </button>
         </div>
+        <AnimatePresence mode="wait" initial={false}>
         {mode === 'friends' ? (
-          <div className="friends-mode">
+          <motion.div key="friends-mode" className="friends-mode"
+            initial={{ opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}>
             <div className="friends-wrapper">
               <FriendsPanel
                 user={user}
@@ -902,14 +941,21 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
               />
             </div>
             {renderDirectMessages()}
-          </div>
+          </motion.div>
         ) : (
-          renderServerView()
+          <motion.div key="servers-mode" className="workspace-transition"
+            initial={{ opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}>
+            {renderServerView()}
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
 
+      <AnimatePresence initial={false}>
       {callState && (
         <CallOverlay
+          key={`call-${callState.conversationId}`}
           state={callState}
           onHangUp={endCall}
           onShareScreen={shareScreen}
@@ -917,7 +963,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
       )}
 
       {showCreateServer && (
-        <CreateServerModal
+        <CreateServerModal key="create-server-modal"
           status={serverModalStatus}
           onClose={() => {
             setShowCreateServer(false);
@@ -928,6 +974,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
       )}
 
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1016,26 +1063,35 @@ function ServerSidebar({
       </div>
       <div className="channel-group">
         <div className="flex items-center justify-between"><p className="group-title">текстовые</p><button className="ghost-icon" title="Создать текстовый канал" onClick={() => onCreateChannel('text')}><Plus size={14} /></button></div>
+        <AnimatePresence initial={false}>
         {textChannels.map((channel) => (
-          <button
-            key={channel.id}
+          <motion.button key={channel.id} layout
+            initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -5 }}
+            transition={{ duration: 0.16 }}
             className={`channel ${activeChannelId === channel.id ? 'active' : ''}`}
             onClick={() => onSelectChannel(channel.id)}
           >
             <Hash size={14} />
             {channel.name}
-          </button>
+          </motion.button>
         ))}
+        </AnimatePresence>
         {textChannels.length === 0 && <p className="muted">Пока нет текстовых каналов.</p>}
       </div>
       <div className="channel-group">
         <div className="flex items-center justify-between"><p className="group-title">голосовые</p><button className="ghost-icon" title="Создать голосовой канал" onClick={() => onCreateChannel('voice')}><Plus size={14} /></button></div>
+        <AnimatePresence initial={false}>
         {voiceChannels.map((channel) => (
-          <button key={channel.id} className={`channel voice ${activeChannelId === channel.id ? 'active' : ''}`} onClick={() => onSelectChannel(channel.id)}>
+          <motion.button key={channel.id} layout
+            initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -5 }}
+            transition={{ duration: 0.16 }}
+            className={`channel voice ${activeChannelId === channel.id ? 'active' : ''}`}
+            onClick={() => onSelectChannel(channel.id)}>
             <Volume2 size={14} />
             {channel.name}
-          </button>
+          </motion.button>
         ))}
+        </AnimatePresence>
         {voiceChannels.length === 0 && <p className="muted">Добавьте голосовой канал.</p>}
       </div>
       <footer className="self-card">

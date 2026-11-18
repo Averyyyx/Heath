@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
 import { MessengerWorkspace } from './components/MessengerWorkspace';
@@ -152,56 +153,63 @@ export default function App() {
         </div>
       </header>
 
-      <main className="app-stage flex-1">
-        {loadingSession && <p className="muted">{t('loadingSession')}</p>}
-
-        {!loadingSession && stage === 'login' && <LoginPanel onSuccess={setUser} />}
-
-        {!loadingSession && stage === 'profile' && user && (
-          <ProfileSetup user={user} onComplete={setUser} />
-        )}
-
-        {!loadingSession && stage === 'social' && user && (
-          <div className="workspace-shell flex-1 min-h-0">
-            {/* Боковая навигация: диалоги / друзья */}
-            <nav className="app-view-nav flex flex-col items-center gap-2 py-4 border-r border-[var(--border)] bg-[var(--bg-secondary)]">
-              <button
-                type="button"
-                className={`view-nav-button ${activeView === 'messages' ? 'active' : ''}`}
-                aria-label="Сообщения"
-                onClick={() => setActiveView('messages')}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className={`view-nav-button ${activeView === 'friends' ? 'active' : ''}`}
-                aria-label="Друзья"
-                onClick={() => setActiveView('friends')}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              </button>
-            </nav>
-
-            {/* Список друзей (серверы и диалоги показывает сам MessengerWorkspace) */}
-            {activeView === 'friends' && (
-              <aside className="w-72 shrink-0 border-r border-[var(--border)] bg-[var(--bg-secondary)] overflow-y-auto">
-                <FriendsList onSelectFriend={handleSelectFriend} />
-              </aside>
-            )}
-
-            <div className="flex-1 flex flex-col min-w-0 min-h-0">
-              <MessengerWorkspace user={user} openConversationId={openConversationId} />
-            </div>
-          </div>
-        )}
+      <main className={`app-stage flex-1 ${stage === 'social' && !loadingSession ? 'app-stage-workspace' : ''}`}>
+        <AnimatePresence mode="wait" initial={false}>
+          {loadingSession ? (
+            <motion.p key="session-loading" className="muted stage-loading"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}>
+              {t('loadingSession')}
+            </motion.p>
+          ) : stage === 'login' ? (
+            <motion.div key="login" className="stage-content"
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}>
+              <LoginPanel onSuccess={setUser} />
+            </motion.div>
+          ) : stage === 'profile' && user ? (
+            <motion.div key="profile" className="stage-content"
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}>
+              <ProfileSetup user={user} onComplete={setUser} />
+            </motion.div>
+          ) : stage === 'social' && user ? (
+            <motion.div key="social" className="workspace-shell flex-1 min-h-0"
+              initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.24, ease: 'easeOut' }}>
+              <nav className="app-view-nav flex flex-col items-center gap-2 py-4 border-r border-[var(--border)] bg-[var(--bg-secondary)]">
+                <button type="button" className={`view-nav-button ${activeView === 'messages' ? 'active' : ''}`}
+                  aria-label="Сообщения" onClick={() => setActiveView('messages')}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+                <button type="button" className={`view-nav-button ${activeView === 'friends' ? 'active' : ''}`}
+                  aria-label="Друзья" onClick={() => setActiveView('friends')}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                </button>
+              </nav>
+              <AnimatePresence initial={false}>
+                {activeView === 'friends' && (
+                  <motion.aside key="friends-sidebar"
+                    className="w-72 shrink-0 border-r border-[var(--border)] bg-[var(--bg-secondary)] overflow-y-auto"
+                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}>
+                    <FriendsList onSelectFriend={handleSelectFriend} />
+                  </motion.aside>
+                )}
+              </AnimatePresence>
+              <div className="flex-1 flex flex-col min-w-0 min-h-0">
+                <MessengerWorkspace user={user} openConversationId={openConversationId} />
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </main>
     </div>
   );

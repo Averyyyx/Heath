@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Check, UserPlus, X } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import type { FriendPayload, FriendRecord, User } from '../types';
@@ -126,6 +126,7 @@ export function FriendsPanel({ user, onRefresh }: FriendsPanelProps) {
         </header>
         <div className="friend-list">
           {friends.incoming.length === 0 && <p className="muted">Пока пусто.</p>}
+          <AnimatePresence initial={false}>
           {friends.incoming.map((request) => (
             <FriendCard
               key={request.id}
@@ -152,6 +153,7 @@ export function FriendsPanel({ user, onRefresh }: FriendsPanelProps) {
               }
             />
           ))}
+          </AnimatePresence>
         </div>
       </section>
 
@@ -162,9 +164,11 @@ export function FriendsPanel({ user, onRefresh }: FriendsPanelProps) {
         </header>
         <div className="friend-list">
           {friends.outgoing.length === 0 && <p className="muted">Запросов нет.</p>}
+          <AnimatePresence initial={false}>
           {friends.outgoing.map((request) => (
             <FriendCard key={request.id} record={request} />
           ))}
+          </AnimatePresence>
         </div>
       </section>
 
@@ -176,9 +180,11 @@ export function FriendsPanel({ user, onRefresh }: FriendsPanelProps) {
         <div className="friend-list">
           {loading && <p className="muted">Загружаем…</p>}
           {!loading && friends.friends.length === 0 && <p className="muted">Добавьте первых друзей.</p>}
+          <AnimatePresence initial={false}>
           {friends.friends.map((friend) => (
             <FriendCard key={friend.id} record={friend} />
           ))}
+          </AnimatePresence>
         </div>
       </section>
     </div>
@@ -189,9 +195,8 @@ function FriendCard({ record, actions }: { record: FriendRecord; actions?: React
   return (
     <motion.article
       className={`friend-card ${record.status}`}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
+      layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.18, ease: 'easeOut' }}>
       <div>
         <p>{record.user.display_name || record.user.username}</p>
         <small>@{record.user.username}</small>

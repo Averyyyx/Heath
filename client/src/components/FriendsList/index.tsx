@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { FC, FormEvent } from 'react';
 import type { FriendRecord, FriendPayload, User, UserStatus } from '../../types';
 import { apiFetch } from '../../lib/api';
@@ -151,8 +152,13 @@ export const FriendsList: FC<FriendsListProps> = ({ onSelectFriend }) => {
 
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'pending' ? (
-          filteredRequests.length ? filteredRequests.map((request) => (
-            <div key={request.id} className="p-3 border-b border-gray-700 flex items-center justify-between gap-3">
+          filteredRequests.length ? (
+            <AnimatePresence initial={false}>
+            {filteredRequests.map((request) => (
+            <motion.div key={request.id} layout
+              className="p-3 border-b border-gray-700 flex items-center justify-between gap-3"
+              initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }}
+              transition={{ duration: 0.16 }}>
               <div className="min-w-0">
                 <div className="font-medium text-white truncate">{request.user.display_name || request.user.username}</div>
                 <div className="text-xs text-gray-400">{request.direction === 'incoming' ? 'Входящая заявка' : 'Ожидает ответа'}</div>
@@ -165,19 +171,28 @@ export const FriendsList: FC<FriendsListProps> = ({ onSelectFriend }) => {
                     className="px-3 py-1 text-xs text-white bg-red-700 rounded">Отклонить</button>
                 </div>
               )}
-            </div>
-          )) : <p className="p-6 text-center text-gray-400">Нет ожидающих заявок</p>
+            </motion.div>
+            ))}
+            </AnimatePresence>
+          ) : <p className="p-6 text-center text-gray-400">Нет ожидающих заявок</p>
         ) : (
-          displayFriends.length ? displayFriends.map((friend) => (
-            <button type="button" key={friend.id} onClick={() => onSelectFriend(friend.user)}
-              className="w-full p-3 flex items-center gap-3 text-left hover:bg-gray-700/60 border-b border-gray-700">
+          displayFriends.length ? (
+            <AnimatePresence initial={false}>
+            {displayFriends.map((friend) => (
+            <motion.button type="button" key={friend.id} layout
+              onClick={() => onSelectFriend(friend.user)}
+              className="w-full p-3 flex items-center gap-3 text-left hover:bg-gray-700/60 border-b border-gray-700"
+              initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }}
+              transition={{ duration: 0.16 }}>
               <span className={`w-3 h-3 rounded-full shrink-0 ${friend.user.status === 'online' ? 'bg-green-500' : 'bg-gray-500'}`} />
               <span className="min-w-0">
                 <span className="block font-medium text-white truncate">{friend.user.display_name || friend.user.username}</span>
                 <span className="block text-xs text-gray-400">{friend.user.status === 'online' ? 'В сети' : 'Не в сети'}</span>
               </span>
-            </button>
-          )) : <p className="p-6 text-center text-gray-400">{activeTab === 'online' ? 'Нет друзей в сети' : 'Пока нет друзей'}</p>
+            </motion.button>
+            ))}
+            </AnimatePresence>
+          ) : <p className="p-6 text-center text-gray-400">{activeTab === 'online' ? 'Нет друзей в сети' : 'Пока нет друзей'}</p>
         )}
       </div>
     </div>
