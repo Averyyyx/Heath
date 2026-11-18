@@ -336,6 +336,8 @@ function setupAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowDowngrade = false;
+  // Alpha testers must also receive prerelease builds published to GitHub Releases.
+  autoUpdater.allowPrerelease = true;
 
   autoUpdater.on('checking-for-update', () => {
     console.log('Checking for Nexo updates...');
