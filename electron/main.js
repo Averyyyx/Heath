@@ -324,20 +324,39 @@ function setNotificationCount(count) {
   }
 }
 
-function checkForUpdates() {
-  console.log('Checking for updates...');
-  if (splashWindow) {
-    splashWindow.webContents.send('loading-status', 'Проверяем наличие обновлений…');
-  }
+async function checkForUpdates() {
+  console.log('Checking GitHub releases for Nexo updates...');
+  const sendSplash = (channel, value) => {
+    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.webContents.send(channel, value);
+  };
+  sendSplash('loading-status', 'Проверяем наличие обновлений…');
 
-  // Автообновление пока не подключено: не сообщаем пользователю, что
-  // удалённый сервер действительно проверен или новая версия найдена.
-  setTimeout(() => {
-    console.log('Automatic updates are not configured in this alpha build');
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      splashWindow.webContents.send('update-not-available', 'Автообновления пока не подключены');
+  try {
+    const response = await fetch('https://api.github.com/repos/Averyyyx/Nexo/releases?per_page=10', {
+      headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'Nexo-Desktop-App' },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!response.ok) throw new Error('GitHub API ответил: ' + response.status);
+
+    const releases = await response.json();
+    const latest = releases.find((release) => !release.draft && release.prerelease);
+    if (!latest) {
+      sendSplash('update-not-available', 'Пока нет опубликованных обновлений');
+      return;
     }
-  }, 700);
+
+    const currentVersion = app.getVersion().replace(/^v/, '');
+    const latestVersion = String(latest.tag_name || '').replace(/^v/, '');
+    if (latestVersion && latestVersion !== currentVersion) {
+      sendSplash('update-available', latestVersion);
+      sendSplash('update-details', 'Новая версия опубликована на GitHub. Автоматическая установка пока не поддерживается.');
+    } else {
+      sendSplash('update-not-available', 'Установлена последняя версия');
+    }
+  } catch (error) {
+    console.warn('Unable to check Nexo updates:', error.message);
+    sendSplash('update-error', 'Не удалось связаться с GitHub. Запуск продолжится.');
+  }
 }
 
 function getServerRuntime() {
