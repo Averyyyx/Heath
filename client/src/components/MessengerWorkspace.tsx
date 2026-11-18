@@ -85,6 +85,8 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
   const [showSettings, setShowSettings] = useState(false);
   const callStateRef = useRef<CallState | null>(null);
   const previousChannelRef = useRef<number | null>(null);
+  const activeChannelIdRef = useRef<number | null>(activeChannelId);
+  activeChannelIdRef.current = activeChannelId;
 
   useEffect(() => {
     callStateRef.current = callState;
@@ -162,7 +164,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
       }
     );
     socket.on('voice:state', ({ channelId, participants }: { channelId: number; participants: VoiceParticipantRecord[] }) => {
-      setVoiceParticipants(participants || []);
+      if (channelId === activeChannelIdRef.current) setVoiceParticipants(participants || []);
     });
     socket.on('error', (payload) => {
       console.warn('Socket error', payload);
