@@ -320,8 +320,14 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Не удалось создать канал');
-      await fetchServers();
-      if (payload.channel?.id) setActiveChannelId(payload.channel.id);
+      if (payload.server) {
+        const updatedServer = payload.server as Server;
+        setServers((previous) => previous.map((server) => server.id === updatedServer.id ? updatedServer : server));
+        const createdChannel = [...(updatedServer.channels || [])].sort((a, b) => b.id - a.id)[0];
+        if (createdChannel) setActiveChannelId(createdChannel.id);
+      } else {
+        await fetchServers();
+      }
     } catch (error) {
       setVoiceStatus((error as Error).message);
     }
