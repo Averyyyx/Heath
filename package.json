@@ -48,7 +48,8 @@
     "sqlite3": "^5.1.6",
     "uuid": "^9.0.1",
     "xss-clean": "^0.1.4",
-    "zxcvbn": "^4.4.2"
+    "zxcvbn": "^4.4.2",
+    "electron-updater": "^6.6.2"
   },
   "devDependencies": {
     "electron": "^39.2.3",
