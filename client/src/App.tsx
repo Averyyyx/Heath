@@ -110,7 +110,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)]">
+    <div className="app-root min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)]">
       <header className="app-nav flex items-center justify-between px-5 py-3 border-b border-[var(--border)]">
         <div className="brand">
           <strong>{t('appName')}</strong>
