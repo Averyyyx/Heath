@@ -95,7 +95,7 @@ export default function App() {
       } else console.warn('Не удалось открыть диалог:', response.status);
     } catch (error) { console.error('Не удалось открыть диалог', error); }
     finally { setActiveView('messages'); openWorkspaceTab(); }
-  }, []);
+  }, [tabs]);
 
   function openWorkspaceTab() {
     const existing = tabs.find((tab) => tab.kind === 'workspace');
