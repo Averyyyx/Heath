@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
 import { FriendsPanel } from './FriendsPanel';
-import { SettingsPanel } from './SettingsPanel';
 import type {
   Channel,
   ChannelMessage,
@@ -37,6 +36,7 @@ type MessengerWorkspaceProps = {
   /** Диалог, который нужно открыть снаружи (например, после клика по другу в списке друзей) */
   openConversationId?: number | null;
   onLogout?: () => void;
+  onOpenSettings?: () => void;
 };
 
 type MessageStore = Record<number, Message[]>;
@@ -53,7 +53,7 @@ type CallState = {
 
 type Status = { type: 'idle' | 'loading' | 'success' | 'error'; message?: string };
 
-export function MessengerWorkspace({ user, openConversationId = null, onLogout }: MessengerWorkspaceProps) {
+export function MessengerWorkspace({ user, openConversationId = null, onLogout, onOpenSettings }: MessengerWorkspaceProps) {
   const [mode, setMode] = useState<WorkspaceMode>('servers');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -74,7 +74,6 @@ export function MessengerWorkspace({ user, openConversationId = null, onLogout }
 
   const socketRef = useRef<Socket | null>(null);
   const [callState, setCallState] = useState<CallState | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
   const callStateRef = useRef<CallState | null>(null);
   const previousChannelRef = useRef<number | null>(null);
 
@@ -704,7 +703,7 @@ export function MessengerWorkspace({ user, openConversationId = null, onLogout }
           setActiveServerId(serverId);
         }}
         onCreateServer={() => setShowCreateServer(true)}
-        onOpenSettings={() => setShowSettings(true)}
+        onOpenSettings={() => onOpenSettings?.()}
       />
       <div className="workspace-main">
         <div className="workspace-nav">
@@ -757,8 +756,6 @@ export function MessengerWorkspace({ user, openConversationId = null, onLogout }
           onSubmit={handleCreateServer}
         />
       )}
-
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} onLogout={onLogout} />}
     </div>
   );
 }
