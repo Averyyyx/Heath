@@ -187,10 +187,21 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
   }, [activeServerId]);
 
   useEffect(() => {
-    if (!socketRef.current || !activeChannelId || !activeServerId || servers.find((item) => item.id === activeServerId)?.channels.find((item) => item.id === activeChannelId)?.type !== 'text') return;
+    if (!socketRef.current || !activeChannelId || !activeServerId) return;
     const socket = socketRef.current;
+    const selectedChannel = servers.find((item) => item.id === activeServerId)?.channels.find((item) => item.id === activeChannelId);
     socket.emit('channel:join', { serverId: activeServerId, channelId: activeChannelId });
-    loadChannelMessages(activeServerId, activeChannelId);
+    if (selectedChannel?.type === 'text') {
+      loadChannelMessages(activeServerId, activeChannelId);
+    } else {
+      apiFetch(`/api/servers/${activeServerId}/channels/${activeChannelId}/voice`)
+        .then(async (response) => {
+          if (!response.ok) return;
+          const payload = await response.json();
+          setVoiceParticipants(payload.participants || []);
+        })
+        .catch((error) => console.error('Failed to load voice participants', error));
+    }
     const previousChannel = previousChannelRef.current;
     previousChannelRef.current = activeChannelId;
     return () => {
