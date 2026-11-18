@@ -272,3 +272,15 @@ None. All changes are backward compatible.
 - The splash screen now presents startup/update status and supports update/progress events.
 
 **Update-service note:** the current Alpha codebase still has no real remote auto-update provider. The splash screen reports this honestly rather than pretending that it checked a release server. Actual release discovery and downloading remain future work.
+
+## Version 0.0.2 Alpha — Interface and Workspace
+
+- Preserved the existing Nexo colors, typography and visual identity.
+- Improved friend search, online/all/request filters, friend rows and request feedback.
+- Moved sign-out from the title bar into Settings and exposed Settings from Home and the workspace.
+- Added browser-style tabs: the + button opens a fresh Home tab; opening Messages creates a separate workspace tab.
+- Added the centered, animated welcome screen after successful sign-in and after profile completion during registration.
+- Refined the compact Electron splash screen and added a real GitHub prerelease availability check.
+- Updated the Windows release workflow and package versions to 0.0.2-alpha.
+
+**Known Alpha limitation:** the splash can detect a newer published GitHub prerelease, but downloading and installing it automatically is not yet implemented. Workspace tabs are separate navigation entries; chat data is still loaded by the shared workspace component.
