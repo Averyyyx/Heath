@@ -260,3 +260,15 @@ None. All changes are backward compatible.
 ### Alpha limitations
 - The activity feed is currently a visual starting point; live activity aggregation is not included.
 - Tabs currently support Home pages and a shared Messages/Servers workspace. Independent per-tab chat sessions and tab persistence are planned for a later alpha.
+
+## Follow-up polish — 0.0.11 Alpha
+
+- Preserved the existing Nexo palette and typography while refining spacing and hierarchy in both friend views.
+- Rebuilt the friends sidebar search, online/all/request filters, empty states, friend rows and request actions.
+- Connected friend-request actions to the existing `/api/friends/respond` endpoint.
+- Removed the sign-out action from the window title bar; it is now available in Settings.
+- Made Settings accessible from the Home dashboard and the workspace navigation.
+- Replaced the purple/neon splash screen with a compact, restrained Nexo-style loading window.
+- The splash screen now presents startup/update status and supports update/progress events.
+
+**Update-service note:** the current Alpha codebase still has no real remote auto-update provider. The splash screen reports this honestly rather than pretending that it checked a release server. Actual release discovery and downloading remain future work.
