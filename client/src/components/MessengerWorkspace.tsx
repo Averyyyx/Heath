@@ -14,7 +14,9 @@ import {
   Settings,
   Users,
   Volume2,
-  Cog
+  Cog,
+  Link2,
+  UserPlus
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
 import { FriendsPanel } from './FriendsPanel';
@@ -79,6 +81,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
   const [voiceStatus, setVoiceStatus] = useState('');
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [serverModalStatus, setServerModalStatus] = useState<Status>({ type: 'idle' });
+  const inviteHandledRef = useRef(false);
 
   const socketRef = useRef<Socket | null>(null);
   const [callState, setCallState] = useState<CallState | null>(null);
@@ -95,6 +98,15 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
   useEffect(() => {
     fetchConversations();
     fetchServers();
+  }, []);
+
+  useEffect(() => {
+    if (inviteHandledRef.current) return;
+    const inviteCode = new URLSearchParams(window.location.search).get('invite');
+    if (!inviteCode) return;
+    inviteHandledRef.current = true;
+    window.history.replaceState({}, '', window.location.pathname);
+    joinServerWithInvite(inviteCode);
   }, []);
 
   // Внешняя команда «открыть диалог»: подгружаем список (диалог мог быть только что создан)
@@ -456,6 +468,53 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
     }
   }
 
+  async function createServerInvite() {
+    if (!activeServerId) return;
+    try {
+      const response = await apiFetch(`/api/servers/${activeServerId}/invites`, { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось создать приглашение');
+      const inviteUrl = new URL(`/?invite=${encodeURIComponent(payload.invite.code)}`, window.location.origin).toString();
+      try {
+        await navigator.clipboard.writeText(inviteUrl);
+        setVoiceStatus('Ссылка-приглашение скопирована. Она действует 7 дней.');
+      } catch {
+        window.prompt('Скопируйте ссылку-приглашение (действует 7 дней):', inviteUrl);
+      }
+    } catch (error) {
+      setVoiceStatus((error as Error).message);
+    }
+  }
+
+  async function joinServerWithInvite(rawCode?: string) {
+    const entered = rawCode ?? window.prompt('Вставьте ссылку-приглашение или её код:');
+    if (!entered?.trim()) return;
+    let code = entered.trim();
+    try {
+      if (code.includes('://')) {
+        const parsed = new URL(code);
+        code = parsed.searchParams.get('invite') || parsed.pathname.split('/').filter(Boolean).pop() || '';
+      } else if (code.startsWith('?')) {
+        code = new URLSearchParams(code.slice(1)).get('invite') || '';
+      }
+      const response = await apiFetch(`/api/invites/${encodeURIComponent(code)}/join`, { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось вступить в сервер');
+      const joinedServer = payload.server as Server;
+      setServers((previous) => {
+        const exists = previous.some((server) => server.id === joinedServer.id);
+        return exists
+          ? previous.map((server) => server.id === joinedServer.id ? joinedServer : server)
+          : [joinedServer, ...previous];
+      });
+      setActiveServerId(joinedServer.id);
+      setMode('servers');
+      setVoiceStatus(payload.alreadyMember ? 'Вы уже состоите в этом сервере.' : 'Вы успешно вступили в сервер.');
+    } catch (error) {
+      setVoiceStatus((error as Error).message);
+    }
+  }
+
   async function startCall(conversationId: number, options?: { initiator?: boolean; initialSignal?: SignalData }) {
     if (!socketRef.current) return;
     try {
@@ -694,6 +753,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
               activeChannelId={activeChannelId}
               onSelectChannel={setActiveChannelId}
               onCreateChannel={createChannel}
+              onCreateInvite={createServerInvite}
             />
           ) : (
             <div className="muted">Выберите сервер из списка слева.</div>
@@ -812,6 +872,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
           setActiveServerId(serverId);
         }}
         onCreateServer={() => setShowCreateServer(true)}
+        onJoinServer={() => joinServerWithInvite()}
         onOpenSettings={() => setShowSettings(true)}
       />
       <div className="workspace-main">
@@ -878,6 +939,7 @@ function ServersRail({
   onSelectHome,
   onSelectServer,
   onCreateServer,
+  onJoinServer,
   onOpenSettings
 }: {
   mode: WorkspaceMode;
@@ -886,6 +948,7 @@ function ServersRail({
   onSelectHome: () => void;
   onSelectServer: (serverId: number) => void;
   onCreateServer: () => void;
+  onJoinServer: () => void;
   onOpenSettings: () => void;
 }) {
   return (
@@ -910,8 +973,11 @@ function ServersRail({
           )}
         </button>
       ))}
-      <button className="server-circle ghost" onClick={onCreateServer}>
+      <button className="server-circle ghost" onClick={onCreateServer} title="Создать сервер">
         <Plus size={18} />
+      </button>
+      <button className="server-circle ghost" onClick={onJoinServer} title="Присоединиться по приглашению">
+        <UserPlus size={16} />
       </button>
       <button className="server-circle ghost" onClick={onOpenSettings}>
         <Cog size={16} />
@@ -924,12 +990,14 @@ function ServerSidebar({
   server,
   activeChannelId,
   onSelectChannel,
-  onCreateChannel
+  onCreateChannel,
+  onCreateInvite
 }: {
   server: Server;
   activeChannelId: number | null;
   onSelectChannel: (channelId: number) => void;
   onCreateChannel: (type: 'text' | 'voice') => void;
+  onCreateInvite: () => void;
 }) {
   const textChannels = server.channels.filter((channel) => channel.type === 'text');
   const voiceChannels = server.channels.filter((channel) => channel.type !== 'text');
@@ -937,9 +1005,14 @@ function ServerSidebar({
     <>
       <div className="channel-header">
         {server.name}
-        <button className="ghost-icon" title="Настройки сервера">
-          <Settings size={16} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button className="ghost-icon" title="Создать ссылку-приглашение" onClick={onCreateInvite}>
+            <Link2 size={16} />
+          </button>
+          <button className="ghost-icon" title="Настройки сервера">
+            <Settings size={16} />
+          </button>
+        </div>
       </div>
       <div className="channel-group">
         <div className="flex items-center justify-between"><p className="group-title">текстовые</p><button className="ghost-icon" title="Создать текстовый канал" onClick={() => onCreateChannel('text')}><Plus size={14} /></button></div>
