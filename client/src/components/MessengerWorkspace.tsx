@@ -40,6 +40,12 @@ type MessengerWorkspaceProps = {
 
 type MessageStore = Record<number, Message[]>;
 type ChannelMessageStore = Record<number, ChannelMessage[]>;
+type VoiceParticipantRecord = {
+  user: { id: number; username: string; display_name: string; avatar_url: string };
+  muted: boolean;
+  deafened: boolean;
+  joined_at: string;
+};
 
 type CallState = {
   conversationId: number;
@@ -68,6 +74,9 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
   const [loadingChannelMessages, setLoadingChannelMessages] = useState(false);
   const [channelComposer, setChannelComposer] = useState('');
   const [channelUpload, setChannelUpload] = useState<File | null>(null);
+  const [voiceParticipants, setVoiceParticipants] = useState<VoiceParticipantRecord[]>([]);
+  const [joinedVoiceChannelId, setJoinedVoiceChannelId] = useState<number | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState('');
   const [showCreateServer, setShowCreateServer] = useState(false);
   const [serverModalStatus, setServerModalStatus] = useState<Status>({ type: 'idle' });
 
@@ -152,6 +161,9 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
         });
       }
     );
+    socket.on('voice:state', ({ channelId, participants }: { channelId: number; participants: VoiceParticipantRecord[] }) => {
+      if (channelId === activeChannelId) setVoiceParticipants(participants || []);
+    });
     socket.on('error', (payload) => {
       console.warn('Socket error', payload);
     });
@@ -175,7 +187,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
   }, [activeServerId]);
 
   useEffect(() => {
-    if (!socketRef.current || !activeChannelId || !activeServerId) return;
+    if (!socketRef.current || !activeChannelId || !activeServerId || activeChannel?.type !== 'text') return;
     const socket = socketRef.current;
     socket.emit('channel:join', { serverId: activeServerId, channelId: activeChannelId });
     loadChannelMessages(activeServerId, activeChannelId);
@@ -186,7 +198,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
         socket.emit('channel:leave', previousChannel);
       }
     };
-  }, [activeServerId, activeChannelId]);
+  }, [activeServerId, activeChannelId, activeChannel?.type]);
 
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId) || null,
@@ -256,6 +268,62 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
       console.error(error);
     } finally {
       setLoadingMessages(false);
+    }
+  }
+
+  async function joinVoiceChannel(channel: Channel) {
+    if (!activeServerId) return;
+    setVoiceStatus('Подключаемся…');
+    try {
+      const response = await apiFetch(`/api/servers/${activeServerId}/channels/${channel.id}/voice/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ muted: false, deafened: false })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось войти в голосовой канал');
+      if (joinedVoiceChannelId && joinedVoiceChannelId !== channel.id) {
+        await apiFetch(`/api/servers/${activeServerId}/channels/${joinedVoiceChannelId}/voice/leave`, { method: 'POST' });
+      }
+      setJoinedVoiceChannelId(channel.id);
+      setVoiceParticipants(payload.participants || []);
+      setVoiceStatus('Вы подключены к голосовому каналу. Передача голоса между участниками пока не реализована.');
+    } catch (error) {
+      setVoiceStatus((error as Error).message);
+    }
+  }
+
+  async function leaveVoiceChannel() {
+    if (!activeServerId || !joinedVoiceChannelId) return;
+    const channelId = joinedVoiceChannelId;
+    try {
+      const response = await apiFetch(`/api/servers/${activeServerId}/channels/${channelId}/voice/leave`, { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось покинуть канал');
+      setVoiceParticipants(payload.participants || []);
+      setJoinedVoiceChannelId(null);
+      setVoiceStatus('');
+    } catch (error) {
+      setVoiceStatus((error as Error).message);
+    }
+  }
+
+  async function createChannel(type: 'text' | 'voice') {
+    if (!activeServerId) return;
+    const name = window.prompt(type === 'voice' ? 'Название голосового канала' : 'Название текстового канала');
+    if (!name?.trim()) return;
+    try {
+      const response = await apiFetch(`/api/servers/${activeServerId}/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), type })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось создать канал');
+      await fetchServers();
+      if (payload.channel?.id) setActiveChannelId(payload.channel.id);
+    } catch (error) {
+      setVoiceStatus((error as Error).message);
     }
   }
 
@@ -606,6 +674,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
               server={activeServer}
               activeChannelId={activeChannelId}
               onSelectChannel={setActiveChannelId}
+              onCreateChannel={createChannel}
             />
           ) : (
             <div className="muted">Выберите сервер из списка слева.</div>
@@ -613,7 +682,28 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
         </section>
         <section className="chat-window">
           {!activeChannel && <p className="muted">Выберите канал, чтобы начать общение.</p>}
-          {activeChannel && (
+          {activeChannel?.type === 'voice' ? (
+            <section className="voice-channel-view p-6">
+              <header className="chat-header">
+                <div className="title"><Volume2 size={16} /> {activeChannel.name}</div>
+                {joinedVoiceChannelId === activeChannel.id ? (
+                  <button className="primary tiny" onClick={() => void leaveVoiceChannel()}>Покинуть канал</button>
+                ) : (
+                  <button className="primary tiny" onClick={() => void joinVoiceChannel(activeChannel)}>Подключиться</button>
+                )}
+              </header>
+              {voiceStatus && <p className="muted my-3" role="status">{voiceStatus}</p>}
+              <h3 className="mt-5 mb-3">Участники ({voiceParticipants.length})</h3>
+              {voiceParticipants.length ? voiceParticipants.map((participant) => (
+                <div key={participant.user.id} className="flex items-center gap-3 py-2 border-b border-[var(--border)]">
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  <span>{participant.user.display_name || participant.user.username}</span>
+                  {participant.muted && <span className="muted text-xs">Микрофон выключен</span>}
+                </div>
+              )) : <p className="muted">В канале пока никого нет.</p>}
+              <p className="muted text-sm mt-5">Сейчас работает вход и список участников. Голосовая передача в серверных каналах ещё не подключена.</p>
+            </section>
+          ) : activeChannel?.type === 'text' ? (
             <>
               <header className="chat-header">
                 <div className="title">
@@ -685,7 +775,7 @@ export function MessengerWorkspace({ user, openConversationId = null }: Messenge
                 </div>
               )}
             </>
-          )}
+          ) : null}
         </section>
       </div>
     );
@@ -814,11 +904,13 @@ function ServersRail({
 function ServerSidebar({
   server,
   activeChannelId,
-  onSelectChannel
+  onSelectChannel,
+  onCreateChannel
 }: {
   server: Server;
   activeChannelId: number | null;
   onSelectChannel: (channelId: number) => void;
+  onCreateChannel: (type: 'text' | 'voice') => void;
 }) {
   const textChannels = server.channels.filter((channel) => channel.type === 'text');
   const voiceChannels = server.channels.filter((channel) => channel.type !== 'text');
@@ -831,7 +923,7 @@ function ServerSidebar({
         </button>
       </div>
       <div className="channel-group">
-        <p className="group-title">текстовые</p>
+        <div className="flex items-center justify-between"><p className="group-title">текстовые</p><button className="ghost-icon" title="Создать текстовый канал" onClick={() => onCreateChannel('text')}><Plus size={14} /></button></div>
         {textChannels.map((channel) => (
           <button
             key={channel.id}
@@ -845,9 +937,9 @@ function ServerSidebar({
         {textChannels.length === 0 && <p className="muted">Пока нет текстовых каналов.</p>}
       </div>
       <div className="channel-group">
-        <p className="group-title">голосовые</p>
+        <div className="flex items-center justify-between"><p className="group-title">голосовые</p><button className="ghost-icon" title="Создать голосовой канал" onClick={() => onCreateChannel('voice')}><Plus size={14} /></button></div>
         {voiceChannels.map((channel) => (
-          <button key={channel.id} className="channel voice">
+          <button key={channel.id} className={`channel voice ${activeChannelId === channel.id ? 'active' : ''}`} onClick={() => onSelectChannel(channel.id)}>
             <Volume2 size={14} />
             {channel.name}
           </button>
