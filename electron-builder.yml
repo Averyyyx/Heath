@@ -40,6 +40,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Nexo
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
 
 extraMetadata:
   main: electron/main.js

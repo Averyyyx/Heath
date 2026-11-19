@@ -3,6 +3,8 @@ import type { FormEvent, ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Check, UserPlus, X, MessageCircle } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { getSocket } from '../lib/socket';
+import { Avatar } from './Avatar';
 import type { FriendPayload, FriendRecord, User } from '../types';
 
 type FriendsPanelProps = {
@@ -19,7 +21,19 @@ export function FriendsPanel({ user, onRefresh, onOpenConversation }: FriendsPan
   const [status, setStatus] = useState<Status>({ type: 'idle' });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { void refreshFriends(); }, []);
+  useEffect(() => {
+    void refreshFriends();
+    const socket = getSocket();
+    const onUserUpdate = ({ user: updated }: { user: User }) => {
+      setFriends((current) => ({
+        incoming: current.incoming.map((item) => item.user.id === updated.id ? { ...item, user: updated } : item),
+        outgoing: current.outgoing.map((item) => item.user.id === updated.id ? { ...item, user: updated } : item),
+        friends: current.friends.map((item) => item.user.id === updated.id ? { ...item, user: updated } : item)
+      }));
+    };
+    socket.on('user:update', onUserUpdate);
+    return () => socket.off('user:update', onUserUpdate);
+  }, []);
 
   async function refreshFriends() {
     setLoading(true);
@@ -138,9 +152,7 @@ function FriendCard({ record, actions }: { record: FriendRecord; actions?: React
   const name = record.user.display_name || record.user.username;
   return (
     <motion.article className={`friend-card ${record.status}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <span className="friend-avatar" style={{ backgroundColor: record.user.avatar_color || '#D97757' }}>
-        {(name[0] || 'N').toUpperCase()}
-      </span>
+      <Avatar user={record.user} size={32} showStatus />
       <div className="friend-identity"><p>{name}</p><small>@{record.user.username}</small></div>
       {actions && <div className="friend-actions">{actions}</div>}
     </motion.article>

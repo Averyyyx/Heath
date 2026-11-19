@@ -45,11 +45,21 @@ jobs:
       - name: Build Windows installer
         run: npm run electron:build
 
+      - name: Generate SHA-256 checksum
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist -Filter *.exe | Select-Object -First 1
+          if (-not $installer) { throw 'Windows installer not found.' }
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path ($installer.FullName + '.sha256') -Value $hash -NoNewline -Encoding ascii
+
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: Nexo-${{ steps.version.outputs.version }}-Windows
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/*.exe.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -60,4 +70,6 @@ jobs:
           name: Nexo ${{ steps.version.outputs.version }}
           prerelease: true
           generate_release_notes: true
-          files: dist/*.exe
+          files: |
+            dist/*.exe
+            dist/*.exe.sha256

@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import {
   Palette,
   RefreshCw,
+  UserCircle,
+  Upload,
   Star,
   Users,
   Check,
@@ -14,17 +16,22 @@ import {
   LogOut
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { Avatar } from './Avatar';
+import type { User } from '../types';
 import { applyTheme, isThemeChoice } from '../lib/theme';
 import { t } from '../lib/strings';
 import type { Channel, Server, ServerRole } from '../types';
 
-type SettingsSection = 'appearance' | 'premium' | 'servers' | 'updates';
+type SettingsSection = 'account' | 'profile' | 'appearance' | 'premium' | 'servers' | 'updates';
 
 type SettingsPanelProps = {
+  user: User;
+  onUserUpdate?: (user: User) => void;
+  initialSection?: SettingsSection;
   onClose: () => void;
   onLogout?: () => void;
   appVersion?: string;
-  onCheckUpdates?: () => Promise<{ status: string; version?: string; message: string }>;
+  onCheckUpdates?: () => Promise<{ status: string; version?: string; message: string; releaseNotes?: string }>;
 };
 
 type UserSettings = {
@@ -96,8 +103,23 @@ const PERMISSION_FLAGS = [
   { label: 'Транслировать экран', value: 1 << 9 }
 ];
 
-export function SettingsPanel({ onClose, onLogout, appVersion = '0.0.3-alpha', onCheckUpdates }: SettingsPanelProps) {
-  const [section, setSection] = useState<SettingsSection>('appearance');
+export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.4-alpha', onCheckUpdates }: SettingsPanelProps) {
+  const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [accountName, setAccountName] = useState(user.display_name || '');
+  const [accountHandle, setAccountHandle] = useState(user.username || '');
+  const [profileBio, setProfileBio] = useState(user.bio || '');
+  const [profileColor, setProfileColor] = useState(user.avatar_color || '#D97757');
+  const [handleState, setHandleState] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [handleHint, setHandleHint] = useState('Логин можно менять раз в 14 дней.');
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<Status>({ type: 'idle' });
+  const [passwordDraft, setPasswordDraft] = useState({ current: '', next: '', confirm: '' });
+  const [passwordStatus, setPasswordStatus] = useState<Status>({ type: 'idle' });
+  const [twoFactorQr, setTwoFactorQr] = useState('');
+  const [twoFactorToken, setTwoFactorToken] = useState('');
+  const [twoFactorStatus, setTwoFactorStatus] = useState<Status>({ type: 'idle' });
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<Status>({ type: 'idle' });
@@ -113,10 +135,50 @@ export function SettingsPanel({ onClose, onLogout, appVersion = '0.0.3-alpha', o
   const [premium, setPremium] = useState<PremiumResponse | null>(null);
   const [premiumStatus, setPremiumStatus] = useState<Status>({ type: 'idle' });
   const [updateStatus, setUpdateStatus] = useState<Status>({ type: 'idle' });
+  const [autoDownloadUpdates, setAutoDownloadUpdates] = useState(true);
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
+  const [releaseNotes, setReleaseNotes] = useState('');
   const [subscription, setSubscription] = useState<PremiumStatus | null>(null);
   const [overrideDrafts, setOverrideDrafts] = useState<
     Record<number, { roleId: number | ''; allow: number; deny: number }>
   >({});
+
+  useEffect(() => {
+    window.nexoAPI?.getUpdatePreferences?.()
+      .then((preferences) => setAutoDownloadUpdates(preferences.autoDownload !== false))
+      .catch(() => {});
+    const unsubscribe = window.nexoAPI?.onUpdateStatus?.((payload) => {
+      if (Number.isFinite(payload.percent)) setUpdateProgress(payload.percent as number);
+      if (payload.releaseNotes) setReleaseNotes(payload.releaseNotes);
+      if (payload.status === 'checking' || payload.status === 'downloading' || payload.status === 'installing') {
+        setUpdateStatus({ type: 'loading', message: payload.message || 'Проверяем обновление…' });
+      } else if (payload.status === 'error') {
+        setUpdateStatus({ type: 'error', message: payload.message || 'Не удалось выполнить обновление.' });
+      } else if (payload.message) {
+        setUpdateStatus({ type: 'success', message: payload.message });
+      }
+    });
+    return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
+  }, []);
+
+  async function changeAutoDownload(value: boolean) {
+    setAutoDownloadUpdates(value);
+    try { window.nexoAPI?.setUpdatePreferences?.({ autoDownload: value }); }
+    catch { setAutoDownloadUpdates(!value); }
+  }
+
+  useEffect(() => {
+    setAccountName(user.display_name || '');
+    setAccountHandle(user.username || '');
+    setProfileBio(user.bio || '');
+    setProfileColor(user.avatar_color || '#D97757');
+  }, [user]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     async function bootstrap() {
@@ -888,7 +950,9 @@ export function SettingsPanel({ onClose, onLogout, appVersion = '0.0.3-alpha', o
     }
     setUpdateStatus({ type: 'loading', message: 'Проверяем релизы Nexo…' });
     try {
+      setUpdateProgress(null);
       const result = await onCheckUpdates();
+      if (result.releaseNotes) setReleaseNotes(result.releaseNotes);
       setUpdateStatus({
         type: result.status === 'error' ? 'error' : result.status === 'unavailable' ? 'idle' : 'success',
         message: result.message
@@ -913,14 +977,273 @@ export function SettingsPanel({ onClose, onLogout, appVersion = '0.0.3-alpha', o
           <RefreshCw size={16} className={updateStatus.type === 'loading' ? 'spin' : ''} />
           {updateStatus.type === 'loading' ? 'Проверяем…' : 'Проверить обновления'}
         </button>
+        {updateProgress !== null && updateStatus.type === 'loading' && (
+          <div className="update-progress" aria-label={`Загрузка обновления: ${updateProgress}%`}>
+            <div><span style={{ width: `${updateProgress}%` }} /></div><small>{updateProgress}%</small>
+          </div>
+        )}
+        <label className="update-auto-download">
+          <input type="checkbox" checked={autoDownloadUpdates} onChange={(event) => void changeAutoDownload(event.target.checked)} />
+          <span>Автоматически скачивать обновления</span>
+        </label>
         {updateStatus.message && <p className={`status ${updateStatus.type}`}>{updateStatus.message}</p>}
-        <p className="muted update-help">Когда появится новая версия, установщик скачается автоматически. Перед установкой Nexo предложит закрыть приложение и запустить обновление.</p>
+        {releaseNotes && <details className="release-notes"><summary>Что нового</summary><pre>{releaseNotes}</pre></details>}
+        <p className="muted update-help">При запуске Nexo проверяет новые Alpha-релизы. Скачанные установщики проверяются по SHA-256; тихая установка запускается автоматически.</p>
+      </div>
+    );
+  }
+
+  const profilePalette = ['#D97757', '#B66F83', '#788CB8', '#6F9B86', '#B18A55', '#897CB4', '#5F9EAA', '#9A806D', '#7E9670'];
+
+  useEffect(() => {
+    const value = accountHandle.trim().toLowerCase();
+    if (!value || value === user.username) {
+      setHandleState('available');
+      setHandleHint(value === user.username ? 'Текущий логин.' : 'Введите логин.');
+      return;
+    }
+    if (!/^[a-z0-9](?:[a-z0-9._-]{1,22}[a-z0-9])$/.test(value)) {
+      setHandleState('taken');
+      setHandleHint('3–24 символа; a–z, 0–9, точка, дефис или подчёркивание. Без спецсимвола в начале и конце.');
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      setHandleState('checking');
+      try {
+        const response = await apiFetch(`/api/profile/check-handle?username=${encodeURIComponent(value)}`);
+        if (!response.ok) throw new Error('Не удалось проверить логин.');
+        const payload = await response.json();
+        setHandleState(payload.available ? 'available' : 'taken');
+        setHandleHint(payload.available ? 'Свободен' : payload.reason || 'Уже занят');
+      } catch {
+        setHandleState('idle');
+        setHandleHint('Не удалось проверить доступность. Сервер проверит логин при сохранении.');
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [accountHandle, user.username]);
+
+  async function saveProfile() {
+    if (accountName.trim().length < 2 || accountName.trim().length > 32) {
+      setProfileStatus({ type: 'error', message: 'Имя должно содержать от 2 до 32 символов.' });
+      return;
+    }
+    if (handleState === 'taken') {
+      setProfileStatus({ type: 'error', message: handleHint });
+      return;
+    }
+    setProfileBusy(true);
+    setProfileStatus({ type: 'loading', message: 'Сохраняем изменения…' });
+    try {
+      const response = await apiFetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: accountName.trim(),
+          username: accountHandle.trim().toLowerCase(),
+          bio: profileBio.trim().slice(0, 200),
+          avatarColor: profileColor
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось сохранить профиль.');
+      onUserUpdate?.(payload.user as User);
+      setProfileStatus({ type: 'success', message: 'Профиль обновлён.' });
+    } catch (error) {
+      setProfileStatus({ type: 'error', message: (error as Error).message });
+    } finally { setProfileBusy(false); }
+  }
+
+  async function uploadAvatar(file?: File) {
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setProfileStatus({ type: 'error', message: 'Изображение должно быть не больше 2 МБ.' });
+      return;
+    }
+    setAvatarBusy(true);
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
+    try {
+      const form = new FormData();
+      form.append('avatar', file);
+      const response = await apiFetch('/api/profile/avatar', { method: 'POST', body: form });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось загрузить аватар.');
+      onUserUpdate?.(payload.user as User);
+      setProfileStatus({ type: 'success', message: 'Аватар обновлён.' });
+    } catch (error) {
+      setProfileStatus({ type: 'error', message: (error as Error).message });
+    } finally {
+      setAvatarBusy(false);
+      setAvatarPreview(null);
+      URL.revokeObjectURL(previewUrl);
+    }
+  }
+
+  async function removeAvatar() {
+    setAvatarBusy(true);
+    try {
+      const response = await apiFetch('/api/profile/avatar', { method: 'DELETE' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось удалить аватар.');
+      onUserUpdate?.(payload.user as User);
+      setProfileStatus({ type: 'success', message: 'Аватар удалён.' });
+    } catch (error) {
+      setProfileStatus({ type: 'error', message: (error as Error).message });
+    } finally { setAvatarBusy(false); }
+  }
+
+  async function updatePassword() {
+    if (passwordDraft.next.length < 8 || passwordDraft.next.length > 128) {
+      setPasswordStatus({ type: 'error', message: 'Пароль должен содержать от 8 до 128 символов.' });
+      return;
+    }
+    if (passwordDraft.next !== passwordDraft.confirm) {
+      setPasswordStatus({ type: 'error', message: 'Новые пароли не совпадают.' });
+      return;
+    }
+    setPasswordStatus({ type: 'loading', message: 'Обновляем пароль…' });
+    try {
+      const response = await apiFetch('/api/auth/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: passwordDraft.current, newPassword: passwordDraft.next })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось изменить пароль.');
+      setPasswordDraft({ current: '', next: '', confirm: '' });
+      setPasswordStatus({ type: 'success', message: 'Пароль изменён.' });
+    } catch (error) {
+      setPasswordStatus({ type: 'error', message: (error as Error).message });
+    }
+  }
+
+  async function startTwoFactor() {
+    setTwoFactorStatus({ type: 'loading', message: 'Создаём QR-код…' });
+    try {
+      const response = await apiFetch('/api/auth/2fa/initiate', { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось включить двухфакторную защиту.');
+      setTwoFactorQr(payload.qr || '');
+      setTwoFactorStatus({ type: 'idle', message: 'Отсканируйте QR-код в приложении-аутентификаторе и введите шестизначный код.' });
+    } catch (error) {
+      setTwoFactorStatus({ type: 'error', message: (error as Error).message });
+    }
+  }
+
+  async function confirmTwoFactor(action: 'enable' | 'disable') {
+    setTwoFactorStatus({ type: 'loading', message: 'Проверяем код…' });
+    try {
+      const response = await apiFetch(`/api/auth/2fa/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: twoFactorToken })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Неверный код.');
+      if (payload.user) onUserUpdate?.(payload.user as User);
+      setTwoFactorQr('');
+      setTwoFactorToken('');
+      setTwoFactorStatus({ type: 'success', message: action === 'enable' ? 'Двухфакторная защита включена.' : 'Двухфакторная защита выключена.' });
+    } catch (error) {
+      setTwoFactorStatus({ type: 'error', message: (error as Error).message });
+    }
+  }
+
+  function renderAccount() {
+    return (
+      <div className="settings-section account-settings">
+        <p className="eyebrow">АККАУНТ</p>
+        <h2>Моя учётная запись</h2>
+        <div className="account-identity">
+          <Avatar user={user} size={64} showStatus />
+          <div><strong>{user.display_name || user.username}</strong><small>@{user.username} · #{user.discriminator || '0001'}</small></div>
+        </div>
+        <div className="settings-group">
+          <label><span>Email</span><input value={user.email} readOnly disabled /></label>
+          <small className="muted">Изменение адреса потребует подтверждения почты; почтовый сервис пока не подключён.</small>
+        </div>
+        <div className="settings-group">
+          <h3>Изменить пароль</h3>
+          <label><span>Текущий пароль</span><input type="password" autoComplete="current-password" value={passwordDraft.current}
+            onChange={(event) => setPasswordDraft((current) => ({ ...current, current: event.target.value }))} /></label>
+          <label><span>Новый пароль</span><input type="password" autoComplete="new-password" maxLength={128} value={passwordDraft.next}
+            onChange={(event) => setPasswordDraft((current) => ({ ...current, next: event.target.value }))} /></label>
+          <label><span>Повторите новый пароль</span><input type="password" autoComplete="new-password" maxLength={128} value={passwordDraft.confirm}
+            onChange={(event) => setPasswordDraft((current) => ({ ...current, confirm: event.target.value }))} /></label>
+          <button type="button" className="primary" onClick={() => void updatePassword()}>Изменить пароль</button>
+          {passwordStatus.message && <p className={`status ${passwordStatus.type}`}>{passwordStatus.message}</p>}
+        </div>
+        <div className="settings-group">
+          <h3>Двухфакторная защита</h3>
+          <p className="muted">{user.twofa_enabled ? 'Дополнительная проверка включена.' : 'Защитите аккаунт одноразовым кодом из приложения-аутентификатора.'}</p>
+          {twoFactorQr && <img className="two-factor-qr" src={twoFactorQr} alt="QR-код для настройки двухфакторной защиты" />}
+          {(!user.twofa_enabled || twoFactorQr) && <label><span>Шестизначный код</span><input inputMode="numeric" maxLength={6} value={twoFactorToken}
+            onChange={(event) => setTwoFactorToken(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>}
+          {!user.twofa_enabled
+            ? <button type="button" className="primary" onClick={() => twoFactorQr ? void confirmTwoFactor('enable') : void startTwoFactor()}>
+                {twoFactorQr ? 'Подтвердить и включить' : 'Настроить 2FA'}
+              </button>
+            : <button type="button" className="ghost danger" onClick={() => void confirmTwoFactor('disable')}>Отключить 2FA</button>}
+          {twoFactorStatus.message && <p className={`status ${twoFactorStatus.type}`}>{twoFactorStatus.message}</p>}
+        </div>
+        <div className="settings-group account-delete">
+          <h3>Удаление аккаунта</h3>
+          <p className="muted">Удаление аккаунта пока недоступно: сервер ещё не поддерживает безопасное удаление всех связанных сообщений и данных. Кнопка не показывается как рабочая.</p>
+        </div>
+      </div>
+    );
+  }
+
+  function renderProfileSettings() {
+    return (
+      <div className="settings-section profile-settings">
+        <p className="eyebrow">ПУБЛИЧНЫЙ ПРОФИЛЬ</p>
+        <h2>Профиль</h2>
+        <div className="profile-card-preview">
+          <Avatar user={{ ...user, display_name: accountName, username: accountHandle, avatar_color: profileColor }} size={58} />
+          <div><strong>{accountName || 'Ваше имя'}</strong><small>@{accountHandle || 'username'} · #{user.discriminator || '0001'}</small>
+            <p>{profileBio || 'Описание профиля пока пустое.'}</p></div>
+        </div>
+        <div className="settings-group">
+          <label><span>Отображаемое имя</span><input value={accountName} maxLength={32}
+            onChange={(event) => setAccountName(event.target.value)} /></label>
+          <label><span>Логин @handle</span><input value={accountHandle} maxLength={24}
+            onChange={(event) => setAccountHandle(event.target.value.toLowerCase())} /></label>
+          <small className={`handle-availability ${handleState}`}>{handleState === 'checking' ? 'Проверяем…' : handleHint}</small>
+          <small className="muted">Логин можно менять раз в 14 дней. Отображаемое имя — не чаще одного раза в минуту.</small>
+          <label><span>О себе</span><textarea value={profileBio} maxLength={200} rows={4}
+            onChange={(event) => setProfileBio(event.target.value)} placeholder="Расскажите о себе…" /></label>
+          <small className="muted">{profileBio.length}/200</small>
+        </div>
+        <div className="settings-group">
+          <h3>Аватар</h3>
+          <div className="avatar-settings-row"><Avatar user={{ ...user, avatar_url: avatarPreview || user.avatar_url }} size={52} />
+            <label className="file-upload-button"><Upload size={15} />Загрузить изображение
+              <input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={avatarBusy}
+                onChange={(event) => { const file = event.target.files?.[0]; void uploadAvatar(file); event.currentTarget.value = ''; }} />
+            </label>
+            {user.avatar_url && <button type="button" className="ghost danger" onClick={() => void removeAvatar()} disabled={avatarBusy}>Удалить</button>}
+          </div>
+          <small className="muted">PNG, JPG или WebP, до 2 МБ. Сервер обрежет изображение и сохранит в WebP 256×256.</small>
+        </div>
+        <div className="settings-group">
+          <h3>Цвет аватара</h3>
+          <div className="avatar-color-options">{profilePalette.map((color) => <button key={color} type="button"
+            className={profileColor === color ? 'selected' : ''} style={{ backgroundColor: color }}
+            aria-label={`Цвет ${color}`} aria-pressed={profileColor === color} onClick={() => setProfileColor(color)} />)}</div>
+        </div>
+        <button type="button" className="primary" onClick={() => void saveProfile()} disabled={profileBusy || handleState === 'checking'}>
+          {profileBusy ? 'Сохраняем…' : 'Сохранить профиль'}
+        </button>
+        {profileStatus.message && <p className={`status ${profileStatus.type}`}>{profileStatus.message}</p>}
       </div>
     );
   }
 
   function renderSection() {
     switch (section) {
+      case 'account': return renderAccount();
+      case 'profile': return renderProfileSettings();
       case 'appearance':
         return renderAppearance();
       case 'premium':
@@ -947,6 +1270,8 @@ export function SettingsPanel({ onClose, onLogout, appVersion = '0.0.3-alpha', o
           <p className="muted">Управляйте аккаунтом и внешним видом</p>
         </header>
         <nav>
+          <button className={section === 'account' ? 'active' : ''} onClick={() => setSection('account')}><UserCircle size={16} />Моя учётная запись</button>
+          <button className={section === 'profile' ? 'active' : ''} onClick={() => setSection('profile')}><Avatar user={user} size={16} />Профиль</button>
           <button className={section === 'appearance' ? 'active' : ''} onClick={() => setSection('appearance')}>
             <Palette size={16} />
             Оформление
