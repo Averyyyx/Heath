@@ -2867,3 +2867,10 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   .settings-nav { position: relative; height: auto; }
   .settings-content { border-left: 0; border-top: 1px solid var(--border); padding: 20px 0; }
 }
+
+.settings-device-row { display: flex; min-height: 74px; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.settings-device-row > span { display: flex; flex-direction: column; gap: 5px; }
+.settings-device-row strong { font-size: 12px; }
+.settings-device-row small { color: var(--text-faint); font-size: 10px; }
+.settings-device-row select { width: min(55%, 360px); min-width: 180px; height: 36px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--bg); color: var(--text); font: 11px var(--font-sans); }
+.voice-device-list { display: flex; flex-direction: column; gap: 9px; }
