@@ -13,7 +13,8 @@ import {
   Volume2,
   Save,
   Trash2,
-  LogOut
+  LogOut,
+  Keyboard
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { getNexoSoundPreferences, playNexoSound, saveNexoSoundPreferences, type NexoSoundPreferences } from '../lib/sounds';
@@ -23,7 +24,7 @@ import { applyTheme, isThemeChoice } from '../lib/theme';
 import { t } from '../lib/strings';
 import type { Channel, Server, ServerRole } from '../types';
 
-type SettingsSection = 'account' | 'profile' | 'appearance' | 'notifications' | 'voice' | 'accessibility' | 'premium' | 'servers' | 'updates';
+type SettingsSection = 'account' | 'profile' | 'appearance' | 'notifications' | 'voice' | 'hotkeys' | 'accessibility' | 'premium' | 'servers' | 'updates';
 
 type SettingsPanelProps = {
   user: User;
@@ -1344,6 +1345,48 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
     );
   }
 
+  function renderHotkeys() {
+    const groups = [
+      { title: 'РАБОЧЕЕ ПРОСТРАНСТВО', items: [
+        ['Открыть быстрый поиск и команды', 'Ctrl', 'K'],
+        ['Новое окно перехода / поиск диалога', 'Ctrl', 'T'],
+        ['Закрыть текущую вкладку', 'Ctrl', 'W'],
+        ['Восстановить закрытую вкладку', 'Ctrl + Shift', 'T']
+      ]},
+      { title: 'ПЕРЕКЛЮЧЕНИЕ', items: [
+        ['Следующая вкладка', 'Ctrl', 'Tab'],
+        ['Предыдущая вкладка', 'Ctrl + Shift', 'Tab'],
+        ['Перейти к вкладке 1–8', 'Ctrl', '1–8'],
+        ['Перейти к последней вкладке', 'Ctrl', '9']
+      ]},
+      { title: 'КОМАНДНАЯ ПАЛИТРА', items: [
+        ['Перемещение по результатам', '↑', '↓'],
+        ['Выполнить выбранную команду', '', 'Enter'],
+        ['Закрыть палитру', '', 'Esc']
+      ]}
+    ];
+    return (
+      <div className="settings-section discord-settings-page hotkeys-settings">
+        <p className="eyebrow">НАСТРОЙКИ ПРИЛОЖЕНИЯ</p>
+        <h2>Горячие клавиши</h2>
+        <p className="muted">Быстро перемещайтесь по Nexo без мыши. На macOS сочетания используют Command вместо Ctrl.</p>
+        {groups.map((group) => (
+          <div className="settings-group" key={group.title}>
+            <h3 className="settings-nav-group">{group.title}</h3>
+            <div className="hotkey-list">
+              {group.items.map(([label, modifier, key]) => (
+                <div className="hotkey-row" key={label}>
+                  <span>{label}</span>
+                  <div>{modifier && <kbd>{modifier}</kbd>}<kbd>{key}</kbd></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function renderSection() {
     switch (section) {
       case 'account': return renderAccount();
@@ -1354,6 +1397,8 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         return renderNotifications();
       case 'voice':
         return renderVoice();
+      case 'hotkeys':
+        return renderHotkeys();
       case 'accessibility':
         return renderAccessibility();
       case 'premium':
@@ -1388,6 +1433,9 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           </button>
           <button className={section === 'voice' ? 'active' : ''} onClick={() => setSection('voice')}>
             <Volume2 size={16} />Голос и видео
+          </button>
+          <button className={section === 'hotkeys' ? 'active' : ''} onClick={() => setSection('hotkeys')}>
+            <Keyboard size={16} />Горячие клавиши
           </button>
           <button className={section === 'notifications' ? 'active' : ''} onClick={() => setSection('notifications')}>
             <Volume2 size={16} />Уведомления и звуки
