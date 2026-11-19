@@ -1,9 +1,9 @@
-name: Nexo 0.0.4 Workspace CI
+name: Nexo 0.0.5 Discord Workspace CI
 
 on:
   push:
     branches:
-      - feature/0.0.4-workspace
+      - feature/0.0.5-discord-redesign
   pull_request:
     branches:
       - main
