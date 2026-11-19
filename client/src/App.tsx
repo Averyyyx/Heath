@@ -865,8 +865,9 @@ export default function App() {
         } else if (event.key.toLowerCase() === '9') {
           event.preventDefault(); setActiveTabId(tabs[tabs.length - 1]?.id || 'home');
         } else if (/^[1-8]$/.test(event.key)) {
-          event.preventDefault(); setActiveTabId(tabs[Number(event.key) - 1]?.id || 'home');
-
+          event.preventDefault();
+          setActiveTabId(tabs[Number(event.key) - 1]?.id || 'home');
+        }
       }
     }
     window.addEventListener('keydown', onKeyDown);
@@ -1081,7 +1082,7 @@ export default function App() {
                   <div className="sidebar-user-area">
                     {activeCallInfo && <div className="active-call-strip">
                       <div><span className="status-dot" /><strong>Звонок · {activeCallInfo.title}</strong><small>{formatCallDuration(callClock - activeCallInfo.startedAt)}</small></div>
-                      <button type="button" title="Вернуться к звонку" aria-label="Вернуться к звонку" onClick={() => setActiveTabId(`dm:${activeCallInfo.conversationId})}><Phone size={14} /></button>
+                      <button type="button" title="Вернуться к звонку" aria-label="Вернуться к звонку" onClick={() => setActiveTabId(`dm:${activeCallInfo.conversationId}`)}><Phone size={14} /></button>
                       <button type="button" className="hangup" title="Завершить звонок" aria-label="Завершить звонок" onClick={() => window.dispatchEvent(new CustomEvent('nexo-end-call'))}><X size={14} /></button>
                     </div>}
                     {!activeCallInfo && <div className="dock-call-status"><span className="status-dot" />Готов к работе</div>}
