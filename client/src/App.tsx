@@ -1064,7 +1064,8 @@ export default function App() {
                   const count = serverUnreadCounts[server.id] || 0;
                   return <motion.button type="button" key={server.id} layout className={`server-rail-item ${activeTab.serverId === server.id ? 'active' : ''} ${count ? 'unread' : ''}`}
                     onClick={() => selectServer(server)} title={server.name}>
-                    <span className="server-rail-blob">{(server.name || 'S').slice(0, 1).toUpperCase()}</span>
+                    <span className="server-rail-blob">{server.icon && (server.icon.startsWith('http') || server.icon.startsWith('data:image/'))
+                      ? <img src={server.icon} alt="" /> : server.icon || (server.name || 'S').slice(0, 1).toUpperCase()}</span>
                     {count > 0 && <span className="server-rail-badge">{Math.min(9, count)}</span>}
                   </motion.button>;
                 })}
@@ -1115,7 +1116,8 @@ export default function App() {
                         <button type="button" className="sidebar-server-head" onClick={() => setExpandedServers((current) => current.includes(server.id) ? current.filter((id) => id !== server.id) : [...current, server.id])}
                           onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, server }); }}>
                           {expandedServers.includes(server.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          <span className="server-tree-icon">{(server.name[0] || 'S').toUpperCase()}</span>
+                          <span className="server-tree-icon">{server.icon && (server.icon.startsWith('http') || server.icon.startsWith('data:image/'))
+                            ? <img src={server.icon} alt="" /> : server.icon || (server.name[0] || 'S').toUpperCase()}</span>
                           <strong>{server.name}</strong>
                         </button>
                         {expandedServers.includes(server.id) && server.channels.map((channel) => {
