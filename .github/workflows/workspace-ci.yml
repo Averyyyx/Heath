@@ -1,6 +1,7 @@
 name: Nexo 0.0.5 Discord Workspace CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - feature/0.0.5-discord-redesign
