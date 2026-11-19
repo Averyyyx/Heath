@@ -51,16 +51,17 @@ const fillEl=document.getElementById('fill');
 const skipEl=document.getElementById('skip');
 let downloadingAt=0;
 let skipTimer=null;
+setTimeout(()=>skipEl.classList.add('visible'),3000);
 window.nexoSplash.onLoadingStatus((value)=>{statusEl.textContent=String(value||'Запуск Nexo…');});
 window.nexoSplash.onAppVersion((value)=>{document.getElementById('version').textContent='NEXO · '+String(value);});
 window.nexoSplash.onUpdateStatus((payload)=>{
   if(!payload)return;
   if(payload.status==='checking'){statusEl.textContent='Проверяем обновления…';detailEl.textContent='';fillEl.classList.add('indeterminate');}
-  else if(payload.status==='development'){statusEl.textContent='Режим разработки';detailEl.textContent='Проверка обновлений пропущена';}
-  else if(payload.status==='up-to-date'){statusEl.textContent='У вас последняя версия';detailEl.textContent='';fillEl.classList.remove('indeterminate');fillEl.style.width='100%';}
+  else if(payload.status==='development'){statusEl.textContent='Режим разработки';detailEl.textContent='Проверка обновлений пропущена';skipEl.classList.remove('visible');}
+  else if(payload.status==='up-to-date'){statusEl.textContent='У вас последняя версия';detailEl.textContent='';fillEl.classList.remove('indeterminate');fillEl.style.width='100%';skipEl.classList.remove('visible');}
   else if(payload.status==='available'){statusEl.textContent=payload.message||'Найдена новая версия';detailEl.textContent=payload.version?'Версия '+payload.version:'';}
   else if(payload.status==='downloading'){
-    if(!downloadingAt){downloadingAt=Date.now();skipTimer=setTimeout(()=>skipEl.classList.add('visible'),3000);}
+    if(!downloadingAt) downloadingAt=Date.now();
     statusEl.textContent='Скачиваем обновление…';
     detailEl.textContent=(Number.isFinite(payload.percent)?payload.percent:0)+'%';
     fillEl.classList.remove('indeterminate');fillEl.style.width=(payload.percent||0)+'%';
@@ -68,7 +69,7 @@ window.nexoSplash.onUpdateStatus((payload)=>{
   else if(payload.status==='downloaded'){statusEl.textContent='Обновление проверено';detailEl.textContent=payload.version?'Nexo '+payload.version:'';fillEl.classList.remove('indeterminate');fillEl.style.width='100%';skipEl.classList.remove('visible');}
   else if(payload.status==='installing'){statusEl.textContent='Устанавливаем обновление…';detailEl.textContent='Приложение перезапустится автоматически';}
   else if(payload.status==='skipped'){statusEl.textContent='Запускаем Nexo…';detailEl.textContent='Обновление пропущено';}
-  else if(payload.status==='error'){statusEl.textContent='Не удалось проверить обновления';detailEl.textContent=payload.message||'Продолжаем запуск текущей версии';}
+  else if(payload.status==='error'){statusEl.textContent='Не удалось проверить обновления';detailEl.textContent=payload.message||'Продолжаем запуск текущей версии';skipEl.classList.remove('visible');}
 });
 skipEl.addEventListener('click',()=>{skipEl.disabled=true;skipEl.textContent='Продолжаем запуск…';window.nexoSplash.skipUpdate();});
 </script>

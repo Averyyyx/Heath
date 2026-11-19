@@ -28,6 +28,7 @@ type WorkspaceTab = {
   targetId?: number;
   serverId?: number;
   channelId?: number;
+  messageId?: number;
   initialSection?: 'account' | 'profile' | 'appearance' | 'premium' | 'servers' | 'updates';
   pinned?: boolean;
   unread?: number;
@@ -328,11 +329,11 @@ export default function App() {
     const payload = pendingDeepLink;
     if (payload.type === 'dm') {
       const conversation = conversations.find((item) => item.id === payload.conversationId);
-      if (conversation) openDmTab(conversation);
+      if (conversation) openDmTab(conversation, false, payload.messageId);
       else { setPendingDeepLink(null); return; }
     } else {
       const server = servers.find((item) => item.id === payload.serverId);
-      if (server) openChannelTab(server, payload.channelId);
+      if (server) openChannelTab(server, payload.channelId, false, payload.messageId);
       else { setPendingDeepLink(null); return; }
     }
     const messageElementId = payload.type === 'dm'
@@ -529,7 +530,7 @@ export default function App() {
   function openTab(next: WorkspaceTab, background = false) {
     setTabs((current) => {
       const existing = current.find((tab) => tab.id === next.id);
-      if (existing) return current.map((tab) => tab.id === next.id ? { ...tab, unread: 0 } : tab);
+      if (existing) return current.map((tab) => tab.id === next.id ? { ...tab, unread: 0, messageId: next.messageId ?? tab.messageId } : tab);
       return [...current, next];
     });
     if (!background) setActiveTabId(next.id);
@@ -539,20 +540,20 @@ export default function App() {
     openTab({ id: 'friends', kind: 'friends', title: 'Друзья' }, background);
   }
 
-  function openDmTab(conversation: Conversation, background = false) {
+  function openDmTab(conversation: Conversation, background = false, messageId?: number) {
     const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user?.id);
     openTab({
       id: `dm:${conversation.id}`, kind: 'dm', title: person?.display_name || person?.username || conversation.title || 'Диалог',
-      targetId: conversation.id
+      targetId: conversation.id, messageId
     }, background);
   }
 
-  function openChannelTab(server: Server, channelId: number, background = false) {
+  function openChannelTab(server: Server, channelId: number, background = false, messageId?: number) {
     const channel = server.channels.find((item) => item.id === channelId);
     if (!channel || channel.type !== 'text') return;
     openTab({
       id: `channel:${channel.id}`, kind: 'channel', title: `# ${channel.name} · ${server.name}`,
-      targetId: channel.id, serverId: server.id, channelId: channel.id
+      targetId: channel.id, serverId: server.id, channelId: channel.id, messageId
     }, background);
   }
 
@@ -1130,12 +1131,12 @@ export default function App() {
                     openDm={openDmTab} />}
                   {tab.kind === 'friends' && <FriendsPanel user={user} onOpenConversation={(friend) => void handleOpenFriend(friend.username)} />}
                   {tab.kind === 'dm' && <MessengerWorkspace key={tab.id} user={user} initialMode="friends" embedded
-                    showConversationList={false} openConversationId={tab.targetId || null}
+                    showConversationList={false} openConversationId={tab.targetId || null} openMessageId={tab.messageId || null}
                     pendingIncomingCall={pendingIncomingCall?.conversationId === tab.targetId ? pendingIncomingCall : null}
                     onIncomingCallHandled={() => setPendingIncomingCall(null)}
                     micMuted={micMuted} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
                   {tab.kind === 'channel' && <MessengerWorkspace key={tab.id} user={user} initialMode="servers" embedded
-                    showChannelSidebar={false} openServerId={tab.serverId || null} openChannelId={tab.channelId || null}
+                    showChannelSidebar={false} openServerId={tab.serverId || null} openChannelId={tab.channelId || null} openMessageId={tab.messageId || null}
                     onEditChannel={() => {
                       const server = servers.find((item) => item.id === tab.serverId);
                       if (server && tab.channelId) openChannelSettings({

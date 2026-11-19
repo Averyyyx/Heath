@@ -420,7 +420,10 @@ async function downloadAndVerifyUpdate(asset, expectedHash, version) {
     }
   } catch {}
   try { await fs.promises.unlink(installerPath); } catch {}
-  skipUpdateRequested = false;
+  if (skipUpdateRequested) {
+    sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version);
+    return null;
+  }
   activeUpdateController = new AbortController();
   const response = await fetch(asset.browser_download_url, {
     headers: { 'User-Agent': 'Nexo-Desktop-App' },
@@ -478,6 +481,7 @@ async function installUpdate(installerPath, version, { silent = false } = {}) {
 async function checkForUpdates({ interactive = true, startup = false } = {}) {
   if (!app.isPackaged) { sendUpdateStatus('development', 'Режим разработки — проверка обновлений пропущена.'); return { status: 'unavailable', message: 'Режим разработки — обновления не проверяются.' }; }
   if (updateCheckPromise) return updateCheckPromise;
+  if (startup) skipUpdateRequested = false;
   updateCheckPromise = (async () => {
     sendUpdateStatus('checking', 'Проверяем обновления…');
     try {
@@ -508,8 +512,16 @@ async function checkForUpdates({ interactive = true, startup = false } = {}) {
       sendUpdateStatus('available', `Найдена версия ${version}.`, version, undefined, releaseNotesText);
       const preferences = getUpdatePreferences();
       if (!preferences.autoDownload && (!interactive || startup)) return { status: 'available', version, message: `Доступна версия ${version}. Автоматическая загрузка выключена.`, releaseNotes: releaseNotesText };
+      if (startup && skipUpdateRequested) {
+        sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version);
+        return { status: 'skipped', version, message: 'Обновление пропущено.' };
+      }
       const expectedHash = await readExpectedSha256(latest, asset);
       if (!expectedHash) throw new Error('У релиза отсутствует SHA-256. Установщик не будет запущен.');
+      if (startup && skipUpdateRequested) {
+        sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version);
+        return { status: 'skipped', version, message: 'Обновление пропущено.' };
+      }
       const installerPath = await downloadAndVerifyUpdate(asset, expectedHash, version);
       if (!installerPath) return { status: 'skipped', version, message: 'Запуск продолжается без обновления.' };
       if (startup) return installUpdate(installerPath, version, { silent: true });

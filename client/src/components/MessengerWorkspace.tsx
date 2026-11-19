@@ -36,6 +36,7 @@ type MessengerWorkspaceProps = {
   openConversationId?: number | null;
   openServerId?: number | null;
   openChannelId?: number | null;
+  openMessageId?: number | null;
   embedded?: boolean;
   showConversationList?: boolean;
   showChannelSidebar?: boolean;
@@ -89,6 +90,7 @@ export function MessengerWorkspace({
   openConversationId = null,
   openServerId = null,
   openChannelId = null,
+  openMessageId = null,
   embedded = false,
   showConversationList = true,
   showChannelSidebar = true,
@@ -399,6 +401,19 @@ export function MessengerWorkspace({
     [activeServer, activeChannelId]
   );
   const activeChannelMessages = activeChannelId ? channelMessages[activeChannelId] || [] : [];
+
+  useEffect(() => {
+    if (!openMessageId) return;
+    const exists = activeMessages.some((message) => message.id === openMessageId)
+      || activeChannelMessages.some((message) => message.id === openMessageId);
+    if (!exists) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`nexo-message-${mode === 'friends' ? 'dm-' + activeConversationId : 'channel-' + activeServerId + '-' + activeChannelId}-${openMessageId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [openMessageId, activeMessages.length, activeChannelMessages.length, mode, activeConversationId, activeServerId, activeChannelId]);
+
 
   useEffect(() => {
     if (!activeServer) return;
