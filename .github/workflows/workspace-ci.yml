@@ -5,12 +5,13 @@ on:
   push:
     branches:
       - feature/0.0.5-discord-redesign
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: read
+
+concurrency:
+  group: nexo-0.0.5-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   windows-build:
