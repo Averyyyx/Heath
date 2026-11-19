@@ -39,7 +39,7 @@ type SidebarPin = { id: string; kind: 'dm' | 'channel'; title: string; targetId:
 type PaletteEntry = { id: string; title: string; subtitle?: string; group: string; icon: ReactNode; run: () => void };
 type ContextState = { x: number; y: number; tabId?: string; target?: SidebarPin; server?: Server } | null;
 type StatusChoice = { value: UserStatus; label: string };
-type IncomingCallInfo = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video' };
+type IncomingCallInfo = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video'; groupTitle?: string };
 type DeepLinkPayload = { type: 'dm'; conversationId: number; messageId: number } | { type: 'channel'; serverId: number; channelId: number; messageId: number };
 type ActiveCallInfo = { conversationId: number; title: string; startedAt: number };
 
@@ -362,8 +362,12 @@ export default function App() {
     const socket = getSocket();
     const onCallInvite = (payload: IncomingCallInfo) => {
       if (!payload || payload.user?.id === user.id) return;
-      setPendingIncomingCall(payload);
       const conversation = conversations.find((item) => item.id === payload.conversationId);
+      const nextPayload = {
+        ...payload,
+        groupTitle: conversation?.type === 'group' ? (conversation.title || 'Групповой звонок') : undefined
+      };
+      setPendingIncomingCall(nextPayload);
       if (conversation) openDmTab(conversation);
     };
     socket.on('call:invite', onCallInvite);
