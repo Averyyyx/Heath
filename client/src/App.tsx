@@ -30,7 +30,7 @@ type WorkspaceTab = {
   serverId?: number;
   channelId?: number;
   messageId?: number;
-  initialSection?: 'account' | 'profile' | 'appearance' | 'notifications' | 'accessibility' | 'premium' | 'servers' | 'updates';
+  initialSection?: 'account' | 'profile' | 'appearance' | 'notifications' | 'voice' | 'accessibility' | 'premium' | 'servers' | 'updates';
   pinned?: boolean;
   unread?: number;
 };
@@ -1202,6 +1202,9 @@ export default function App() {
                     micMuted={micMuted} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
                   {tab.kind === 'settings' && <SettingsPanel key={tab.id} user={user} onUserUpdate={(nextUser) => setUser(nextUser)}
                     initialSection={tab.initialSection || 'account'} appVersion={appVersion} onCheckUpdates={handleCheckUpdates}
+                    audioInputId={audioInputId} audioOutputId={audioOutputId}
+                    onAudioInputChange={(id) => { setAudioInputId(id); localStorage.setItem(`nexo.audio-input.${user.id}`, id); }}
+                    onAudioOutputChange={(id) => { setAudioOutputId(id); localStorage.setItem(`nexo.audio-output.${user.id}`, id); }}
                     onClose={() => closeTab(tab.id)} onLogout={handleLogout} />}
                 </section>
               ))}
