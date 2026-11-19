@@ -43,7 +43,7 @@ jobs:
       - name: Upload Windows installer for review
         uses: actions/upload-artifact@v4
         with:
-          name: Nexo-0.0.4-alpha-Windows-preview
+          name: Nexo-0.0.5-alpha-Windows-preview
           path: dist/*.exe
           if-no-files-found: error
           retention-days: 14
