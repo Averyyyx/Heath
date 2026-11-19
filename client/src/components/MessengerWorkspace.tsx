@@ -10,6 +10,7 @@ import {
   Monitor,
   Paperclip,
   Phone,
+  PhoneOff,
   Plus,
   SendHorizontal,
   Settings,
@@ -19,6 +20,7 @@ import {
   Volume2
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
+import { startNexoRingtone } from '../lib/sounds';
 import type {
   Channel,
   ChannelMessage,
@@ -71,7 +73,7 @@ type CallState = {
 };
 
 type Status = { type: 'idle' | 'loading' | 'success' | 'error'; message?: string };
-type IncomingCall = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video' };
+type IncomingCall = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video'; groupTitle?: string };
 type ServerMember = { id: number; user: User; role: string; nickname?: string; roles: Array<{ id: number; name: string; color: string; position: number }> };
 
 
@@ -115,6 +117,7 @@ export function MessengerWorkspace({
   const [messageStore, setMessageStore] = useState<MessageStore>({});
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [typingUser, setTypingUser] = useState<User | null>(null);
+  const [animatedMessageIds, setAnimatedMessageIds] = useState<string[]>([]);
   const [callError, setCallError] = useState('');
   const [composerText, setComposerText] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -207,8 +210,14 @@ export function MessengerWorkspace({
         ? prev.map((item) => item.id === conversation.id ? conversation : item)
         : [conversation, ...prev]);
     };
-    const onMessageNew = ({ conversationId, message }: { conversationId: number; message: Message }) =>
+    const onMessageNew = ({ conversationId, message }: { conversationId: number; message: Message }) => {
       setMessageStore((prev) => appendUniqueMessage(prev, conversationId, message));
+      if (message.author.id !== user.id) {
+        const key = `dm:${message.id}`;
+        setAnimatedMessageIds((current) => [...current.filter((item) => item !== key), key]);
+        window.setTimeout(() => setAnimatedMessageIds((current) => current.filter((item) => item !== key)), 850);
+      }
+    };
     const onMessageAck = ({ conversationId, message }: { conversationId: number; message: Message }) =>
       setMessageStore((prev) => appendUniqueMessage(prev, conversationId, message));
     const onMessageDelete = ({ conversationId, messageId }: { conversationId: number; messageId: number }) =>
@@ -246,8 +255,14 @@ export function MessengerWorkspace({
         ? prev.map((item) => item.id === server.id ? server : item)
         : [...prev, server]);
     };
-    const onChannelMessage = ({ channelId, message }: { channelId: number; message: ChannelMessage }) =>
+    const onChannelMessage = ({ channelId, message }: { channelId: number; message: ChannelMessage }) => {
       setChannelMessages((prev) => appendUniqueChannelMessage(prev, channelId, message));
+      if (message.author.id !== user.id) {
+        const key = `channel:${message.id}`;
+        setAnimatedMessageIds((current) => [...current.filter((item) => item !== key), key]);
+        window.setTimeout(() => setAnimatedMessageIds((current) => current.filter((item) => item !== key)), 850);
+      }
+    };
     const onChannelMessageDelete = ({ channelId, messageId }: { channelId: number; messageId: number }) =>
       setChannelMessages((prev) => ({ ...prev, [channelId]: (prev[channelId] || []).filter((message) => message.id !== messageId) }));
     const onChannelDeleted = ({ serverId, channelId }: { serverId: number; channelId: number }) => {
@@ -293,25 +308,7 @@ export function MessengerWorkspace({
 
   useEffect(() => {
     if (!incomingCall || ringtoneMuted) return;
-    const AudioContextConstructor = window.AudioContext;
-    if (!AudioContextConstructor) return;
-    const context = new AudioContextConstructor();
-    const ring = () => {
-      if (context.state === 'suspended') void context.resume().catch(() => {});
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(660, context.currentTime);
-      oscillator.frequency.setValueAtTime(880, context.currentTime + 0.16);
-      gain.gain.setValueAtTime(0.0001, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.07, context.currentTime + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.4);
-      oscillator.connect(gain); gain.connect(context.destination);
-      oscillator.start(); oscillator.stop(context.currentTime + 0.42);
-    };
-    ring();
-    const timer = window.setInterval(ring, 1300);
-    return () => { window.clearInterval(timer); void context.close().catch(() => {}); };
+    return startNexoRingtone();
   }, [incomingCall, ringtoneMuted]);
 
   useEffect(() => {
@@ -832,7 +829,7 @@ export function MessengerWorkspace({
                     return (
                       <Fragment key={message.id}>
                         {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
-                        <article id={`nexo-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
+                        <article id={`nexo-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`dm:${message.id}`) ? 'message-arrived' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
                           onContextMenu={(event) => openMessageMenu(event, message, 'dm')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
@@ -947,7 +944,7 @@ export function MessengerWorkspace({
                     return (
                       <Fragment key={message.id}>
                         {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
-                        <article className={`message-row ${grouped ? 'grouped' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
+                        <article className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
                           onContextMenu={(event) => openMessageMenu(event, message, 'channel')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
@@ -1079,15 +1076,24 @@ export function MessengerWorkspace({
       )}
       {incomingCall && (
         <motion.div className="incoming-call-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <motion.section className="incoming-call-card" initial={{ opacity: 0, y: 12, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}>
-            <Avatar user={incomingCall.user} size={52} showStatus />
-            <strong>{incomingCall.user.display_name || incomingCall.user.username} звонит вам</strong>
-            <p>{incomingCall.mediaType === 'video' ? 'Видеозвонок' : 'Голосовой звонок'}</p>
-            <button type="button" className="ghost ringtone-toggle" onClick={() => setRingtoneMuted((value) => !value)}>
+          <motion.section className="incoming-call-card" role="dialog" aria-modal="true" aria-label="Входящий звонок"
+            initial={{ opacity: 0, y: 18, scale: .92 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: .96 }} transition={{ type: 'spring', stiffness: 360, damping: 28 }}>
+            <div className="incoming-call-avatar">
+              <span className="incoming-call-pulse" />
+              <Avatar user={incomingCall.user} size={64} showStatus />
+            </div>
+            <div className="incoming-call-copy">
+              <strong>{incomingCall.user.display_name || incomingCall.user.username}</strong>
+              <p>{incomingCall.groupTitle ? `Групповой звонок · ${incomingCall.groupTitle}` : incomingCall.mediaType === 'video' ? 'Входящий видеозвонок' : 'Входящий голосовой звонок'}</p>
+            </div>
+            <button type="button" className="ringtone-toggle" onClick={() => setRingtoneMuted((value) => !value)}>
               {ringtoneMuted ? 'Включить звук звонка' : 'Отключить звук звонка'}
             </button>
-            <div><button type="button" className="ghost" onClick={rejectIncomingCall}>Отклонить</button>
-              <button type="button" className="primary" onClick={() => void acceptIncomingCall()}>Принять</button></div>
+            <div className="incoming-call-actions">
+              <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" title="Отклонить"><PhoneOff size={20} /></button>
+              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title="Принять"><Phone size={20} /></button>
+            </div>
           </motion.section>
         </motion.div>
       )}
