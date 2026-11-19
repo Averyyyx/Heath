@@ -6,7 +6,8 @@ import {
   ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command, Layers3,
   Phone, Mic, MicOff, Headphones, HeadphoneOff, CircleHelp, LogOut, Moon,
   Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus,
-  PanelLeftClose, PanelLeftOpen, Check, Volume2, Clock3, Circle, Sparkles
+  PanelLeftClose, PanelLeftOpen, Check, Volume2, Clock3, Circle, Sparkles,
+  MessageSquare, Server as ServerIcon, Compass
 } from 'lucide-react';
 import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
@@ -17,6 +18,7 @@ import { Avatar } from './components/Avatar';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
+import { playNexoSound } from './lib/sounds';
 import { getSocket } from './lib/socket';
 import type { Conversation, FriendPayload, Server, User, UserStatus } from './types';
 
@@ -29,7 +31,7 @@ type WorkspaceTab = {
   serverId?: number;
   channelId?: number;
   messageId?: number;
-  initialSection?: 'account' | 'profile' | 'appearance' | 'premium' | 'servers' | 'updates';
+  initialSection?: 'account' | 'profile' | 'appearance' | 'notifications' | 'accessibility' | 'premium' | 'servers' | 'updates';
   pinned?: boolean;
   unread?: number;
 };
@@ -82,6 +84,8 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [friends, setFriends] = useState<FriendPayload>({ incoming: [], outgoing: [], friends: [] });
   const [servers, setServers] = useState<Server[]>([]);
+  const [unreadDmCounts, setUnreadDmCounts] = useState<Record<number, number>>({});
+  const [unreadChannelCounts, setUnreadChannelCounts] = useState<Record<number, number>>({});
   const [expandedServers, setExpandedServers] = useState<number[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<string[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(264);
@@ -135,11 +139,21 @@ export default function App() {
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) || tabHome;
   const unreadRequests = friends.incoming.length;
+  const serverUnreadCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const server of servers) counts[server.id] = server.channels.reduce((total, channel) => total + (unreadChannelCounts[channel.id] || 0), 0);
+    return counts;
+  }, [servers, unreadChannelCounts]);
+  const unreadTotal = useMemo(() => Math.min(9, unreadRequests + Object.values(unreadDmCounts).reduce((sum, count) => sum + count, 0) + Object.values(unreadChannelCounts).reduce((sum, count) => sum + count, 0)), [unreadRequests, unreadDmCounts, unreadChannelCounts]);
   const currentTitle = activeTab.title;
 
   useEffect(() => {
     desktopApi?.getAppVersion?.().then(setAppVersion).catch(() => {});
   }, [desktopApi]);
+
+  useEffect(() => {
+    desktopApi?.setNotificationCount?.(unreadTotal);
+  }, [desktopApi, unreadTotal]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -381,6 +395,10 @@ export default function App() {
     const socket = getSocket();
     const onMessage = ({ conversationId }: { conversationId: number }) => {
       const id = `dm:${conversationId}`;
+      if (id !== activeTabId) {
+        setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + 1) }));
+        playNexoSound('message');
+      }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
         ? { ...tab, unread: (tab.unread || 0) + 1 }
         : tab));
@@ -389,6 +407,10 @@ export default function App() {
     };
     const onChannelMessage = ({ channelId }: { channelId: number }) => {
       const id = `channel:${channelId}`;
+      if (id !== activeTabId) {
+        setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + 1) }));
+        playNexoSound('message');
+      }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
         ? { ...tab, unread: (tab.unread || 0) + 1 }
         : tab));
@@ -432,8 +454,10 @@ export default function App() {
   useEffect(() => {
     if (!activeTabId) return;
     setTabs((current) => current.map((tab) => tab.id === activeTabId && tab.unread ? { ...tab, unread: 0 } : tab));
+    if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
+    if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
     tabNodeRefs.current[activeTabId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-  }, [activeTabId]);
+  }, [activeTabId, tabs]);
 
   useEffect(() => {
     if (!welcomeKind) return;
@@ -541,6 +565,7 @@ export default function App() {
   }
 
   function openDmTab(conversation: Conversation, background = false, messageId?: number) {
+    setUnreadDmCounts((current) => current[conversation.id] ? { ...current, [conversation.id]: 0 } : current);
     const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user?.id);
     openTab({
       id: `dm:${conversation.id}`, kind: 'dm', title: person?.display_name || person?.username || conversation.title || 'Диалог',
@@ -549,12 +574,20 @@ export default function App() {
   }
 
   function openChannelTab(server: Server, channelId: number, background = false, messageId?: number) {
+    setUnreadChannelCounts((current) => current[channelId] ? { ...current, [channelId]: 0 } : current);
     const channel = server.channels.find((item) => item.id === channelId);
     if (!channel || channel.type !== 'text') return;
     openTab({
       id: `channel:${channel.id}`, kind: 'channel', title: `# ${channel.name} · ${server.name}`,
       targetId: channel.id, serverId: server.id, channelId: channel.id, messageId
     }, background);
+  }
+
+  function selectServer(server: Server) {
+    setExpandedServers((current) => current.includes(server.id) ? current : [...current, server.id]);
+    const firstTextChannel = server.channels.find((channel) => channel.type === 'text');
+    if (firstTextChannel) openChannelTab(server, firstTextChannel.id);
+    else setCreateChannelServerId(server.id);
   }
 
   function openSettingsTab(section: WorkspaceTab['initialSection'] = 'account', background = false) {
@@ -916,6 +949,7 @@ export default function App() {
   }, [deviceMenu]);
 
   function setMic(next: boolean) {
+    if (micMuted !== next) playNexoSound(next ? 'mic-off' : 'mic-on');
     setMicMuted(next);
     if (user) localStorage.setItem(`nexo.mic-muted.${user.id}`, String(next));
   }
@@ -973,7 +1007,7 @@ export default function App() {
   return (
     <div className="app-root nexo-root">
       <header className="app-nav nexo-titlebar">
-        <div className="titlebar-brand"><span className="brand-mark">N</span><strong>Nexo</strong><span className="titlebar-version">ALPHA</span></div>
+        <div className="titlebar-brand"><img className="brand-image" src="/nexo-mark.svg" alt="" /><strong>Nexo</strong><span className="titlebar-version">ALPHA</span></div>
         <button type="button" className="titlebar-command" onClick={() => openPalette()} title="Найти или выполнить команду (Ctrl+K)">
           <Search size={15} /><span>Найти или выполнить команду</span><kbd>Ctrl K</kbd>
         </button>
@@ -1018,6 +1052,23 @@ export default function App() {
           </div>
 
           <div className={`nexo-workbench ${activeTab.kind === 'settings' ? 'settings-active' : ''}`}>
+            <aside className="nexo-server-rail" aria-label="Навигация по Nexo">
+              <button type="button" className={`server-rail-home ${activeTab.kind === 'home' ? 'active' : ''}`} onClick={() => setActiveTabId('home')} title="Главная"><Home size={20} /></button>
+              <button type="button" className={`server-rail-home ${activeTab.kind === 'friends' ? 'active' : ''}`} onClick={() => openFriendsTab()} title="Друзья"><Users size={20} />{unreadRequests > 0 && <span className="server-rail-badge">{Math.min(9, unreadRequests)}</span>}</button>
+              <span className="server-rail-separator" />
+              <div className="server-rail-list">
+                {servers.map((server) => {
+                  const count = serverUnreadCounts[server.id] || 0;
+                  return <motion.button type="button" key={server.id} layout className={`server-rail-item ${activeTab.serverId === server.id ? 'active' : ''} ${count ? 'unread' : ''}`}
+                    onClick={() => selectServer(server)} title={server.name}>
+                    <span className="server-rail-blob">{(server.name || 'S').slice(0, 1).toUpperCase()}</span>
+                    {count > 0 && <span className="server-rail-badge">{count > 9 ? '9+' : count}</span>}
+                  </motion.button>;
+                })}
+              </div>
+              <button type="button" className="server-rail-add" onClick={() => setCreateSpaceOpen(true)} title="Создать пространство"><Plus size={20} /></button>
+              <div className="server-rail-bottom"><button type="button" onClick={() => openSettingsTab('account')} title="Настройки"><Settings size={19} /></button></div>
+            </aside>
             <aside className={`nexo-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}>
               {!sidebarCollapsed && (
                 <>
@@ -1047,7 +1098,7 @@ export default function App() {
                         onContextMenu={(event) => contextTargetClick(event, item)}>
                         <Avatar user={person} size={27} showStatus />
                         <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Личный диалог</small></span>
-                        {tabs.find((tab) => tab.id === item.id)?.unread ? <i className="unread-dot" /> : null}
+                        {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge">{unreadDmCounts[conversation.id] > 9 ? '9+' : unreadDmCounts[conversation.id]}</span>}
                       </button>;
                     })}
                     {conversations.length === 0 && <button type="button" className="sidebar-empty-action" onClick={() => openFriendsTab()}>Диалогов пока нет — найдите друга</button>}
@@ -1072,7 +1123,7 @@ export default function App() {
                             onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openChannelTab(server, channel.id, true); } }}
                             onContextMenu={(event) => contextTargetClick(event, item)}>
                             <HashIcon /><span className="sidebar-row-text"><strong>{channel.name}</strong></span>
-                            {tabs.find((tab) => tab.id === item.id)?.unread ? <i className="unread-dot" /> : null}
+                            {unreadChannelCounts[channel.id] > 0 && <span className="sidebar-count-badge">{unreadChannelCounts[channel.id] > 9 ? '9+' : unreadChannelCounts[channel.id]}</span>}
                           </button>;
                         })}
                       </div>
@@ -1103,8 +1154,8 @@ export default function App() {
                 <div className="dock-device-wrap">
                   <button type="button" className={deafened ? 'dock-icon danger' : 'dock-icon'} aria-label={deafened ? 'Включить звук' : 'Отключить звук'}
                     title={deafened ? 'Включить звук' : 'Отключить звук'} onClick={() => {
-                      if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
-                      else { setDeafened(false); setMic(savedMicMuted); }
+                      if (!deafened) { playNexoSound('headphones-off'); setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
+                      else { playNexoSound('headphones-on'); setDeafened(false); setMic(savedMicMuted); }
                     }}>
                     {deafened ? <HeadphoneOff size={17} /> : <Headphones size={17} />}
                   </button>
