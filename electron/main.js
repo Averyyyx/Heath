@@ -158,26 +158,23 @@ function getIconPath(iconName, size = 256) {
   return path.join(dir, `${iconName}-${size}.png`);
 }
 
+function getTrayIconPath(count = notificationCount) {
+  const fileName = count > 0
+    ? `nexo-ico-mini-${Math.min(9, count)}ping-32.png`
+    : 'nexo-ico-mini-32.png';
+  return path.join(getIconsDir(), fileName);
+}
+
 function createTrayImage(count = notificationCount) {
-  const badge = count > 0
-    ? `<circle cx="25" cy="24" r="7.2" fill="#D94F55" stroke="#242321" stroke-width="1.7"/><text x="25" y="27.1" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="8.3" font-weight="700" fill="#FFFFFF">${Math.min(9, count)}</text>`
-    : '';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-    <circle cx="16" cy="16" r="14" fill="#302C29" stroke="#E9784E" stroke-width="1.8"/>
-    <path d="M9.5 22V10L22.5 22V10" fill="none" stroke="#FFD7C0" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/>
-    ${badge}
-  </svg>`;
-  return nativeImage.createFromDataURL('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+  const iconPath = getTrayIconPath(count);
+  if (fs.existsSync(iconPath)) return nativeImage.createFromPath(iconPath);
+  return nativeImage.createEmpty();
 }
 
 function createTaskbarOverlay(count) {
   if (!count) return null;
-  const value = Math.min(9, count);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-    <circle cx="16" cy="16" r="15" fill="#D94F55" stroke="#242321" stroke-width="2"/>
-    <text x="16" y="22" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="${value > 6 ? 17 : 19}" font-weight="800" fill="#FFFFFF">${value}</text>
-  </svg>`;
-  return nativeImage.createFromDataURL('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+  const icon = createTrayImage(count);
+  return icon.isEmpty() ? null : icon.resize({ width: 16, height: 16 });
 }
 
 // Тестовый аккаунт разработчика (dev@nexo.local с премиум-подпиской).
