@@ -130,6 +130,11 @@ function getIconsDir() {
     : path.join(__dirname, 'icons');
 }
 
+function getDesktopIconPath() {
+  const iconPath = path.join(getIconsDir(), 'Nexo-Desctop-ico.ico');
+  return fs.existsSync(iconPath) ? iconPath : getIconPath('Nexo-Desctop-ico', 256);
+}
+
 // Файлы иконок лежат с суффиксом размера (Nexo-Desctop-ico-256.png), поэтому ищем
 // нужный размер, затем имя без суффикса и ближайшие размеры.
 function getIconPath(iconName, size = 256) {
@@ -153,11 +158,25 @@ function getIconPath(iconName, size = 256) {
   return path.join(dir, `${iconName}-${size}.png`);
 }
 
-function getTrayIconPath() {
-  const iconName = notificationCount > 0 ? 'nexo-ico-mini-ping' : 'nexo-ico-mini';
-  return getIconPath(iconName, 32);
+function getTrayIconPath(count = notificationCount) {
+  const fileName = count > 0
+    ? `nexo-ico-mini-${Math.min(9, count)}ping-32.png`
+    : 'nexo-ico-mini-32.png';
+  return path.join(getIconsDir(), fileName);
 }
 
+function createTrayImage(count = notificationCount) {
+  const iconPath = getTrayIconPath(count);
+  if (fs.existsSync(iconPath)) return nativeImage.createFromPath(iconPath);
+  return nativeImage.createEmpty();
+}
+
+function createTaskbarOverlay(count) {
+  if (!count) return null;
+  const overlayPath = path.join(getIconsDir(), `nexo-taskbar-badge-${Math.min(9, count)}.png`);
+  if (!fs.existsSync(overlayPath)) return null;
+  return nativeImage.createFromPath(overlayPath);
+}
 // Тестовый аккаунт разработчика (dev@nexo.local с премиум-подпиской).
 // Включён при запуске из исходников (`npm start` / `electron:dev`). В установленной сборке
 // включается переменной NEXO_DEV_ACCOUNT=1 или пустым файлом dev-account.enabled в папке
@@ -198,18 +217,8 @@ function getOrCreateSecrets() {
 function createTray() {
   console.log('Creating system tray...');
   
-  const trayIconPath = getTrayIconPath();
-  console.log('Tray icon path:', trayIconPath);
-  
-  // Проверяем существование файла иконки
-  if (!fs.existsSync(trayIconPath)) {
-    console.error('Tray icon not found:', trayIconPath);
-    // Используем встроенную иконку если файл не найден
-    tray = new Tray(nativeImage.createEmpty());
-  } else {
-    const trayImage = nativeImage.createFromPath(trayIconPath);
-    tray = new Tray(trayImage);
-  }
+  // Отдельный компактный знак для системного трея: он намеренно не совпадает с desktop-иконкой.
+  tray = new Tray(createTrayImage(notificationCount));
   
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -320,33 +329,20 @@ function setupIPCHandlers() {
 
 function updateTrayIcon() {
   if (!tray) return;
-  
-  const trayIconPath = getTrayIconPath();
-  const trayImage = nativeImage.createFromPath(trayIconPath);
-  tray.setImage(trayImage);
-  
-  const tooltip = notificationCount > 0 
-    ? `Nexo (${notificationCount} уведомлений)` 
-    : 'Nexo';
-  tray.setToolTip(tooltip);
+  tray.setImage(createTrayImage(notificationCount));
+  tray.setToolTip(notificationCount > 0 ? `Nexo · ${notificationCount} уведомлений` : 'Nexo');
 }
 
 function setNotificationCount(count) {
   const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Math.floor(Number(count))) : 0;
-  notificationCount = Math.min(safeCount, 9); // Максимум 9
+  notificationCount = Math.min(safeCount, 9);
 
-  // Обновляем иконку трея
+  // Системный трей показывает отдельную мини-иконку со счётчиком.
   updateTrayIcon();
 
-  // Обновляем иконку главного окна
-  if (mainWindow) {
-    const iconName = notificationCount > 0
-      ? `Nexo-desctop-ico-${notificationCount}ping`
-      : 'Nexo-Desctop-ico';
-    const iconPath = getIconPath(iconName);
-    if (fs.existsSync(iconPath)) {
-      mainWindow.setIcon(nativeImage.createFromPath(iconPath));
-    }
+  // Значок приложения остаётся фирменным; число выводится отдельным Windows taskbar overlay.
+  if (mainWindow && !mainWindow.isDestroyed() && process.platform === 'win32') {
+    mainWindow.setOverlayIcon(createTaskbarOverlay(notificationCount), notificationCount > 0 ? `${notificationCount} непрочитанных уведомлений` : '');
   }
 }
 
@@ -734,7 +730,7 @@ function createWindow() {
     title: 'Nexo',
     show: false,
     backgroundColor: '#0D0A1A',
-    icon: getIconPath('Nexo-Desctop-ico')
+    icon: getDesktopIconPath()
   });
 
   // Добавляем обработчики ошибок загрузки

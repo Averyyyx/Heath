@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="nexo" x1="7" y1="5" x2="57" y2="59" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFC18B"/><stop offset=".48" stop-color="#F27B4A"/><stop offset="1" stop-color="#A83D24"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="#242321" stroke="#554238" stroke-width="1.5"/>
+  <path d="M17 21.5 28.2 13 47 26.2v15.1L35.7 50 17 36.7V21.5Z" fill="none" stroke="url(#nexo)" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m17.5 22 29 20" fill="none" stroke="#FFC18B" stroke-opacity=".82" stroke-width="6.5" stroke-linecap="round"/>
+</svg>

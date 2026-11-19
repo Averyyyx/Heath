@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command, Layers3,
   Phone, Mic, MicOff, Headphones, HeadphoneOff, CircleHelp, LogOut, Moon,
   Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus,
-  PanelLeftClose, PanelLeftOpen, Check, Volume2, Clock3, Circle, Sparkles
+  PanelLeftClose, PanelLeftOpen, Check, Volume2, Clock3, Circle, Sparkles,
 } from 'lucide-react';
 import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
@@ -17,6 +17,7 @@ import { Avatar } from './components/Avatar';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
+import { playNexoSound } from './lib/sounds';
 import { getSocket } from './lib/socket';
 import type { Conversation, FriendPayload, Server, User, UserStatus } from './types';
 
@@ -29,7 +30,7 @@ type WorkspaceTab = {
   serverId?: number;
   channelId?: number;
   messageId?: number;
-  initialSection?: 'account' | 'profile' | 'appearance' | 'premium' | 'servers' | 'updates';
+  initialSection?: 'account' | 'profile' | 'appearance' | 'notifications' | 'voice' | 'hotkeys' | 'accessibility' | 'premium' | 'servers' | 'updates';
   pinned?: boolean;
   unread?: number;
 };
@@ -37,7 +38,7 @@ type SidebarPin = { id: string; kind: 'dm' | 'channel'; title: string; targetId:
 type PaletteEntry = { id: string; title: string; subtitle?: string; group: string; icon: ReactNode; run: () => void };
 type ContextState = { x: number; y: number; tabId?: string; target?: SidebarPin; server?: Server } | null;
 type StatusChoice = { value: UserStatus; label: string };
-type IncomingCallInfo = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video' };
+type IncomingCallInfo = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video'; groupTitle?: string };
 type DeepLinkPayload = { type: 'dm'; conversationId: number; messageId: number } | { type: 'channel'; serverId: number; channelId: number; messageId: number };
 type ActiveCallInfo = { conversationId: number; title: string; startedAt: number };
 
@@ -53,6 +54,7 @@ const statusChoices: StatusChoice[] = [
 function tabStorageKey(userId: number) { return `nexo.tabs.v1.${userId}`; }
 function pinStorageKey(userId: number) { return `nexo.pins.v1.${userId}`; }
 function sidebarStorageKey(userId: number) { return `nexo.sidebar-width.v1.${userId}`; }
+function unreadStorageKey(userId: number) { return `nexo.unreads.v1.${userId}`; }
 
 function fuzzyMatch(text: string, query: string) {
   const source = text.toLocaleLowerCase('ru-RU');
@@ -82,6 +84,8 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [friends, setFriends] = useState<FriendPayload>({ incoming: [], outgoing: [], friends: [] });
   const [servers, setServers] = useState<Server[]>([]);
+  const [unreadDmCounts, setUnreadDmCounts] = useState<Record<number, number>>({});
+  const [unreadChannelCounts, setUnreadChannelCounts] = useState<Record<number, number>>({});
   const [expandedServers, setExpandedServers] = useState<number[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<string[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(264);
@@ -123,7 +127,7 @@ export default function App() {
   const [pendingDeepLink, setPendingDeepLink] = useState<DeepLinkPayload | null>(null);
   const [activeCallInfo, setActiveCallInfo] = useState<ActiveCallInfo | null>(null);
   const [callClock, setCallClock] = useState(Date.now());
-  const [appVersion, setAppVersion] = useState('0.0.4-alpha');
+  const [appVersion, setAppVersion] = useState('0.0.5-alpha');
 
   const desktopApi = typeof window !== 'undefined' ? window.nexoAPI : undefined;
   const tabStripRef = useRef<HTMLDivElement>(null);
@@ -135,11 +139,21 @@ export default function App() {
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) || tabHome;
   const unreadRequests = friends.incoming.length;
+  const serverUnreadCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const server of servers) counts[server.id] = server.channels.reduce((total, channel) => total + (unreadChannelCounts[channel.id] || 0), 0);
+    return counts;
+  }, [servers, unreadChannelCounts]);
+  const unreadTotal = useMemo(() => Math.min(9, unreadRequests + Object.values(unreadDmCounts).reduce((sum, count) => sum + count, 0) + Object.values(unreadChannelCounts).reduce((sum, count) => sum + count, 0)), [unreadRequests, unreadDmCounts, unreadChannelCounts]);
   const currentTitle = activeTab.title;
 
   useEffect(() => {
     desktopApi?.getAppVersion?.().then(setAppVersion).catch(() => {});
   }, [desktopApi]);
+
+  useEffect(() => {
+    desktopApi?.setNotificationCount?.(unreadTotal);
+  }, [desktopApi, unreadTotal]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -277,6 +291,28 @@ export default function App() {
   }, [tabs, activeTabId, pinnedItems, user, workspaceRestored]);
 
   useEffect(() => {
+    if (!user || !workspaceRestored) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(unreadStorageKey(user.id)) || '{}') as { dm?: Record<string, number>; channels?: Record<string, number> };
+      const normalize = (value?: Record<string, number>): Record<number, number> => {
+        const entries: Array<[string, number]> = Object.entries(value || {}).map(([key, count]) => [
+          key, Math.max(0, Math.min(9, Math.floor(Number(count) || 0)))
+        ]);
+        return Object.fromEntries(entries.filter(([, count]) => count > 0)) as Record<number, number>;
+      };
+      setUnreadDmCounts(normalize(saved.dm));
+      setUnreadChannelCounts(normalize(saved.channels));
+    } catch { /* Ignore a damaged local unread cache */ }
+  }, [user?.id, workspaceRestored]);
+
+  useEffect(() => {
+    if (!user || !workspaceRestored) return;
+    try {
+      localStorage.setItem(unreadStorageKey(user.id), JSON.stringify({ dm: unreadDmCounts, channels: unreadChannelCounts }));
+    } catch { /* Storage may be unavailable */ }
+  }, [user?.id, workspaceRestored, unreadDmCounts, unreadChannelCounts]);
+
+  useEffect(() => {
     if (!user) return;
     const savedInput = localStorage.getItem(`nexo.audio-input.${user.id}`) || '';
     const savedOutput = localStorage.getItem(`nexo.audio-output.${user.id}`) || '';
@@ -348,8 +384,12 @@ export default function App() {
     const socket = getSocket();
     const onCallInvite = (payload: IncomingCallInfo) => {
       if (!payload || payload.user?.id === user.id) return;
-      setPendingIncomingCall(payload);
       const conversation = conversations.find((item) => item.id === payload.conversationId);
+      const nextPayload = {
+        ...payload,
+        groupTitle: conversation?.type === 'group' ? (conversation.title || 'Групповой звонок') : undefined
+      };
+      setPendingIncomingCall(nextPayload);
       if (conversation) openDmTab(conversation);
     };
     socket.on('call:invite', onCallInvite);
@@ -381,6 +421,11 @@ export default function App() {
     const socket = getSocket();
     const onMessage = ({ conversationId }: { conversationId: number }) => {
       const id = `dm:${conversationId}`;
+      const isVisibleConversation = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
+      if (!isVisibleConversation) {
+        setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(9, (current[conversationId] || 0) + 1) }));
+        playNexoSound('message');
+      }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
         ? { ...tab, unread: (tab.unread || 0) + 1 }
         : tab));
@@ -389,6 +434,11 @@ export default function App() {
     };
     const onChannelMessage = ({ channelId }: { channelId: number }) => {
       const id = `channel:${channelId}`;
+      const isVisibleChannel = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
+      if (!isVisibleChannel) {
+        setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(9, (current[channelId] || 0) + 1) }));
+        playNexoSound('message');
+      }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
         ? { ...tab, unread: (tab.unread || 0) + 1 }
         : tab));
@@ -432,8 +482,25 @@ export default function App() {
   useEffect(() => {
     if (!activeTabId) return;
     setTabs((current) => current.map((tab) => tab.id === activeTabId && tab.unread ? { ...tab, unread: 0 } : tab));
+    if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
+    if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
     tabNodeRefs.current[activeTabId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-  }, [activeTabId]);
+  }, [activeTabId, activeTab.kind, activeTab.targetId, activeTab.channelId]);
+
+  useEffect(() => {
+    const clearVisibleUnread = () => {
+      if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
+      if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
+      if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
+      setTabs((current) => current.map((tab) => tab.id === activeTabId && tab.unread ? { ...tab, unread: 0 } : tab));
+    };
+    window.addEventListener('focus', clearVisibleUnread);
+    document.addEventListener('visibilitychange', clearVisibleUnread);
+    return () => {
+      window.removeEventListener('focus', clearVisibleUnread);
+      document.removeEventListener('visibilitychange', clearVisibleUnread);
+    };
+  }, [activeTab.kind, activeTab.targetId, activeTab.channelId, activeTabId]);
 
   useEffect(() => {
     if (!welcomeKind) return;
@@ -541,6 +608,7 @@ export default function App() {
   }
 
   function openDmTab(conversation: Conversation, background = false, messageId?: number) {
+    if (!background) setUnreadDmCounts((current) => current[conversation.id] ? { ...current, [conversation.id]: 0 } : current);
     const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user?.id);
     openTab({
       id: `dm:${conversation.id}`, kind: 'dm', title: person?.display_name || person?.username || conversation.title || 'Диалог',
@@ -549,12 +617,20 @@ export default function App() {
   }
 
   function openChannelTab(server: Server, channelId: number, background = false, messageId?: number) {
+    if (!background) setUnreadChannelCounts((current) => current[channelId] ? { ...current, [channelId]: 0 } : current);
     const channel = server.channels.find((item) => item.id === channelId);
     if (!channel || channel.type !== 'text') return;
     openTab({
       id: `channel:${channel.id}`, kind: 'channel', title: `# ${channel.name} · ${server.name}`,
       targetId: channel.id, serverId: server.id, channelId: channel.id, messageId
     }, background);
+  }
+
+  function selectServer(server: Server) {
+    setExpandedServers((current) => current.includes(server.id) ? current : [...current, server.id]);
+    const firstTextChannel = server.channels.find((channel) => channel.type === 'text');
+    if (firstTextChannel) openChannelTab(server, firstTextChannel.id);
+    else setCreateChannelServerId(server.id);
   }
 
   function openSettingsTab(section: WorkspaceTab['initialSection'] = 'account', background = false) {
@@ -916,6 +992,7 @@ export default function App() {
   }, [deviceMenu]);
 
   function setMic(next: boolean) {
+    if (micMuted !== next) playNexoSound(next ? 'mic-off' : 'mic-on');
     setMicMuted(next);
     if (user) localStorage.setItem(`nexo.mic-muted.${user.id}`, String(next));
   }
@@ -973,7 +1050,7 @@ export default function App() {
   return (
     <div className="app-root nexo-root">
       <header className="app-nav nexo-titlebar">
-        <div className="titlebar-brand"><span className="brand-mark">N</span><strong>Nexo</strong><span className="titlebar-version">ALPHA</span></div>
+        <div className="titlebar-brand"><img className="brand-image" src="/nexo-mark.svg" alt="" /><strong>Nexo</strong><span className="titlebar-version">ALPHA</span></div>
         <button type="button" className="titlebar-command" onClick={() => openPalette()} title="Найти или выполнить команду (Ctrl+K)">
           <Search size={15} /><span>Найти или выполнить команду</span><kbd>Ctrl K</kbd>
         </button>
@@ -1018,6 +1095,24 @@ export default function App() {
           </div>
 
           <div className={`nexo-workbench ${activeTab.kind === 'settings' ? 'settings-active' : ''}`}>
+            <aside className="nexo-server-rail" aria-label="Навигация по Nexo">
+              <button type="button" className={`server-rail-home ${activeTab.kind === 'home' ? 'active' : ''}`} onClick={() => setActiveTabId('home')} title="Главная"><Home size={20} /></button>
+              <button type="button" className={`server-rail-home ${activeTab.kind === 'friends' ? 'active' : ''}`} onClick={() => openFriendsTab()} title="Друзья"><Users size={20} />{unreadRequests > 0 && <span className="server-rail-badge">{Math.min(9, unreadRequests)}</span>}</button>
+              <span className="server-rail-separator" />
+              <div className="server-rail-list">
+                {servers.map((server) => {
+                  const count = serverUnreadCounts[server.id] || 0;
+                  return <motion.button type="button" key={server.id} layout className={`server-rail-item ${activeTab.serverId === server.id ? 'active' : ''} ${count ? 'unread' : ''}`}
+                    onClick={() => selectServer(server)} title={server.name}>
+                    <span className="server-rail-blob">{server.icon && (server.icon.startsWith('http') || server.icon.startsWith('data:image/'))
+                      ? <img src={server.icon} alt="" /> : server.icon || (server.name || 'S').slice(0, 1).toUpperCase()}</span>
+                    {count > 0 && <span className="server-rail-badge">{Math.min(9, count)}</span>}
+                  </motion.button>;
+                })}
+              </div>
+              <button type="button" className="server-rail-add" onClick={() => setCreateSpaceOpen(true)} title="Создать пространство"><Plus size={20} /></button>
+              <div className="server-rail-bottom"><button type="button" onClick={() => openSettingsTab('account')} title="Настройки"><Settings size={19} /></button></div>
+            </aside>
             <aside className={`nexo-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}>
               {!sidebarCollapsed && (
                 <>
@@ -1047,7 +1142,7 @@ export default function App() {
                         onContextMenu={(event) => contextTargetClick(event, item)}>
                         <Avatar user={person} size={27} showStatus />
                         <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Личный диалог</small></span>
-                        {tabs.find((tab) => tab.id === item.id)?.unread ? <i className="unread-dot" /> : null}
+                        {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge">{Math.min(9, unreadDmCounts[conversation.id])}</span>}
                       </button>;
                     })}
                     {conversations.length === 0 && <button type="button" className="sidebar-empty-action" onClick={() => openFriendsTab()}>Диалогов пока нет — найдите друга</button>}
@@ -1061,7 +1156,8 @@ export default function App() {
                         <button type="button" className="sidebar-server-head" onClick={() => setExpandedServers((current) => current.includes(server.id) ? current.filter((id) => id !== server.id) : [...current, server.id])}
                           onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, server }); }}>
                           {expandedServers.includes(server.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          <span className="server-tree-icon">{(server.name[0] || 'S').toUpperCase()}</span>
+                          <span className="server-tree-icon">{server.icon && (server.icon.startsWith('http') || server.icon.startsWith('data:image/'))
+                            ? <img src={server.icon} alt="" /> : server.icon || (server.name[0] || 'S').toUpperCase()}</span>
                           <strong>{server.name}</strong>
                         </button>
                         {expandedServers.includes(server.id) && server.channels.map((channel) => {
@@ -1072,7 +1168,7 @@ export default function App() {
                             onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openChannelTab(server, channel.id, true); } }}
                             onContextMenu={(event) => contextTargetClick(event, item)}>
                             <HashIcon /><span className="sidebar-row-text"><strong>{channel.name}</strong></span>
-                            {tabs.find((tab) => tab.id === item.id)?.unread ? <i className="unread-dot" /> : null}
+                            {unreadChannelCounts[channel.id] > 0 && <span className="sidebar-count-badge">{Math.min(9, unreadChannelCounts[channel.id])}</span>}
                           </button>;
                         })}
                       </div>
@@ -1103,8 +1199,8 @@ export default function App() {
                 <div className="dock-device-wrap">
                   <button type="button" className={deafened ? 'dock-icon danger' : 'dock-icon'} aria-label={deafened ? 'Включить звук' : 'Отключить звук'}
                     title={deafened ? 'Включить звук' : 'Отключить звук'} onClick={() => {
-                      if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
-                      else { setDeafened(false); setMic(savedMicMuted); }
+                      if (!deafened) { playNexoSound('headphones-off'); setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
+                      else { playNexoSound('headphones-on'); setDeafened(false); setMic(savedMicMuted); }
                     }}>
                     {deafened ? <HeadphoneOff size={17} /> : <Headphones size={17} />}
                   </button>
@@ -1148,6 +1244,9 @@ export default function App() {
                     micMuted={micMuted} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
                   {tab.kind === 'settings' && <SettingsPanel key={tab.id} user={user} onUserUpdate={(nextUser) => setUser(nextUser)}
                     initialSection={tab.initialSection || 'account'} appVersion={appVersion} onCheckUpdates={handleCheckUpdates}
+                    audioInputId={audioInputId} audioOutputId={audioOutputId}
+                    onAudioInputChange={(id) => { setAudioInputId(id); localStorage.setItem(`nexo.audio-input.${user.id}`, id); }}
+                    onAudioOutputChange={(id) => { setAudioOutputId(id); localStorage.setItem(`nexo.audio-output.${user.id}`, id); }}
                     onClose={() => closeTab(tab.id)} onLogout={handleLogout} />}
                 </section>
               ))}

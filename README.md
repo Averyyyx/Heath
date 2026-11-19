@@ -3,7 +3,7 @@
 Nexo is a high-performance, modular desktop application designed as a modern, customizable alternative to Discord. Built with a robust full-stack architecture using **React, TypeScript, Node.js, and Electron**, Nexo provides seamless workspace synchronization, sub-120ms rendering latency, and native desktop window management.
 
 ## 🖼️ Interface Architecture Preview
-*(Screenshots coming soon)*
+Nexo 0.0.5 uses a Discord-inspired three-zone workspace: server rail, contextual navigation, and a central conversation area. The interface includes friends, direct messages, channels, notification counters, sound preferences, and animated call prompts.
 
 ## 🛠️ Key Technical Specifications
 * **Electron Core Integration:** Desktop-native performance utilizing optimized Chromium window management and secure IPC (Inter-Process Communication) layers.
@@ -17,7 +17,7 @@ We are actively developing **Nexo AI Agents** driven by dedicated LLM APIs to fa
 2. Context-aware developer co-pilot subroutines integrated directly into the chat view.
 
 
-## Известные ограничения Nexo 0.0.4 Alpha
+## Известные ограничения Nexo 0.0.5 Alpha
 
 - Windows-установщик пока не подписан сертификатом издателя, поэтому Windows SmartScreen может показывать предупреждение.
 - Голосовые каналы пространств пока отображаются как «Скоро»; полноценное подключение к ним ещё не реализовано.

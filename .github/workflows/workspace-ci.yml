@@ -1,15 +1,17 @@
-name: Nexo 0.0.4 Workspace CI
+name: Nexo 0.0.5 Discord Workspace CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - feature/0.0.4-workspace
-  pull_request:
-    branches:
-      - main
+      - feature/0.0.5-discord-redesign
 
 permissions:
   contents: read
+
+concurrency:
+  group: nexo-0.0.5-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   windows-build:
@@ -43,7 +45,7 @@ jobs:
       - name: Upload Windows installer for review
         uses: actions/upload-artifact@v4
         with:
-          name: Nexo-0.0.4-alpha-Windows-preview
+          name: Nexo-0.0.5-alpha-Windows-preview
           path: dist/*.exe
           if-no-files-found: error
           retention-days: 14
