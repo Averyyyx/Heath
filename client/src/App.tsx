@@ -54,6 +54,7 @@ const statusChoices: StatusChoice[] = [
 function tabStorageKey(userId: number) { return `nexo.tabs.v1.${userId}`; }
 function pinStorageKey(userId: number) { return `nexo.pins.v1.${userId}`; }
 function sidebarStorageKey(userId: number) { return `nexo.sidebar-width.v1.${userId}`; }
+function unreadStorageKey(userId: number) { return `nexo.unreads.v1.${userId}`; }
 
 function fuzzyMatch(text: string, query: string) {
   const source = text.toLocaleLowerCase('ru-RU');
@@ -290,6 +291,23 @@ export default function App() {
   }, [tabs, activeTabId, pinnedItems, user, workspaceRestored]);
 
   useEffect(() => {
+    if (!user || !workspaceRestored) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(unreadStorageKey(user.id)) || '{}') as { dm?: Record<string, number>; channels?: Record<string, number> };
+      const normalize = (value?: Record<string, number>) => Object.fromEntries(Object.entries(value || {}).map(([key, count]) => [key, Math.max(0, Math.min(9, Math.floor(Number(count) || 0)))]).filter(([, count]) => count > 0));
+      setUnreadDmCounts(normalize(saved.dm));
+      setUnreadChannelCounts(normalize(saved.channels));
+    } catch { /* Ignore a damaged local unread cache */ }
+  }, [user?.id, workspaceRestored]);
+
+  useEffect(() => {
+    if (!user || !workspaceRestored) return;
+    try {
+      localStorage.setItem(unreadStorageKey(user.id), JSON.stringify({ dm: unreadDmCounts, channels: unreadChannelCounts }));
+    } catch { /* Storage may be unavailable */ }
+  }, [user?.id, workspaceRestored, unreadDmCounts, unreadChannelCounts]);
+
+  useEffect(() => {
     if (!user) return;
     const savedInput = localStorage.getItem(`nexo.audio-input.${user.id}`) || '';
     const savedOutput = localStorage.getItem(`nexo.audio-output.${user.id}`) || '';
@@ -398,7 +416,8 @@ export default function App() {
     const socket = getSocket();
     const onMessage = ({ conversationId }: { conversationId: number }) => {
       const id = `dm:${conversationId}`;
-      if (id !== activeTabId) {
+      const isVisibleConversation = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
+      if (!isVisibleConversation) {
         setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(9, (current[conversationId] || 0) + 1) }));
         playNexoSound('message');
       }
@@ -410,7 +429,8 @@ export default function App() {
     };
     const onChannelMessage = ({ channelId }: { channelId: number }) => {
       const id = `channel:${channelId}`;
-      if (id !== activeTabId) {
+      const isVisibleChannel = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
+      if (!isVisibleChannel) {
         setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(9, (current[channelId] || 0) + 1) }));
         playNexoSound('message');
       }
@@ -461,6 +481,21 @@ export default function App() {
     if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
     tabNodeRefs.current[activeTabId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }, [activeTabId, activeTab.kind, activeTab.targetId, activeTab.channelId]);
+
+  useEffect(() => {
+    const clearVisibleUnread = () => {
+      if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
+      if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
+      if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
+      setTabs((current) => current.map((tab) => tab.id === activeTabId && tab.unread ? { ...tab, unread: 0 } : tab));
+    };
+    window.addEventListener('focus', clearVisibleUnread);
+    document.addEventListener('visibilitychange', clearVisibleUnread);
+    return () => {
+      window.removeEventListener('focus', clearVisibleUnread);
+      document.removeEventListener('visibilitychange', clearVisibleUnread);
+    };
+  }, [activeTab.kind, activeTab.targetId, activeTab.channelId, activeTabId]);
 
   useEffect(() => {
     if (!welcomeKind) return;
@@ -568,7 +603,7 @@ export default function App() {
   }
 
   function openDmTab(conversation: Conversation, background = false, messageId?: number) {
-    setUnreadDmCounts((current) => current[conversation.id] ? { ...current, [conversation.id]: 0 } : current);
+    if (!background) setUnreadDmCounts((current) => current[conversation.id] ? { ...current, [conversation.id]: 0 } : current);
     const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user?.id);
     openTab({
       id: `dm:${conversation.id}`, kind: 'dm', title: person?.display_name || person?.username || conversation.title || 'Диалог',
@@ -577,7 +612,7 @@ export default function App() {
   }
 
   function openChannelTab(server: Server, channelId: number, background = false, messageId?: number) {
-    setUnreadChannelCounts((current) => current[channelId] ? { ...current, [channelId]: 0 } : current);
+    if (!background) setUnreadChannelCounts((current) => current[channelId] ? { ...current, [channelId]: 0 } : current);
     const channel = server.channels.find((item) => item.id === channelId);
     if (!channel || channel.type !== 'text') return;
     openTab({
