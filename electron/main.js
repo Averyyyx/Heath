@@ -130,6 +130,11 @@ function getIconsDir() {
     : path.join(__dirname, 'icons');
 }
 
+function getDesktopIconPath() {
+  const iconPath = path.join(getIconsDir(), 'Nexo-Desctop-ico.ico');
+  return fs.existsSync(iconPath) ? iconPath : getIconPath('Nexo-Desctop-ico', 256);
+}
+
 // Файлы иконок лежат с суффиксом размера (Nexo-Desctop-ico-256.png), поэтому ищем
 // нужный размер, затем имя без суффикса и ближайшие размеры.
 function getIconPath(iconName, size = 256) {
@@ -728,7 +733,7 @@ function createWindow() {
     title: 'Nexo',
     show: false,
     backgroundColor: '#0D0A1A',
-    icon: getIconPath('Nexo-Desctop-ico')
+    icon: getDesktopIconPath()
   });
 
   // Добавляем обработчики ошибок загрузки
