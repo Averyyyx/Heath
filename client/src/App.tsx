@@ -7,7 +7,6 @@ import {
   Phone, Mic, MicOff, Headphones, HeadphoneOff, CircleHelp, LogOut, Moon,
   Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus,
   PanelLeftClose, PanelLeftOpen, Check, Volume2, Clock3, Circle, Sparkles,
-  MessageSquare, Server as ServerIcon, Compass
 } from 'lucide-react';
 import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
