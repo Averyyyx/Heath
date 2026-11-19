@@ -457,7 +457,7 @@ export default function App() {
     if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
     if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
     tabNodeRefs.current[activeTabId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-  }, [activeTabId, tabs]);
+  }, [activeTabId, activeTab.kind, activeTab.targetId, activeTab.channelId]);
 
   useEffect(() => {
     if (!welcomeKind) return;
