@@ -3,9 +3,10 @@ const path = require('path');
 const { fork, spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
-const { Readable } = require('stream');
+const { Readable, Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const crypto = require('crypto');
+const { compareReleaseVersions } = require('./version');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -14,6 +15,12 @@ let serverProcess = null;
 let serverReady = false;
 let serverRestarts = 0;
 let updateCheckPromise = null;
+let backgroundUpdateTimer = null;
+let activeUpdateController = null;
+let skipUpdateRequested = false;
+let pendingUpdateNotice = null;
+let releaseNotesText = '';
+let queuedDeepLink = null;
 const MAX_SERVER_RESTARTS = 5;
 let notificationCount = 0;
 const SERVER_PORT = process.env.PORT || 4000;
@@ -296,6 +303,10 @@ function setupIPCHandlers() {
 
   ipcMain.handle('get-app-version', () => app.getVersion());
   ipcMain.handle('check-for-updates', () => checkForUpdates({ interactive: true }));
+  ipcMain.handle('get-update-preferences', () => getUpdatePreferences());
+  ipcMain.on('set-update-preferences', (_event, value) => { setUpdatePreferences(value); });
+  ipcMain.handle('open-logs', async () => { await shell.openPath(path.join(app.getPath('userData'), 'logs')); return true; });
+  ipcMain.on('skip-update', () => { skipUpdateRequested = true; activeUpdateController?.abort(); });
   ipcMain.on('set-window-theme', (_event, theme) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     const dark = theme === 'dark' || (theme === 'system' && nativeTheme.shouldUseDarkColors);
@@ -339,136 +350,194 @@ function setNotificationCount(count) {
   }
 }
 
-function compareReleaseVersions(left, right) {
-  const parse = (value) => {
-    const raw = String(value || '').replace(/^v/i, '');
-    const [core, pre = ''] = raw.split('-', 2);
-    return { numbers: core.split('.').map((part) => Number(part) || 0), pre, hasPre: raw.includes('-') };
-  };
-  const a = parse(left);
-  const b = parse(right);
-  for (let i = 0; i < Math.max(a.numbers.length, b.numbers.length, 3); i += 1) {
-    const difference = (a.numbers[i] || 0) - (b.numbers[i] || 0);
-    if (difference !== 0) return difference > 0 ? 1 : -1;
+function dispatchDeepLink(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'nexo:') return false;
+    const parts = url.pathname.split('/').filter(Boolean);
+    let payload = null;
+    if (url.hostname === 'dm' && /^\\d+$/.test(parts[0] || '') && parts[1] === 'message' && /^\\d+$/.test(parts[2] || '')) {
+      payload = { type: 'dm', conversationId: Number(parts[0]), messageId: Number(parts[2]) };
+    } else if (url.hostname === 'channel' && /^\\d+$/.test(parts[0] || '') && /^\\d+$/.test(parts[1] || '') && parts[2] === 'message' && /^\\d+$/.test(parts[3] || '')) {
+      payload = { type: 'channel', serverId: Number(parts[0]), channelId: Number(parts[1]), messageId: Number(parts[3]) };
+    }
+    if (!payload) return false;
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.getURL().startsWith(SERVER_URL)) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('deep-link', payload);
+    } else queuedDeepLink = payload;
+    return true;
+  } catch (error) {
+    console.warn('Rejected invalid Nexo deep link:', error.message);
+    return false;
   }
-  if (a.hasPre !== b.hasPre) return a.hasPre ? -1 : 1;
-  return a.pre.localeCompare(b.pre);
 }
 
-function sendUpdateStatus(status, message, version) {
-  const payload = { status, message, ...(version ? { version } : {}) };
+function updatePreferencesPath() { return path.join(app.getPath('userData'), 'update-preferences.json'); }
+function getUpdatePreferences() {
+  try { return { autoDownload: JSON.parse(fs.readFileSync(updatePreferencesPath(), 'utf8')).autoDownload !== false }; }
+  catch { return { autoDownload: true }; }
+}
+function setUpdatePreferences(value = {}) {
+  const preferences = { autoDownload: value.autoDownload !== false };
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  fs.writeFileSync(updatePreferencesPath(), JSON.stringify(preferences, null, 2), 'utf8');
+  return preferences;
+}
+function sendUpdateStatus(status, message, version, percent, releaseNotes) {
+  const payload = { status, message, ...(version ? { version } : {}), ...(Number.isFinite(percent) ? { percent: Math.max(0, Math.min(100, percent)) } : {}), ...(releaseNotes ? { releaseNotes } : {}) };
+  if (status === 'available' || status === 'downloaded') pendingUpdateNotice = payload;
+  if (status === 'up-to-date') pendingUpdateNotice = null;
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-status', payload);
   if (splashWindow && !splashWindow.isDestroyed()) splashWindow.webContents.send('update-status', payload);
 }
-
-async function checkForUpdates({ interactive = true } = {}) {
-  if (!app.isPackaged) {
-    return { status: 'unavailable', message: 'Проверка обновлений доступна в установленной версии Nexo.' };
+function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+async function readExpectedSha256(release, asset) {
+  if (typeof asset.digest === 'string' && /^sha256:[a-f0-9]{64}$/i.test(asset.digest)) return asset.digest.slice(7).toLowerCase();
+  const checksum = (release.assets || []).find((item) => item.name === `${asset.name}.sha256`);
+  if (!checksum?.browser_download_url) return null;
+  const response = await fetch(checksum.browser_download_url, { headers: { 'User-Agent': 'Nexo-Desktop-App' }, signal: AbortSignal.timeout(8000) });
+  if (!response.ok) return null;
+  const match = (await response.text()).trim().match(/\b([a-f0-9]{64})\b/i);
+  return match ? match[1].toLowerCase() : null;
+}
+async function downloadAndVerifyUpdate(asset, expectedHash, version) {
+  const updatesDirectory = path.join(app.getPath('userData'), 'updates');
+  fs.mkdirSync(updatesDirectory, { recursive: true });
+  const safeVersion = version.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const installerPath = path.join(updatesDirectory, `Nexo-${safeVersion}-Setup.exe`);
+  try {
+    const stat = await fs.promises.stat(installerPath);
+    if (stat.isFile() && stat.size === asset.size && stat.size > 1024) {
+      const hash = crypto.createHash('sha256');
+      for await (const chunk of fs.createReadStream(installerPath)) hash.update(chunk);
+      if (hash.digest('hex') === expectedHash) {
+        sendUpdateStatus('downloaded', `Установщик Nexo ${version} уже загружен и проверен.`, version, 100);
+        return installerPath;
+      }
+    }
+  } catch {}
+  try { await fs.promises.unlink(installerPath); } catch {}
+  if (skipUpdateRequested) {
+    sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version);
+    return null;
   }
-  if (updateCheckPromise) return updateCheckPromise;
-
-  updateCheckPromise = (async () => {
-    sendUpdateStatus('checking', 'Проверяем наличие новой версии…');
-    try {
-      const response = await fetch('https://api.github.com/repos/Averyyyx/Nexo/releases?per_page=20', {
-        headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'Nexo-Desktop-App' },
-        signal: AbortSignal.timeout(12000)
+  activeUpdateController = new AbortController();
+  const response = await fetch(asset.browser_download_url, {
+    headers: { 'User-Agent': 'Nexo-Desktop-App' },
+    signal: AbortSignal.any([activeUpdateController.signal, AbortSignal.timeout(20 * 60 * 1000)])
+  });
+  if (!response.ok || !response.body) throw new Error(`Не удалось скачать обновление (HTTP ${response.status}).`);
+  const total = Number(response.headers.get('content-length')) || Number(asset.size) || 0;
+  let received = 0, lastPercent = -1;
+  const hash = crypto.createHash('sha256');
+  const meter = new Transform({
+    transform(chunk, _encoding, callback) {
+      received += chunk.length; hash.update(chunk);
+      const percent = total ? Math.floor(received / total * 100) : 0;
+      if (percent !== lastPercent) { lastPercent = percent; sendUpdateStatus('downloading', `Скачиваем обновление… ${percent}%`, version, percent); }
+      callback(null, chunk);
+    }
+  });
+  try {
+    await pipeline(Readable.fromWeb(response.body), meter, fs.createWriteStream(installerPath, { flags: 'w' }));
+    const actualHash = hash.digest('hex');
+    const stat = await fs.promises.stat(installerPath);
+    if (stat.size < 1024 || (asset.size && stat.size !== asset.size)) throw new Error('Размер скачанного установщика не совпадает с опубликованным.');
+    if (actualHash !== expectedHash) throw new Error('Контрольная сумма установщика не совпала. Файл удалён из соображений безопасности.');
+    sendUpdateStatus('downloaded', `Обновление ${version} скачано и проверено.`, version, 100);
+    return installerPath;
+  } catch (error) {
+    await fs.promises.unlink(installerPath).catch(() => {});
+    if (skipUpdateRequested || error.name === 'AbortError') { sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version); return null; }
+    throw error;
+  } finally { activeUpdateController = null; }
+}
+async function installUpdate(installerPath, version, { silent = false } = {}) {
+  if (silent) {
+    sendUpdateStatus('installing', `Устанавливаем Nexo ${version}…`, version);
+    const child = spawn(installerPath, ['/S', '--updated'], { detached: true, stdio: 'ignore', windowsHide: true });
+    return new Promise((resolve) => {
+      child.once('spawn', () => { app.isQuitting = true; app.quit(); resolve({ status: 'installing', version, message: 'Установка обновления запущена.' }); });
+      child.once('error', (error) => {
+        console.warn('Silent update install failed:', error.message);
+        sendUpdateStatus('install-fallback', 'Тихая установка не удалась. Откроется обычный установщик.', version);
+        const fallback = spawn(installerPath, [], { detached: true, stdio: 'ignore', windowsHide: false });
+        fallback.once('spawn', () => { app.isQuitting = true; app.quit(); resolve({ status: 'installing', version, message: 'Открылся обычный установщик.' }); });
+        fallback.once('error', () => resolve({ status: 'error', message: 'Не удалось запустить установщик. Попробуйте установить его вручную.' }));
       });
-      if (!response.ok) throw new Error('GitHub API ответил кодом ' + response.status);
-
+    });
+  }
+  const choice = await dialog.showMessageBox(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
+    type: 'info', title: 'Обновление Nexo', message: `Доступна новая версия Nexo ${version}`,
+    detail: 'Обновление скачано и проверено. Nexo закроется на время установки.',
+    buttons: ['Установить сейчас', 'Позже'], defaultId: 0, cancelId: 1, noLink: true
+  });
+  if (choice.response !== 0) return { status: 'downloaded', version, message: `Обновление ${version} готово к установке. Можно вернуться к нему позже.` };
+  return installUpdate(installerPath, version, { silent: true });
+}
+async function checkForUpdates({ interactive = true, startup = false } = {}) {
+  if (!app.isPackaged) { sendUpdateStatus('development', 'Режим разработки — проверка обновлений пропущена.'); return { status: 'unavailable', message: 'Режим разработки — обновления не проверяются.' }; }
+  if (updateCheckPromise) return updateCheckPromise;
+  if (startup) skipUpdateRequested = false;
+  updateCheckPromise = (async () => {
+    sendUpdateStatus('checking', 'Проверяем обновления…');
+    try {
+      const response = await fetch('https://api.github.com/repos/Averyyyx/Nexo/releases?per_page=30', {
+        headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'Nexo-Desktop-App' }, signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) throw new Error(response.status === 404 ? 'Не удалось найти публичные Alpha-релизы Nexo.' : `Сервис обновлений временно недоступен (HTTP ${response.status}).`);
       const releases = await response.json();
-      const latest = releases
-        .filter((release) => !release.draft && release.prerelease)
-        .sort((a, b) => new Date(b.published_at || b.created_at).getTime() - new Date(a.published_at || a.created_at).getTime())[0];
-
+      const latest = releases.filter((item) => !item.draft && item.prerelease)
+        .sort((left, right) => compareReleaseVersions(right.tag_name, left.tag_name))[0];
       if (!latest) {
-        const message = 'Пока нет опубликованных Alpha-обновлений.';
-        sendUpdateStatus('up-to-date', message);
+        const message = 'У вас последняя доступная Alpha-версия.';
+        sendUpdateStatus('up-to-date', message, app.getVersion());
+        if (startup) await sleep(400);
         return { status: 'up-to-date', message };
       }
-
-      const currentVersion = app.getVersion().replace(/^v/, '');
-      const latestVersion = String(latest.tag_name || '').replace(/^v/, '');
-      if (!latestVersion || compareReleaseVersions(latestVersion, currentVersion) <= 0) {
-        const message = `Установлена актуальная версия Nexo ${currentVersion}.`;
-        sendUpdateStatus('up-to-date', message, currentVersion);
-        return { status: 'up-to-date', version: currentVersion, message };
+      const current = app.getVersion().replace(/^v/, '');
+      const version = String(latest.tag_name || '').replace(/^v/, '');
+      if (!version || compareReleaseVersions(version, current) <= 0) {
+        const message = 'У вас последняя версия Nexo.';
+        sendUpdateStatus('up-to-date', message, current);
+        if (startup) await sleep(400);
+        return { status: 'up-to-date', version: current, message };
       }
-
-      const asset = (latest.assets || []).find((item) =>
-        /.exe$/i.test(item.name || '') && /setup/i.test(item.name || '')
-      ) || (latest.assets || []).find((item) => /.exe$/i.test(item.name || ''));
-      if (!asset?.browser_download_url) {
-        throw new Error('В релизе ' + latestVersion + ' нет установщика Windows (.exe).');
+      const asset = (latest.assets || []).find((item) => /\.exe$/i.test(item.name || '') && /setup/i.test(item.name || ''));
+      if (!asset?.browser_download_url || !asset.size) throw new Error(`В релизе ${version} нет установщика Windows.`);
+      releaseNotesText = String(latest.body || '').replace(/<[^>]+>/g, '').trim().slice(0, 12000);
+      sendUpdateStatus('available', `Найдена версия ${version}.`, version, undefined, releaseNotesText);
+      const preferences = getUpdatePreferences();
+      if (!preferences.autoDownload && (!interactive || startup)) return { status: 'available', version, message: `Доступна версия ${version}. Автоматическая загрузка выключена.`, releaseNotes: releaseNotesText };
+      if (startup && skipUpdateRequested) {
+        sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version);
+        return { status: 'skipped', version, message: 'Обновление пропущено.' };
       }
-
-      sendUpdateStatus('available', `Доступна версия ${latestVersion}. Скачиваем установщик…`, latestVersion);
-      const updatesDirectory = path.join(app.getPath('userData'), 'updates');
-      fs.mkdirSync(updatesDirectory, { recursive: true });
-      const safeVersion = latestVersion.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const installerPath = path.join(updatesDirectory, `Nexo-${safeVersion}-Setup.exe`);
-
-      let installerReady = false;
-      try {
-        const existing = await fs.promises.stat(installerPath);
-        installerReady = existing.isFile() && existing.size > 0 &&
-          (!asset.size || existing.size === asset.size);
-      } catch { installerReady = false; }
-
-      if (!installerReady) {
-        try { await fs.promises.unlink(installerPath); } catch {}
-        const download = await fetch(asset.browser_download_url, {
-          headers: { 'User-Agent': 'Nexo-Desktop-App' },
-          signal: AbortSignal.timeout(20 * 60 * 1000)
-        });
-        if (!download.ok || !download.body) {
-          throw new Error('Не удалось скачать установщик (' + download.status + ').');
-        }
-        await pipeline(Readable.fromWeb(download.body), fs.createWriteStream(installerPath));
-        const downloaded = await fs.promises.stat(installerPath);
-        if (downloaded.size < 1024 || (asset.size && downloaded.size !== asset.size)) {
-          await fs.promises.unlink(installerPath).catch(() => {});
-          throw new Error('Скачанный установщик неполный. Проверьте подключение и повторите попытку.');
-        }
+      const expectedHash = await readExpectedSha256(latest, asset);
+      if (!expectedHash) throw new Error('У релиза отсутствует SHA-256. Установщик не будет запущен.');
+      if (startup && skipUpdateRequested) {
+        sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version);
+        return { status: 'skipped', version, message: 'Обновление пропущено.' };
       }
-
-      sendUpdateStatus('downloaded', `Установщик Nexo ${latestVersion} готов.`, latestVersion);
-      const updateDialog = {
-        type: 'info',
-        title: 'Обновление Nexo',
-        message: `Доступна новая версия Nexo ${latestVersion}`,
-        detail: 'Установщик уже скачан. Перед запуском закройте текущую версию приложения.',
-        buttons: ['Установить сейчас', 'Позже'],
-        defaultId: 0,
-        cancelId: 1,
-        noLink: true
-      };
-      const choice = mainWindow && !mainWindow.isDestroyed()
-        ? await dialog.showMessageBox(mainWindow, updateDialog)
-        : await dialog.showMessageBox(updateDialog);
-
-      if (choice.response === 0) {
-        sendUpdateStatus('installing', `Запускаем установщик Nexo ${latestVersion}…`, latestVersion);
-        const installer = spawn(installerPath, [], { detached: true, stdio: 'ignore', windowsHide: false });
-        installer.unref();
-        app.isQuitting = true;
-        app.quit();
-        return { status: 'installing', version: latestVersion, message: 'Установщик запущен. Завершите установку в появившемся окне.' };
-      }
-
-      const message = `Обновление ${latestVersion} скачано. Установить его можно при следующей проверке.`;
-      sendUpdateStatus('downloaded', message, latestVersion);
-      return { status: 'downloaded', version: latestVersion, message };
+      const installerPath = await downloadAndVerifyUpdate(asset, expectedHash, version);
+      if (!installerPath) return { status: 'skipped', version, message: 'Запуск продолжается без обновления.' };
+      if (startup) return installUpdate(installerPath, version, { silent: true });
+      if (interactive) return installUpdate(installerPath, version, { silent: false });
+      return { status: 'downloaded', version, message: `Обновление ${version} скачано и проверено.`, releaseNotes: releaseNotesText };
     } catch (error) {
-      console.warn('Unable to check or download Nexo updates:', error.message);
-      const message = error.message || 'Не удалось проверить обновления Nexo.';
+      const message = error.name === 'TimeoutError' || error.name === 'AbortError'
+        ? 'Не удалось проверить обновления по тайм-ауту. Запуск Nexo продолжается.'
+        : (error.message || 'Не удалось проверить или скачать обновление.');
+      console.warn('Update check failed:', error);
       sendUpdateStatus('error', message);
+      if (startup) await sleep(1000);
       return { status: 'error', message };
     }
   })();
-
-  try { return await updateCheckPromise; }
-  finally { updateCheckPromise = null; }
+  try { return await updateCheckPromise; } finally { updateCheckPromise = null; }
 }
 
 function getServerRuntime() {
@@ -610,15 +679,16 @@ function createSplashWindow() {
   console.log('Creating splash window...');
   
   splashWindow = new BrowserWindow({
-    width: 440,
-    height: 286,
+    width: 520,
+    height: 620,
     resizable: false,
     frame: false,
     alwaysOnTop: true,
     transparent: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'splash-preload.js')
     },
     show: false,
     backgroundColor: '#262624'
@@ -668,6 +738,8 @@ function createWindow() {
   });
 
   // Добавляем обработчики ошибок загрузки
+  mainWindow.webContents.on('did-finish-load', () => { if (pendingUpdateNotice) mainWindow.webContents.send('update-status', pendingUpdateNotice); });
+
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     console.error('Page failed to load:', errorCode, errorDescription, validatedURL);
   });
@@ -731,15 +803,22 @@ function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'nexo:') dispatchDeepLink(url);
+      else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') void shell.openExternal(url);
+    } catch { /* malformed URLs are denied */ }
     return { action: 'deny' };
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(SERVER_URL)) {
-      event.preventDefault();
-      shell.openExternal(url);
-    }
+    if (url.startsWith(SERVER_URL)) return;
+    event.preventDefault();
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'nexo:') dispatchDeepLink(url);
+      else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') void shell.openExternal(url);
+    } catch { /* malformed URLs are denied */ }
   });
 }
 
@@ -748,13 +827,16 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, commandLine) => {
+    const deepLink = commandLine.find((argument) => argument.startsWith('nexo://'));
+    if (deepLink) dispatchDeepLink(deepLink);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
     }
   });
+  app.on('open-url', (event, url) => { event.preventDefault(); dispatchDeepLink(url); });
 }
 
 // Инициализация приложения Electron
@@ -762,6 +844,12 @@ app.whenReady().then(async () => {
   if (!gotSingleInstanceLock) {
     return;
   }
+
+  // Регистрируем nexo:// для ссылок на сообщения.
+  try { app.setAsDefaultProtocolClient('nexo'); } catch (error) { console.warn('Не удалось зарегистрировать nexo://:', error.message); }
+
+  const startupDeepLink = process.argv.find((argument) => argument.startsWith('nexo://'));
+  if (startupDeepLink) dispatchDeepLink(startupDeepLink);
 
   // Инициализируем логирование после того, как app готов
   setupLogging();
@@ -788,6 +876,9 @@ app.whenReady().then(async () => {
       splashWindow.webContents.send('loading-status', 'Запуск сервера...');
     }
     startServer();
+
+    // Проверка релиза начинается на splash до создания основного окна.
+    const startupUpdateTask = checkForUpdates({ interactive: false, startup: true });
     
     // Ждем, пока сервер станет доступен
     console.log('Waiting for server to be ready...');
@@ -797,8 +888,9 @@ app.whenReady().then(async () => {
     await waitForServer();
     serverReady = true;
     console.log('Server is ready!');
+    const startupUpdateResult = await startupUpdateTask;
+    if (startupUpdateResult?.status === 'installing' || app.isQuitting) return;
     
-    // Обновления проверяются после показа основного окна, чтобы системный диалог не прерывал запуск.
     // Создаем system tray
     createTray();
     
@@ -814,8 +906,9 @@ app.whenReady().then(async () => {
     mainWindow.once('ready-to-show', () => {
       console.log('Main window ready, closing splash...');
       if (splashWindow) splashWindow.close();
-      if (app.isPackaged) {
-        setTimeout(() => { void checkForUpdates({ interactive: false }); }, 5500);
+      if (!backgroundUpdateTimer && app.isPackaged) {
+        backgroundUpdateTimer = setInterval(() => { void checkForUpdates({ interactive: false, startup: false }); }, 6 * 60 * 60 * 1000);
+        backgroundUpdateTimer.unref?.();
       }
     });
     

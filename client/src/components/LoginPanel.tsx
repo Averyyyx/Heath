@@ -17,8 +17,25 @@ export function LoginPanel({ onSuccess }: LoginPanelProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [remember, setRemember] = useState(true);
   const [githubAvailable, setGithubAvailable] = useState(false);
+  const [passwordScore, setPasswordScore] = useState<number | null>(null);
+  const [passwordChecking, setPasswordChecking] = useState(false);
   const [status, setStatus] = useState<Status>({ type: 'idle' });
   const [mode, setMode] = useState<AuthMode>('login');
+
+  useEffect(() => {
+    if (mode !== 'register' || !password) { setPasswordScore(null); setPasswordChecking(false); return; }
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setPasswordChecking(true);
+      try {
+        const response = await apiFetch('/api/auth/password-strength', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password, email }) });
+        const payload = await response.json();
+        if (active && response.ok) setPasswordScore(Number(payload.score));
+      } catch { if (active) setPasswordScore(null); }
+      finally { if (active) setPasswordChecking(false); }
+    }, 350);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [mode, password, email]);
 
   useEffect(() => {
     let active = true;
@@ -31,6 +48,14 @@ export function LoginPanel({ onSuccess }: LoginPanelProps) {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (password.length > 128) {
+      setStatus({ type: 'error', message: 'Пароль не должен превышать 128 символов.' });
+      return;
+    }
+    if (mode === 'register' && passwordScore !== null && passwordScore < 3) {
+      setStatus({ type: 'error', message: 'Пароль слишком простой. Добавьте длину и разнообразие символов.' });
+      return;
+    }
     if (mode === 'register' && password !== confirmPassword) {
       setStatus({ type: 'error', message: 'Пароли не совпадают.' });
       return;
@@ -86,9 +111,13 @@ export function LoginPanel({ onSuccess }: LoginPanelProps) {
           <label>
             <span>{t('password')}</span>
             <input type="password" placeholder="••••••••" value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => setPassword(event.target.value)} maxLength={128}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required />
           </label>
+          {mode === 'register' && <div className={`password-strength score-${passwordScore ?? 0}`} aria-live="polite">
+            <span>{passwordChecking ? 'Проверяем надёжность…' : passwordScore === null ? 'Оценка пароля' : ['Слабый', 'Слабый', 'Средний', 'Хороший', 'Сильный'][Math.max(0, Math.min(4, passwordScore))]}</span>
+            <div className="password-strength-track"><i style={{ width: `${passwordScore === null ? 0 : (passwordScore + 1) * 20}%` }} /></div>
+          </div>}
           {mode === 'register' && (
             <label>
               <span>Повторите пароль</span>

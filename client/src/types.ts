@@ -11,11 +11,15 @@ export type User = {
   id: number;
   email: string;
   username: string;
+  username_changed_at?: string | null;
+  display_name_changed_at?: string | null;
   display_name: string;
   avatar_url: string;
   avatar_color?: string;
   bio?: string;
   discriminator?: string;
+  twofa_enabled?: number;
+  email_verified?: number;
   profile_complete: number;
   status: UserStatus;
   custom_status?: string;

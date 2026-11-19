@@ -32,6 +32,7 @@ const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
 const Database = require('better-sqlite3');
+const sharp = require('sharp');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const zxcvbn = require('zxcvbn');
@@ -64,6 +65,7 @@ if (!fs.existsSync(publicDir)) {
 }
 const uploadsDir = path.join(dataDir, 'uploads');
 const tempUploadsDir = path.join(dataDir, 'tmp');
+const avatarsDir = path.join(dataDir, 'avatars');
 const ALLOWED_MIME_TYPES = new Set(
   (process.env.ALLOWED_MIME_TYPES ||
     'image/png,image/jpeg,image/webp,image/gif,video/mp4,application/pdf')
@@ -216,29 +218,36 @@ if (!fs.existsSync(uploadsDir)) {
 if (!fs.existsSync(tempUploadsDir)) {
   fs.mkdirSync(tempUploadsDir, { recursive: true });
 }
+if (!fs.existsSync(avatarsDir)) {
+  fs.mkdirSync(avatarsDir, { recursive: true });
+}
 
 const db = new Database(process.env.DB_PATH || path.join(dataDir, 'nexo.db'));
 db.pragma('journal_mode = WAL');
 
 db.prepare(`
-  CREATE TABLE IF NOT EXISTS app_sessions (
+  CREATE TABLE IF NOT EXISTS http_sessions (
     sid TEXT PRIMARY KEY,
     sess TEXT NOT NULL,
     expires_at INTEGER NOT NULL
   )
 `).run();
 
+if (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'app_sessions'").get()) {
+  db.prepare('INSERT OR IGNORE INTO http_sessions (sid, sess, expires_at) SELECT sid, sess, expires_at FROM app_sessions').run();
+}
+
 class SQLiteSessionStore extends session.Store {
   constructor(database) {
     super();
-    this.readSession = database.prepare('SELECT sess, expires_at FROM app_sessions WHERE sid = ?');
+    this.readSession = database.prepare('SELECT sess, expires_at FROM http_sessions WHERE sid = ?');
     this.writeSession = database.prepare(`
-      INSERT INTO app_sessions (sid, sess, expires_at) VALUES (?, ?, ?)
+      INSERT INTO http_sessions (sid, sess, expires_at) VALUES (?, ?, ?)
       ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expires_at = excluded.expires_at
     `);
-    this.touchSession = database.prepare('UPDATE app_sessions SET expires_at = ? WHERE sid = ?');
-    this.deleteSession = database.prepare('DELETE FROM app_sessions WHERE sid = ?');
-    this.deleteExpired = database.prepare('DELETE FROM app_sessions WHERE expires_at <= ?');
+    this.touchSession = database.prepare('UPDATE http_sessions SET expires_at = ? WHERE sid = ?');
+    this.deleteSession = database.prepare('DELETE FROM http_sessions WHERE sid = ?');
+    this.deleteExpired = database.prepare('DELETE FROM http_sessions WHERE expires_at <= ?');
     this.cleanupTimer = setInterval(() => {
       try { this.deleteExpired.run(Date.now()); } catch (error) {
         console.warn('Session cleanup failed:', error.message);
@@ -316,6 +325,10 @@ ensureUserColumn('discriminator', `discriminator TEXT DEFAULT '0001'`);
 ensureUserColumn('profile_complete', `profile_complete INTEGER DEFAULT 0`);
 ensureUserColumn('bio', `bio TEXT DEFAULT ''`);
 ensureUserColumn('avatar_color', `avatar_color TEXT DEFAULT '#D97757'`);
+ensureUserColumn('username_changed_at', 'username_changed_at DATETIME');
+ensureUserColumn('display_name_changed_at', 'display_name_changed_at DATETIME');
+ensureUserColumn('status', "status TEXT DEFAULT 'online'");
+ensureUserColumn('custom_status', "custom_status TEXT DEFAULT ''");
 db.prepare("UPDATE users SET avatar_color = '#D97757' WHERE avatar_color IS NULL OR avatar_color = ''").run();
 ensureUserColumn('email_verified', `email_verified INTEGER DEFAULT 0`);
 ensureUserColumn('twofa_secret', `twofa_secret TEXT`);
@@ -621,7 +634,9 @@ const updateTwoFactor = db.prepare('UPDATE users SET twofa_secret = ?, twofa_ena
 const updatePasswordHash = db.prepare('UPDATE users SET password_hash = ? WHERE id = ?');
 const markProfile = db.prepare(`
   UPDATE users
-  SET display_name = ?, username = ?, discriminator = ?, bio = ?, avatar_color = ?, profile_complete = 1
+  SET display_name = ?, username = ?, discriminator = ?, bio = ?, avatar_color = ?, profile_complete = 1,
+      display_name_changed_at = CASE WHEN display_name != ? THEN CURRENT_TIMESTAMP ELSE display_name_changed_at END,
+      username_changed_at = CASE WHEN username != ? THEN CURRENT_TIMESTAMP ELSE username_changed_at END
   WHERE id = ?
 `);
 const selectOAuthAccount = db.prepare('SELECT * FROM oauth_accounts WHERE provider = ? AND provider_user_id = ?');
@@ -926,7 +941,7 @@ function seedDevAccount() {
       null
     );
     user = selectUserById.get(result.lastInsertRowid);
-    markProfile.run('Nexo Dev', user.username, '0001', '', '#D97757', user.id);
+    markProfile.run('Nexo Dev', user.username, '0001', '', '#D97757', 'Nexo Dev', user.username, user.id);
     user = selectUserById.get(user.id);
 
     if (configuredPassword) {
@@ -1184,6 +1199,24 @@ io.on('connection', (socket) => {
   socket.join(getUserRoom(socket.user.id));
   socket.emit('socket:ready', { user: socket.user });
 
+  let lastTypingAt = 0;
+  socket.on('typing', ({ conversationId, isTyping }) => {
+    try {
+      ensureConversationAccess(Number(conversationId), socket.user.id);
+      const now = Date.now();
+      if (isTyping && now - lastTypingAt < 900) return;
+      lastTypingAt = now;
+      socket.to(getConversationRoom(Number(conversationId))).emit('typing', {
+        conversationId: Number(conversationId),
+        user: socket.user,
+        isTyping: Boolean(isTyping)
+      });
+    } catch (error) {
+      socket.emit('error', { message: error.message });
+    }
+  });
+
+
   socket.on('conversation:join', (conversationId) => {
     try {
       ensureConversationAccess(conversationId, socket.user.id);
@@ -1206,10 +1239,46 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('call:invite', ({ conversationId, mediaType = 'audio' }) => {
+    try {
+      ensureConversationAccess(conversationId, socket.user.id);
+      const invitation = {
+        conversationId, from: socket.user.id, user: socket.user,
+        mediaType: mediaType === 'video' ? 'video' : 'audio'
+      };
+      getConversationParticipants(conversationId)
+        .filter((participant) => participant.id !== socket.user.id)
+        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:invite', invitation));
+    } catch (error) { socket.emit('error', { message: error.message }); }
+  });
+
+  socket.on('call:accept', ({ conversationId }) => {
+    try {
+      ensureConversationAccess(conversationId, socket.user.id);
+      const accepted = {
+        conversationId,
+        from: socket.user.id
+      };
+      getConversationParticipants(conversationId)
+        .filter((participant) => participant.id !== socket.user.id)
+        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:accept', accepted));
+    } catch (error) {
+      socket.emit('error', { message: error.message });
+    }
+  });
+
+  socket.on('call:reject', ({ conversationId }) => {
+    try {
+      ensureConversationAccess(conversationId, socket.user.id);
+      socket.to(getConversationRoom(conversationId)).emit('call:reject', { conversationId, from: socket.user.id });
+    } catch (error) { socket.emit('error', { message: error.message }); }
+  });
+
   socket.on('call:signal', ({ conversationId, payload }) => {
     try {
       ensureConversationAccess(conversationId, socket.user.id);
       socket.to(getConversationRoom(conversationId)).emit('call:signal', {
+        conversationId,
         from: socket.user.id,
         payload
       });
@@ -1222,6 +1291,7 @@ io.on('connection', (socket) => {
     try {
       ensureConversationAccess(conversationId, socket.user.id);
       socket.to(getConversationRoom(conversationId)).emit('call:end', {
+        conversationId,
         from: socket.user.id
       });
     } catch (error) {
@@ -1260,6 +1330,20 @@ function sanitizeUser(user) {
   if (!user) return null;
   const { password_hash, twofa_secret, ...rest } = user;
   return rest;
+}
+
+function broadcastUserUpdate(updatedUser) {
+  if (!updatedUser || !io) return;
+  const links = listFriendships.all(updatedUser.id, updatedUser.id)
+    .filter((friendship) => friendship.status === 'accepted');
+  const recipients = new Set();
+  for (const link of links) {
+    recipients.add(link.requester_id === updatedUser.id ? link.addressee_id : link.requester_id);
+  }
+  for (const recipientId of recipients) {
+    io.to(getUserRoom(recipientId)).emit('user:update', { user: updatedUser });
+  }
+  io.to(getUserRoom(updatedUser.id)).emit('user:update', { user: updatedUser });
 }
 
 function ensureAuthenticated(req, res, next) {
@@ -1352,6 +1436,13 @@ app.delete('/api/servers/:serverId/roles/:roleId', ensureAuthenticated, (req, re
 
 function normalizeHandle(value = '') {
   return value.toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 24);
+}
+
+const AVATAR_PALETTE = ['#D97757', '#B66F83', '#788CB8', '#6F9B86', '#B18A55', '#897CB4', '#5F9EAA', '#9A806D', '#7E9670'];
+function defaultAvatarColor(handle = '') {
+  let hash = 0;
+  for (const character of String(handle).toLowerCase()) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
 }
 
 function randomDiscriminator() {
@@ -1899,7 +1990,7 @@ passport.use(
     (req, email, password, done) => {
       try {
         if (typeof email !== 'string' || typeof password !== 'string') {
-          return done(null, false, { message: 'Invalid credentials' });
+          return done(null, false, { message: 'Неверный email или пароль.' });
         }
         const user = selectUserByEmail.get(email.toLowerCase());
         if (!user || !user.password_hash) {
@@ -1991,7 +2082,7 @@ if (githubReady) {
               ? generateUniqueHandle(profile.username)
               : user.username;
             const preferredName = profile.displayName || profile.username || user.email.split('@')[0];
-            markProfile.run(preferredName, desiredHandle, randomDiscriminator(), user.bio || '', user.avatar_color || '#D97757', user.id);
+            markProfile.run(preferredName, desiredHandle, randomDiscriminator(), user.bio || '', user.avatar_color && user.avatar_color !== '#D97757' ? user.avatar_color : defaultAvatarColor(desiredHandle), preferredName, desiredHandle, user.id);
             user = selectUserById.get(user.id);
           }
 
@@ -2012,22 +2103,35 @@ if (githubReady) {
   );
 }
 
+app.post('/api/auth/password-strength', authLimiter, (req, res) => {
+  const password = typeof req.body?.password === 'string' ? req.body.password.slice(0, 128) : '';
+  const email = typeof req.body?.email === 'string' ? req.body.email.slice(0, 254) : '';
+  if (!password) return res.status(400).json({ message: 'Введите пароль.' });
+  const analysis = zxcvbn(password, email ? [email] : undefined);
+  return res.json({ score: analysis.score, label: ['Слабый', 'Слабый', 'Средний', 'Хороший', 'Сильный'][analysis.score] });
+});
+
 app.post('/api/auth/register', (req, res) => {
   const { email, password } = req.body || {};
 
   if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password are required.' });
+    return res.status(400).json({ message: 'Введите адрес электронной почты и пароль.' });
   }
   if (typeof email !== 'string' || typeof password !== 'string') {
-    return res.status(400).json({ message: 'Invalid email or password format.' });
+    return res.status(400).json({ message: 'Проверьте адрес электронной почты и пароль.' });
   }
-
-  const normalizedEmail = email.toLowerCase();
+  if (email.length > 254 || password.length > 128) {
+    return res.status(400).json({ message: 'Email не должен превышать 254 символа, пароль — 128 символов.' });
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizedEmail)) {
+    return res.status(400).json({ message: 'Введите корректный адрес электронной почты.' });
+  }
 
   try {
     const existing = selectUserByEmail.get(normalizedEmail);
     if (existing) {
-      return res.status(409).json({ message: 'Email already in use.' });
+      return res.status(409).json({ message: 'Этот адрес электронной почты уже используется.' });
     }
 
     validatePasswordStrength(password, normalizedEmail);
@@ -2042,12 +2146,13 @@ app.post('/api/auth/register', (req, res) => {
       0,
       null
     );
+    db.prepare('UPDATE users SET avatar_color = ? WHERE id = ?').run(defaultAvatarColor(placeholderHandle), result.lastInsertRowid);
     const user = selectUserById.get(result.lastInsertRowid);
     const safeUser = sanitizeUser(user);
 
     req.session.regenerate((regenErr) => {
       if (regenErr) {
-        return res.status(500).json({ message: 'Session initialization failed.' });
+        return res.status(500).json({ message: 'Не удалось создать сессию. Повторите попытку.' });
       }
       req.session.cookie.maxAge = req.body?.remember === false ? null : 30 * 24 * 60 * 60 * 1000;
       req.login(safeUser, (err) => {
@@ -2071,11 +2176,11 @@ app.post('/api/auth/register', (req, res) => {
 app.post('/api/auth/login', (req, res, next) => {
   passport.authenticate('local', (err, user, info) => {
     if (err) {
-      return res.status(500).json({ message: 'Authentication error.' });
+      return res.status(500).json({ message: 'Не удалось выполнить вход. Повторите попытку.' });
     }
     if (!user) {
       return res.status(401).json({
-        message: info?.message || 'Invalid credentials.',
+        message: info?.message || 'Неверный email или пароль.',
         twoFactorRequired: Boolean(info?.twoFactorRequired)
       });
     }
@@ -2175,46 +2280,128 @@ app.post('/api/auth/password', ensureAuthenticated, (req, res) => {
   res.json({ updated: true });
 });
 
-app.get('/api/profile/username-availability', ensureAuthenticated, (req, res) => {
-  const rawUsername = typeof req.query.username === 'string' ? req.query.username : '';
-  const normalizedHandle = normalizeHandle(rawUsername);
-  if (normalizedHandle.length < 3 || normalizedHandle.length > 24) {
-    return res.json({ available: false, reason: 'Ник должен содержать от 3 до 24 символов.' });
+function checkHandleAvailability(req, res) {
+  const rawUsername = typeof req.query.username === 'string' ? req.query.username.trim().toLowerCase() : '';
+  if (!/^[a-z0-9](?:[a-z0-9._-]{1,22}[a-z0-9])$/.test(rawUsername)) {
+    return res.json({ available: false, reason: 'Логин: 3–24 символа a–z, 0–9, точка, дефис или подчёркивание. Первый и последний символ — буква или цифра.' });
   }
-  const existing = selectUserByUsername.get(normalizedHandle);
+  const existing = selectUserByUsername.get(rawUsername);
   const available = !existing || existing.id === req.user.id;
-  return res.json({ available, reason: available ? null : 'Этот ник уже занят.' });
-});
+  return res.json({ available, reason: available ? 'Свободен' : 'Уже занят' });
+}
+app.get('/api/profile/check-handle', ensureAuthenticated, friendActionLimiter, checkHandleAvailability);
+// Backward-compatible route for clients from 0.0.3.
+app.get('/api/profile/username-availability', ensureAuthenticated, friendActionLimiter, checkHandleAvailability);
 
-app.post('/api/profile', ensureAuthenticated, (req, res) => {
-  const { displayName, username, bio, avatarColor } = req.body;
-  const trimmedName = (displayName || '').trim();
-  const normalizedHandle = normalizeHandle(username);
+app.post('/api/profile', ensureAuthenticated, friendActionLimiter, (req, res) => {
+  const rawName = typeof req.body?.displayName === 'string' ? req.body.displayName.trim() : '';
+  const rawHandle = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : '';
+  const safeBio = typeof req.body?.bio === 'string' ? req.body.bio.trim().slice(0, 200) : '';
+  const safeAvatarColor = typeof req.body?.avatarColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(req.body.avatarColor)
+    ? req.body.avatarColor : req.user.avatar_color || '#D97757';
+  const currentHandle = String(req.user.username || '').toLowerCase();
+  const handleChanged = rawHandle !== currentHandle;
+  const nameChanged = rawName !== String(req.user.display_name || '');
 
-  if (trimmedName.length < 2 || trimmedName.length > 32) {
-    return res.status(400).json({ message: 'Display name must be between 2 and 32 characters.' });
+  if (rawName.length < 2 || rawName.length > 32) {
+    return res.status(400).json({ message: 'Имя должно содержать от 2 до 32 символов.' });
+  }
+  if (!/^[a-z0-9](?:[a-z0-9._-]{1,22}[a-z0-9])$/.test(rawHandle)) {
+    return res.status(400).json({ message: 'Логин должен содержать от 3 до 24 символов: a–z, 0–9, точка, дефис или подчёркивание. Нельзя начинать или заканчивать спецсимволом.' });
   }
 
-  if (normalizedHandle.length < 3 || normalizedHandle.length > 24) {
-    return res.status(400).json({ message: 'Username must be 3-24 characters, letters/numbers/._- only.' });
+  if (handleChanged && req.user.profile_complete) {
+    const lastChanged = req.user.username_changed_at ? Date.parse(req.user.username_changed_at + (String(req.user.username_changed_at).includes('Z') ? '' : 'Z')) : 0;
+    if (lastChanged && Date.now() - lastChanged < 14 * 24 * 60 * 60 * 1000) {
+      const remainingDays = Math.ceil((14 * 24 * 60 * 60 * 1000 - (Date.now() - lastChanged)) / (24 * 60 * 60 * 1000));
+      return res.status(429).json({ message: `Логин можно менять раз в 14 дней. Повторите через ${remainingDays} дн.` });
+    }
   }
-
-  const safeBio = typeof bio === 'string' ? bio.trim().slice(0, 160) : '';
-  const safeAvatarColor = typeof avatarColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(avatarColor) ? avatarColor : '#D97757';
-  const existingHandle = selectUserByUsername.get(normalizedHandle);
+  if (nameChanged && req.user.display_name_changed_at) {
+    const lastNameChange = Date.parse(req.user.display_name_changed_at + (String(req.user.display_name_changed_at).includes('Z') ? '' : 'Z'));
+    if (Number.isFinite(lastNameChange) && Date.now() - lastNameChange < 60 * 1000) {
+      return res.status(429).json({ message: 'Отображаемое имя можно менять не чаще одного раза в минуту.' });
+    }
+  }
+  const existingHandle = selectUserByUsername.get(rawHandle);
   if (existingHandle && existingHandle.id !== req.user.id) {
-    return res.status(409).json({ message: 'Username already taken.' });
+    return res.status(409).json({ message: 'Этот логин уже занят.' });
   }
 
   try {
-    const discriminator = randomDiscriminator();
-    markProfile.run(trimmedName, normalizedHandle, discriminator, safeBio, safeAvatarColor, req.user.id);
+    const stableDiscriminator = req.user.discriminator || randomDiscriminator();
+    markProfile.run(rawName, rawHandle, stableDiscriminator, safeBio, safeAvatarColor, rawName, rawHandle, req.user.id);
     const updated = sanitizeUser(selectUserById.get(req.user.id));
     req.user = updated;
+    broadcastUserUpdate(updated);
     return res.json({ user: updated });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to update profile.', error: error.message });
+    console.error('Profile update failed:', error);
+    return res.status(500).json({ message: 'Не удалось сохранить профиль.' });
   }
+});
+
+app.post('/api/profile/avatar', ensureAuthenticated, friendActionLimiter, upload.single('avatar'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'Выберите изображение аватара.' });
+  try {
+    if (req.file.size > 2 * 1024 * 1024) {
+      await removeFileSafe(req.file.path);
+      return res.status(413).json({ message: 'Изображение должно быть не больше 2 МБ.' });
+    }
+    const detected = await fileTypeFromFile(req.file.path).catch(() => null);
+    if (!detected || !['png', 'jpg', 'jpeg', 'webp'].includes(detected.ext)) {
+      await removeFileSafe(req.file.path);
+      return res.status(415).json({ message: 'Поддерживаются только PNG, JPG и WebP.' });
+    }
+    const avatarPath = path.join(avatarsDir, `user-${req.user.id}.webp`);
+    await sharp(req.file.path).rotate().resize(256, 256, { fit: 'cover', position: 'attention' }).webp({ quality: 84 }).toFile(avatarPath);
+    await removeFileSafe(req.file.path);
+    db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(`/api/avatars/${req.user.id}?v=${Date.now()}`, req.user.id);
+    const updated = sanitizeUser(selectUserById.get(req.user.id));
+    req.user = updated;
+    broadcastUserUpdate(updated);
+    return res.json({ user: updated });
+  } catch (error) {
+    await removeFileSafe(req.file.path);
+    console.error('Avatar upload failed:', error);
+    return res.status(500).json({ message: 'Не удалось обработать изображение.' });
+  }
+});
+
+app.delete('/api/profile/avatar', ensureAuthenticated, friendActionLimiter, async (req, res) => {
+  try {
+    await removeFileSafe(path.join(avatarsDir, `user-${req.user.id}.webp`));
+    db.prepare("UPDATE users SET avatar_url = '' WHERE id = ?").run(req.user.id);
+    const updated = sanitizeUser(selectUserById.get(req.user.id));
+    req.user = updated;
+    broadcastUserUpdate(updated);
+    return res.json({ user: updated });
+  } catch (error) {
+    return res.status(500).json({ message: 'Не удалось удалить аватар.' });
+  }
+});
+
+app.get('/api/avatars/:userId', ensureAuthenticated, async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(userId)) return res.status(400).end();
+  const target = selectUserById.get(userId);
+  if (!target?.avatar_url) return res.status(404).end();
+  const avatarPath = path.join(avatarsDir, `user-${userId}.webp`);
+  if (!fs.existsSync(avatarPath)) return res.status(404).end();
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  return res.type('image/webp').sendFile(avatarPath);
+});
+
+app.put('/api/profile/status', ensureAuthenticated, friendActionLimiter, (req, res) => {
+  const allowed = new Set(['online', 'idle', 'dnd', 'invisible']);
+  const nextStatus = typeof req.body?.status === 'string' ? req.body.status : '';
+  const customStatus = typeof req.body?.customStatus === 'string' ? req.body.customStatus.trim().slice(0, 60) : '';
+  if (!allowed.has(nextStatus)) return res.status(400).json({ message: 'Недопустимый статус.' });
+  db.prepare('UPDATE users SET status = ?, custom_status = ? WHERE id = ?').run(nextStatus, customStatus, req.user.id);
+  const updated = sanitizeUser(selectUserById.get(req.user.id));
+  req.user = updated;
+  broadcastUserUpdate(updated);
+  return res.json({ user: updated });
 });
 
 app.get('/api/profile/me', ensureAuthenticated, (req, res) => {
@@ -2477,6 +2664,32 @@ app.get('/api/servers/:serverId/channels', ensureAuthenticated, (req, res) => {
   }
 });
 
+app.post('/api/servers/:serverId/leave', ensureAuthenticated, friendActionLimiter, (req, res) => {
+  const serverId = Number(req.params.serverId);
+  if (!Number.isInteger(serverId)) return res.status(400).json({ message: 'Некорректный идентификатор пространства.' });
+  const server = selectServerById.get(serverId);
+  if (!server || !selectServerMember.get(serverId, req.user.id)) {
+    return res.status(404).json({ message: 'Вы не состоите в этом пространстве.' });
+  }
+  if (server.owner_id === req.user.id) {
+    return res.status(400).json({ message: 'Владелец не может покинуть своё пространство. Передайте владение или удалите его в будущем.' });
+  }
+  try {
+    const leaveTransaction = db.transaction(() => {
+      db.prepare('DELETE FROM voice_sessions WHERE server_id = ? AND user_id = ?').run(serverId, req.user.id);
+      db.prepare('DELETE FROM server_member_roles WHERE server_id = ? AND user_id = ?').run(serverId, req.user.id);
+      db.prepare('DELETE FROM server_members WHERE server_id = ? AND user_id = ?').run(serverId, req.user.id);
+    });
+    leaveTransaction();
+    io.to(getUserRoom(req.user.id)).emit('server:leave', { serverId });
+    broadcastServerUpdate(serverId);
+    return res.json({ left: true, serverId });
+  } catch (error) {
+    console.error('Leave server failed:', error);
+    return res.status(500).json({ message: 'Не удалось покинуть пространство.' });
+  }
+});
+
 app.post('/api/servers/:serverId/channels', ensureAuthenticated, (req, res) => {
   const serverId = Number(req.params.serverId);
   if (!Number.isFinite(serverId)) {
@@ -2500,6 +2713,35 @@ app.post('/api/servers/:serverId/channels', ensureAuthenticated, (req, res) => {
   }
 });
 
+app.delete('/api/servers/:serverId/channels/:channelId', ensureAuthenticated, friendActionLimiter, async (req, res) => {
+  const serverId = Number(req.params.serverId);
+  const channelId = Number(req.params.channelId);
+  if (!Number.isInteger(serverId) || !Number.isInteger(channelId)) {
+    return res.status(400).json({ message: 'Некорректный идентификатор канала.' });
+  }
+  const channel = selectChannelById.get(channelId);
+  if (!channel || channel.server_id !== serverId) return res.status(404).json({ message: 'Канал не найден.' });
+  try { ensureServerOwnership(serverId, req.user.id); }
+  catch (error) { return res.status(error.statusCode || 500).json({ message: error.message }); }
+  const attachments = db.prepare('SELECT path FROM server_attachments WHERE channel_id = ?').all(channelId);
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM server_attachments WHERE channel_id = ?').run(channelId);
+      db.prepare('DELETE FROM server_messages WHERE channel_id = ?').run(channelId);
+      db.prepare('DELETE FROM voice_sessions WHERE channel_id = ?').run(channelId);
+      db.prepare('DELETE FROM channel_permission_overrides WHERE channel_id = ?').run(channelId);
+      db.prepare('DELETE FROM channels WHERE id = ? AND server_id = ?').run(channelId, serverId);
+    })();
+    await Promise.all(attachments.map((attachment) => removeFileSafe(path.join(uploadsDir, attachment.path))));
+    io.to(getChannelRoom(channelId)).emit('channel:deleted', { serverId, channelId });
+    broadcastServerUpdate(serverId);
+    return res.json({ deleted: true, channelId });
+  } catch (error) {
+    console.error('Channel deletion failed:', error);
+    return res.status(500).json({ message: 'Не удалось удалить канал.' });
+  }
+});
+
 app.put('/api/servers/:serverId/channels/:channelId', ensureAuthenticated, (req, res) => {
   const serverId = Number(req.params.serverId);
   const channelId = Number(req.params.channelId);
@@ -2520,12 +2762,17 @@ app.put('/api/servers/:serverId/channels/:channelId', ensureAuthenticated, (req,
       channel.type === 'voice' ? Math.max(0, Math.min(99, Number(payload.user_limit) || channel.user_limit || 0)) : channel.user_limit;
     const soundscape = (payload.soundscape || channel.soundscape || '').slice(0, 120);
     const topic = payload.topic !== undefined ? String(payload.topic).slice(0, 256) : channel.topic;
+    let name = channel.name;
+    if (payload.name !== undefined) {
+      name = String(payload.name).trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+      if (name.length < 3 || name.length > 32) return res.status(400).json({ message: 'Имя канала должно содержать от 3 до 32 символов (латиница, цифры и дефис).' });
+    }
     const update = db.prepare(`
       UPDATE channels
-      SET topic = ?, slow_mode_seconds = ?, is_nsfw = ?, bitrate = ?, user_limit = ?, soundscape = ?
+      SET name = ?, topic = ?, slow_mode_seconds = ?, is_nsfw = ?, bitrate = ?, user_limit = ?, soundscape = ?
       WHERE id = ?
     `);
-    update.run(topic, slowMode, isNsfw, bitrate, userLimit, soundscape, channelId);
+    update.run(name, topic, slowMode, isNsfw, bitrate, userLimit, soundscape, channelId);
     broadcastServerUpdate(serverId);
     const updated = selectChannelById.get(channelId);
     return res.json({ channel: serializeChannel(updated) });
@@ -2878,6 +3125,35 @@ app.get('/api/admin/premium/balance', (req, res) => {
   });
 });
 
+app.delete('/api/servers/:serverId/channels/:channelId/messages/:messageId', ensureAuthenticated, messageLimiter, async (req, res) => {
+  const serverId = Number(req.params.serverId);
+  const channelId = Number(req.params.channelId);
+  const messageId = Number(req.params.messageId);
+  if (![serverId, channelId, messageId].every(Number.isInteger)) {
+    return res.status(400).json({ message: 'Некорректный идентификатор сообщения.' });
+  }
+  try { ensureChannelAccess(serverId, channelId, req.user.id); }
+  catch (error) { return res.status(error.statusCode || 500).json({ message: error.message }); }
+  const message = db.prepare('SELECT id, author_id FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?')
+    .get(messageId, serverId, channelId);
+  if (!message) return res.status(404).json({ message: 'Сообщение не найдено.' });
+  if (message.author_id !== req.user.id) return res.status(403).json({ message: 'Можно удалять только свои сообщения.' });
+  const attachments = db.prepare('SELECT path FROM server_attachments WHERE server_message_id = ?').all(messageId);
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM server_attachments WHERE server_message_id = ?').run(messageId);
+      db.prepare('DELETE FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?').run(messageId, serverId, channelId);
+    })();
+    await Promise.all(attachments.map((attachment) => removeFileSafe(path.join(uploadsDir, attachment.path))));
+    io.to(getChannelRoom(channelId)).emit('channel:message:delete', { serverId, channelId, messageId });
+    return res.json({ deleted: true, messageId });
+  } catch (error) {
+    console.error('Channel message deletion failed:', error);
+    return res.status(500).json({ message: 'Не удалось удалить сообщение.' });
+  }
+});
+
+
 app.get('/api/conversations/:id/messages', ensureAuthenticated, (req, res) => {
   const conversationId = Number(req.params.id);
   if (!Number.isFinite(conversationId)) {
@@ -2894,6 +3170,34 @@ app.get('/api/conversations/:id/messages', ensureAuthenticated, (req, res) => {
   const rows = listMessages.all(conversationId, limit, offset);
   const messages = rows.map(serializeMessage).reverse();
   res.json({ messages });
+});
+
+app.delete('/api/conversations/:id/messages/:messageId', ensureAuthenticated, messageLimiter, async (req, res) => {
+  const conversationId = Number(req.params.id);
+  const messageId = Number(req.params.messageId);
+  if (!Number.isInteger(conversationId) || !Number.isInteger(messageId)) {
+    return res.status(400).json({ message: 'Некорректный идентификатор сообщения.' });
+  }
+  try { ensureConversationAccess(conversationId, req.user.id); }
+  catch (error) { return res.status(error.statusCode || 500).json({ message: error.message }); }
+  const message = db.prepare('SELECT id, author_id FROM messages WHERE id = ? AND conversation_id = ?').get(messageId, conversationId);
+  if (!message) return res.status(404).json({ message: 'Сообщение не найдено.' });
+  if (message.author_id !== req.user.id) return res.status(403).json({ message: 'Можно удалять только свои сообщения.' });
+  const attachments = db.prepare('SELECT path FROM attachments WHERE message_id = ?').all(messageId);
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM attachments WHERE message_id = ?').run(messageId);
+      db.prepare('DELETE FROM messages WHERE id = ? AND conversation_id = ?').run(messageId, conversationId);
+      db.prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(conversationId);
+    })();
+    await Promise.all(attachments.map((attachment) => removeFileSafe(path.join(uploadsDir, attachment.path))));
+    io.to(getConversationRoom(conversationId)).emit('message:delete', { conversationId, messageId });
+    broadcastConversationUpdate(conversationId);
+    return res.json({ deleted: true, messageId });
+  } catch (error) {
+    console.error('DM message deletion failed:', error);
+    return res.status(500).json({ message: 'Не удалось удалить сообщение.' });
+  }
 });
 
 app.get('/api/files/:conversationId/:attachmentId', ensureAuthenticated, (req, res) => {

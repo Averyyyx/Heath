@@ -10,8 +10,8 @@ type HandleState = 'idle' | 'checking' | 'available' | 'taken';
 
 type ProfileSetupProps = { user: User; onComplete: (user: User) => void };
 
-const normalizeHandle = (value: string) => value.toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 24);
-const avatarColors = ['#D97757', '#B66F83', '#788CB8', '#6F9B86', '#B18A55', '#897CB4'];
+const normalizeHandle = (value: string) => value.trim().toLowerCase();
+const avatarColors = ['#D97757', '#B66F83', '#788CB8', '#6F9B86', '#B18A55', '#897CB4', '#5F9EAA', '#9A806D', '#7E9670'];
 
 export function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
   const [displayName, setDisplayName] = useState(user.display_name || '');
@@ -34,7 +34,7 @@ export function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
     }
     setHandleState('checking');
     try {
-      const response = await apiFetch(`/api/profile/username-availability?username=${encodeURIComponent(normalized)}`);
+      const response = await apiFetch(`/api/profile/check-handle?username=${encodeURIComponent(normalized)}`);
       if (!response.ok) throw new Error('Не удалось проверить ник.');
       const payload = await response.json();
       setHandleState(payload.available ? 'available' : 'taken');
@@ -66,7 +66,7 @@ export function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
       const response = await apiFetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ displayName: displayName.trim(), username: normalizedHandle, bio: bio.trim(), avatarColor })
+        body: JSON.stringify({ displayName: displayName.trim(), username: normalizedHandle, bio: bio.trim().slice(0, 200), avatarColor })
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -87,7 +87,7 @@ export function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
   return (
     <div className="profile-panel">
       <motion.div className="profile-intro" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <p className="eyebrow">ВАШ ПРОФИЛЬ</p>
+        <p className="eyebrow">ШАГ 2 ИЗ 2 · ВАШ ПРОФИЛЬ</p>
         <h1>Создайте своё присутствие</h1>
         <p className="muted">Выберите имя и уникальный ник, по которому вас смогут найти.</p>
       </motion.div>
@@ -114,15 +114,15 @@ export function ProfileSetup({ user, onComplete }: ProfileSetupProps) {
             <button type="button" className="ghost" onClick={generateFromName}>Предложить</button>
           </div>
           <small className={`handle-availability ${handleState}`}>
-            {handleMessage || 'Латинские буквы, цифры, точки, дефисы и подчёркивания.'}
+            {handleMessage || '3–24 символа: a–z, 0–9, точка, дефис или подчёркивание. Первый и последний символ — буква или цифра.'}
           </small>
         </label>
 
         <label>
           <span>О себе <small>(необязательно)</small></span>
           <textarea value={bio} onChange={(event) => setBio(event.target.value)}
-            placeholder="Немного о себе и над чем вы работаете…" maxLength={160} rows={3} />
-          <small>{bio.length}/160</small>
+            placeholder="Немного о себе и над чем вы работаете…" maxLength={200} rows={3} />
+          <small>{bio.length}/200</small>
         </label>
 
         <div className="avatar-color-picker">

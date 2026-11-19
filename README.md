@@ -15,3 +15,12 @@ Nexo is a high-performance, modular desktop application designed as a modern, cu
 We are actively developing **Nexo AI Agents** driven by dedicated LLM APIs to facilitate:
 1. Automated cross-channel moderation and workspace data indexing.
 2. Context-aware developer co-pilot subroutines integrated directly into the chat view.
+
+
+## Известные ограничения Nexo 0.0.4 Alpha
+
+- Windows-установщик пока не подписан сертификатом издателя, поэтому Windows SmartScreen может показывать предупреждение.
+- Голосовые каналы пространств пока отображаются как «Скоро»; полноценное подключение к ним ещё не реализовано.
+- Восстановление пароля по email недоступно до подключения почтового провайдера.
+- Удаление аккаунта и изменение email не включены: связанные операции пока нельзя безопасно выполнить для всех данных пользователя.
+- Автообновление работает через Windows NSIS-установщик и проверяет SHA-256 перед запуском; дифференциальные обновления пока не используются.

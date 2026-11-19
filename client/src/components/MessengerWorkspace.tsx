@@ -1,9 +1,12 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, type MouseEvent as ReactMouseEvent, Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import SimplePeer, { type SignalData } from 'simple-peer';
 import {
   Hash,
   Image as ImageIcon,
+  Code,
+  Copy,
+  Link as LinkIcon,
   Monitor,
   Paperclip,
   Phone,
@@ -11,6 +14,8 @@ import {
   SendHorizontal,
   Settings,
   MessageCircle,
+  Users,
+  X,
   Volume2
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
@@ -23,14 +28,28 @@ import type {
   User
 } from '../types';
 import { apiFetch } from '../lib/api';
-import { getSocket, disconnectSocket } from '../lib/socket';
+import { Avatar } from './Avatar';
+import { getSocket } from '../lib/socket';
 
 type WorkspaceMode = 'servers' | 'friends';
 
 type MessengerWorkspaceProps = {
   user: User;
   openConversationId?: number | null;
+  openServerId?: number | null;
+  openChannelId?: number | null;
+  openMessageId?: number | null;
+  embedded?: boolean;
+  showConversationList?: boolean;
+  showChannelSidebar?: boolean;
+  micMuted?: boolean;
+  deafened?: boolean;
+  audioInputId?: string;
+  audioOutputId?: string;
+  pendingIncomingCall?: IncomingCall | null;
+  onIncomingCallHandled?: () => void;
   onOpenSettings?: () => void;
+  onEditChannel?: () => void;
   onFindFriends?: () => void;
   initialMode?: WorkspaceMode;
   hideNavigation?: boolean;
@@ -47,14 +66,44 @@ type CallState = {
   remoteStream: MediaStream | null;
   isScreenSharing: boolean;
   initiator: boolean;
+  mediaType?: 'audio' | 'video';
+  startedAt: number;
 };
 
 type Status = { type: 'idle' | 'loading' | 'success' | 'error'; message?: string };
+type IncomingCall = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video' };
+type ServerMember = { id: number; user: User; role: string; nickname?: string; roles: Array<{ id: number; name: string; color: string; position: number }> };
+
+
+function appendUniqueMessage(store: MessageStore, conversationId: number, message: Message): MessageStore {
+  const current = store[conversationId] || [];
+  if (current.some((item) => item.id === message.id)) return store;
+  return { ...store, [conversationId]: [...current, message] };
+}
+
+function appendUniqueChannelMessage(store: ChannelMessageStore, channelId: number, message: ChannelMessage): ChannelMessageStore {
+  const current = store[channelId] || [];
+  if (current.some((item) => item.id === message.id)) return store;
+  return { ...store, [channelId]: [...current, message] };
+}
 
 export function MessengerWorkspace({
   user,
   openConversationId = null,
+  openServerId = null,
+  openChannelId = null,
+  openMessageId = null,
+  embedded = false,
+  showConversationList = true,
+  showChannelSidebar = true,
+  micMuted = false,
+  deafened = false,
+  audioInputId = '',
+  audioOutputId = '',
+  pendingIncomingCall = null,
+  onIncomingCallHandled,
   onOpenSettings,
+  onEditChannel,
   onFindFriends,
   initialMode = 'servers',
   hideNavigation = false,
@@ -65,6 +114,8 @@ export function MessengerWorkspace({
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [messageStore, setMessageStore] = useState<MessageStore>({});
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [typingUser, setTypingUser] = useState<User | null>(null);
+  const [callError, setCallError] = useState('');
   const [composerText, setComposerText] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
@@ -80,12 +131,46 @@ export function MessengerWorkspace({
 
   const socketRef = useRef<Socket | null>(null);
   const [callState, setCallState] = useState<CallState | null>(null);
+  const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
+  const [ringtoneMuted, setRingtoneMuted] = useState(false);
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
+  const [serverMembers, setServerMembers] = useState<ServerMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [messageContext, setMessageContext] = useState<{ x: number; y: number; message: Message | ChannelMessage; kind: 'dm' | 'channel' } | null>(null);
+  const [membersError, setMembersError] = useState('');
+  const pendingIncomingSignalRef = useRef<SignalData | null>(null);
+  const awaitingCallAcceptRef = useRef<number | null>(null);
+  const queuedCallSignalsRef = useRef<SignalData[]>([]);
   const callStateRef = useRef<CallState | null>(null);
   const previousChannelRef = useRef<number | null>(null);
+  const typingTimerRef = useRef<number | null>(null);
+  const lastTypingSentRef = useRef(0);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const channelComposerRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     callStateRef.current = callState;
   }, [callState]);
+
+  const callWasActiveRef = useRef(false);
+  useEffect(() => {
+    if (callState) {
+      callWasActiveRef.current = true;
+      window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: {
+        active: true, conversationId: callState.conversationId,
+        title: 'Личный звонок', startedAt: callState.startedAt
+      } }));
+    } else if (callWasActiveRef.current) {
+      callWasActiveRef.current = false;
+      window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: { active: false } }));
+    }
+  }, [callState]);
+
+  useEffect(() => {
+    if (!pendingIncomingCall || pendingIncomingCall.conversationId !== openConversationId) return;
+    setIncomingCall(pendingIncomingCall);
+    pendingIncomingSignalRef.current = null;
+  }, [pendingIncomingCall, openConversationId]);
 
   useEffect(() => {
     fetchConversations();
@@ -102,72 +187,132 @@ export function MessengerWorkspace({
   }, [openConversationId]);
 
   useEffect(() => {
+    if (!openServerId) return;
+    setMode('servers');
+    setActiveServerId(openServerId);
+  }, [openServerId]);
+
+  useEffect(() => {
+    if (!openChannelId) return;
+    setMode('servers');
+    setActiveChannelId(openChannelId);
+  }, [openChannelId]);
+
+  useEffect(() => {
     if (!user) return;
     const socket = getSocket();
     socketRef.current = socket;
+    const onConversationUpsert = ({ conversation }: { conversation: Conversation }) => {
+      setConversations((prev) => prev.some((item) => item.id === conversation.id)
+        ? prev.map((item) => item.id === conversation.id ? conversation : item)
+        : [conversation, ...prev]);
+    };
+    const onMessageNew = ({ conversationId, message }: { conversationId: number; message: Message }) =>
+      setMessageStore((prev) => appendUniqueMessage(prev, conversationId, message));
+    const onMessageAck = ({ conversationId, message }: { conversationId: number; message: Message }) =>
+      setMessageStore((prev) => appendUniqueMessage(prev, conversationId, message));
+    const onMessageDelete = ({ conversationId, messageId }: { conversationId: number; messageId: number }) =>
+      setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).filter((message) => message.id !== messageId) }));
+    const onTyping = ({ conversationId, user: typing, isTyping }: { conversationId: number; user: User; isTyping: boolean }) => {
+      if (conversationId !== activeConversationId || typing?.id === user.id) return;
+      setTypingUser(isTyping ? typing : null);
+    };
+    const onCallInvite = (payload: IncomingCall) => {
+      if (payload.conversationId !== activeConversationId) return;
+      setIncomingCall({ ...payload, mediaType: payload.mediaType === 'video' ? 'video' : 'audio' });
+      setRingtoneMuted(false);
+      pendingIncomingSignalRef.current = null;
+    };
+    const onCallSignal = ({ conversationId, payload }: { conversationId: number; payload: SignalData }) => {
+      const current = callStateRef.current;
+      if (current?.conversationId === conversationId) current.peer?.signal(payload);
+    };
+    const onCallAccept = ({ conversationId }: { conversationId: number }) => {
+      if (awaitingCallAcceptRef.current !== conversationId) return;
+      awaitingCallAcceptRef.current = null;
+      const queued = queuedCallSignalsRef.current.splice(0);
+      queued.forEach((payload) => socket.emit('call:signal', { conversationId, payload }));
+    };
+    const onCallReject = ({ conversationId }: { conversationId: number }) => {
+      if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
+      if (callStateRef.current?.conversationId === conversationId) endCall(false);
+    };
+    const onCallEnd = ({ conversationId }: { conversationId: number }) => {
+      if (callStateRef.current?.conversationId === conversationId) endCall(false);
+      if (incomingCall?.conversationId === conversationId) { setIncomingCall(null); onIncomingCallHandled?.(); }
+    };
+    const onServerUpsert = ({ server }: { server: Server }) => {
+      setServers((prev) => prev.some((item) => item.id === server.id)
+        ? prev.map((item) => item.id === server.id ? server : item)
+        : [...prev, server]);
+    };
+    const onChannelMessage = ({ channelId, message }: { channelId: number; message: ChannelMessage }) =>
+      setChannelMessages((prev) => appendUniqueChannelMessage(prev, channelId, message));
+    const onChannelMessageDelete = ({ channelId, messageId }: { channelId: number; messageId: number }) =>
+      setChannelMessages((prev) => ({ ...prev, [channelId]: (prev[channelId] || []).filter((message) => message.id !== messageId) }));
+    const onChannelDeleted = ({ serverId, channelId }: { serverId: number; channelId: number }) => {
+      setServers((prev) => prev.map((server) => server.id === serverId ? { ...server, channels: server.channels.filter((channel) => channel.id !== channelId) } : server));
+      if (activeChannelId === channelId) setActiveChannelId(null);
+    };
+    const onSocketError = (payload: { message?: string }) => console.warn('Socket error', payload);
 
-    socket.on('socket:ready', () => {
-      /* ready */
-    });
-    socket.on('conversation:upsert', ({ conversation }: { conversation: Conversation }) => {
-      setConversations((prev) => {
-        const exists = prev.find((item) => item.id === conversation.id);
-        if (exists) {
-          return prev.map((item) => (item.id === conversation.id ? conversation : item));
-        }
-        return [conversation, ...prev];
-      });
-    });
-    socket.on('message:new', ({ conversationId, message }: { conversationId: number; message: Message }) => {
-      setMessageStore((prev) => {
-        const next = prev[conversationId] ? [...prev[conversationId], message] : [message];
-        return { ...prev, [conversationId]: next };
-      });
-    });
-    socket.on('message:ack', ({ conversationId, message }) => {
-      setMessageStore((prev) => {
-        const next = prev[conversationId] ? [...prev[conversationId], message] : [message];
-        return { ...prev, [conversationId]: next };
-      });
-    });
-    socket.on('call:signal', ({ conversationId, payload }: { conversationId: number; payload: SignalData }) => {
-      handleIncomingSignal(conversationId, payload);
-    });
-    socket.on('call:end', ({ conversationId }: { conversationId: number }) => {
-      if (callStateRef.current?.conversationId === conversationId) {
-        endCall();
-      }
-    });
-    socket.on('server:upsert', ({ server }: { server: Server }) => {
-      setServers((prev) => {
-        const exists = prev.find((item) => item.id === server.id);
-        if (exists) {
-          return prev.map((item) => (item.id === server.id ? server : item));
-        }
-        return [...prev, server].sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      });
-    });
-    socket.on(
-      'channel:message:new',
-      ({ channelId, message }: { channelId: number; message: ChannelMessage }) => {
-        setChannelMessages((prev) => {
-          const next = prev[channelId] ? [...prev[channelId], message] : [message];
-          return { ...prev, [channelId]: next };
-        });
-      }
-    );
-    socket.on('error', (payload) => {
-      console.warn('Socket error', payload);
-    });
-
+    socket.on('conversation:upsert', onConversationUpsert);
+    socket.on('message:new', onMessageNew);
+    socket.on('message:ack', onMessageAck);
+    socket.on('message:delete', onMessageDelete);
+    socket.on('typing', onTyping);
+    socket.on('call:invite', onCallInvite);
+    socket.on('call:signal', onCallSignal);
+    socket.on('call:accept', onCallAccept);
+    socket.on('call:reject', onCallReject);
+    socket.on('call:end', onCallEnd);
+    socket.on('server:upsert', onServerUpsert);
+    socket.on('channel:message:new', onChannelMessage);
+    socket.on('channel:message:delete', onChannelMessageDelete);
+    socket.on('channel:deleted', onChannelDeleted);
+    socket.on('error', onSocketError);
     return () => {
-      socket.off();
-      disconnectSocket();
+      socket.off('conversation:upsert', onConversationUpsert);
+      socket.off('message:new', onMessageNew);
+      socket.off('message:ack', onMessageAck);
+      socket.off('message:delete', onMessageDelete);
+      socket.off('typing', onTyping);
+      socket.off('call:invite', onCallInvite);
+      socket.off('call:signal', onCallSignal);
+      socket.off('call:accept', onCallAccept);
+      socket.off('call:reject', onCallReject);
+      socket.off('call:end', onCallEnd);
+      socket.off('server:upsert', onServerUpsert);
+      socket.off('channel:message:new', onChannelMessage);
+      socket.off('channel:message:delete', onChannelMessageDelete);
+      socket.off('channel:deleted', onChannelDeleted);
+      socket.off('error', onSocketError);
       socketRef.current = null;
     };
-  }, [user]);
+  }, [user, activeConversationId, incomingCall, onIncomingCallHandled]);
+
+  useEffect(() => {
+    if (!incomingCall || ringtoneMuted) return;
+    const AudioContextConstructor = window.AudioContext;
+    if (!AudioContextConstructor) return;
+    const context = new AudioContextConstructor();
+    const ring = () => {
+      if (context.state === 'suspended') void context.resume().catch(() => {});
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(660, context.currentTime);
+      oscillator.frequency.setValueAtTime(880, context.currentTime + 0.16);
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.07, context.currentTime + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.4);
+      oscillator.connect(gain); gain.connect(context.destination);
+      oscillator.start(); oscillator.stop(context.currentTime + 0.42);
+    };
+    ring();
+    const timer = window.setInterval(ring, 1300);
+    return () => { window.clearInterval(timer); void context.close().catch(() => {}); };
+  }, [incomingCall, ringtoneMuted]);
 
   useEffect(() => {
     if (!activeConversationId || !socketRef.current) return;
@@ -194,12 +339,61 @@ export function MessengerWorkspace({
     };
   }, [activeServerId, activeChannelId]);
 
+  useEffect(() => {
+    if (!showMembersPanel || !activeServerId) return;
+    let cancelled = false;
+    setMembersLoading(true);
+    setMembersError('');
+    apiFetch(`/api/servers/${activeServerId}/members`)
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.message || 'Не удалось загрузить участников.');
+        if (!cancelled) setServerMembers(payload.members || []);
+      })
+      .catch((error) => { if (!cancelled) setMembersError((error as Error).message); })
+      .finally(() => { if (!cancelled) setMembersLoading(false); });
+    return () => { cancelled = true; };
+  }, [showMembersPanel, activeServerId]);
+
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId) || null,
     [conversations, activeConversationId]
   );
 
   const activeMessages = activeConversationId ? messageStore[activeConversationId] || [] : [];
+
+  useEffect(() => {
+    const element = composerRef.current;
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = Math.min(element.scrollHeight, 192) + 'px';
+  }, [composerText]);
+
+  useEffect(() => {
+    const element = channelComposerRef.current;
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = Math.min(element.scrollHeight, 192) + 'px';
+  }, [channelComposer]);
+
+  function insertCodeBlock(channel = false) {
+    const ref = channel ? channelComposerRef : composerRef;
+    const setter = channel ? setChannelComposer : setComposerText;
+    const current = channel ? channelComposer : composerText;
+    const element = ref.current;
+    const start = element?.selectionStart ?? current.length;
+    const end = element?.selectionEnd ?? current.length;
+    const selected = current.slice(start, end);
+    const wrapper = ['```', selected, '```'].join('\n');
+    const next = current.slice(0, start) + wrapper + current.slice(end);
+    setter(next);
+    window.requestAnimationFrame(() => {
+      if (!element) return;
+      element.focus();
+      const caret = start + wrapper.length;
+      element.setSelectionRange(caret, caret);
+    });
+  }
   const activeServer = useMemo(
     () => servers.find((server) => server.id === activeServerId) || null,
     [servers, activeServerId]
@@ -211,16 +405,26 @@ export function MessengerWorkspace({
   const activeChannelMessages = activeChannelId ? channelMessages[activeChannelId] || [] : [];
 
   useEffect(() => {
-    if (!activeServer) {
-      setActiveChannelId(null);
-      return;
-    }
+    if (!openMessageId) return;
+    const exists = activeMessages.some((message) => message.id === openMessageId)
+      || activeChannelMessages.some((message) => message.id === openMessageId);
+    if (!exists) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`nexo-message-${mode === 'friends' ? 'dm-' + activeConversationId : 'channel-' + activeServerId + '-' + activeChannelId}-${openMessageId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [openMessageId, activeMessages.length, activeChannelMessages.length, mode, activeConversationId, activeServerId, activeChannelId]);
+
+
+  useEffect(() => {
+    if (!activeServer) return;
     const channels = activeServer.channels || [];
     const currentExists = channels.some((channel) => channel.id === activeChannelId);
     if (currentExists) return;
     const firstText = channels.find((channel) => channel.type === 'text');
     setActiveChannelId(firstText?.id ?? null);
-  }, [activeServer, activeChannelId]);
+  }, [activeServer, activeChannelId, openChannelId]);
 
   async function fetchConversations() {
     try {
@@ -228,7 +432,9 @@ export function MessengerWorkspace({
       if (!response.ok) throw new Error('Failed to load conversations');
       const data = await response.json();
       setConversations(data.conversations || []);
-      if (!activeConversationId && data.conversations?.length) {
+      if (openConversationId && data.conversations?.some((item: Conversation) => item.id === openConversationId)) {
+        setActiveConversationId(openConversationId);
+      } else if (!activeConversationId && data.conversations?.length) {
         setActiveConversationId(data.conversations[0].id);
       }
     } catch (error) {
@@ -243,7 +449,9 @@ export function MessengerWorkspace({
       const data = await response.json();
       const next = (data.servers || []) as Server[];
       setServers(next);
-      if (!activeServerId && next.length > 0) {
+      if (openServerId && next.some((server) => server.id === openServerId)) {
+        setActiveServerId(openServerId);
+      } else if (!activeServerId && next.length > 0) {
         setActiveServerId(next[0].id);
       }
     } catch (error) {
@@ -279,7 +487,54 @@ export function MessengerWorkspace({
     }
   }
 
+  async function deleteMessage(message: Message | ChannelMessage, kind: 'dm' | 'channel') {
+    if (message.author.id !== user.id) return;
+    const confirmText = 'Удалить это сообщение?';
+    if (!window.confirm(confirmText)) return;
+    try {
+      const path = kind === 'dm' && 'conversation_id' in message
+        ? `/api/conversations/${message.conversation_id}/messages/${message.id}`
+        : `/api/servers/${(message as ChannelMessage).server_id}/channels/${(message as ChannelMessage).channel_id}/messages/${message.id}`;
+      const response = await apiFetch(path, { method: 'DELETE' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось удалить сообщение.');
+      setMessageContext(null);
+      if (kind === 'dm' && 'conversation_id' in message) {
+        setMessageStore((prev) => ({ ...prev, [message.conversation_id]: (prev[message.conversation_id] || []).filter((item) => item.id !== message.id) }));
+      } else {
+        const channelId = (message as ChannelMessage).channel_id;
+        setChannelMessages((prev) => ({ ...prev, [channelId]: (prev[channelId] || []).filter((item) => item.id !== message.id) }));
+      }
+    } catch (error) { window.alert((error as Error).message); }
+  }
+
+  function openMessageMenu(event: ReactMouseEvent, message: Message | ChannelMessage, kind: 'dm' | 'channel') {
+    event.preventDefault();
+    setMessageContext({ x: event.clientX, y: event.clientY, message, kind });
+  }
+
+  function sendTyping(isTyping: boolean) {
+    if (!activeConversationId || !socketRef.current) return;
+    if (isTyping) {
+      const now = Date.now();
+      if (now - lastTypingSentRef.current >= 1000) {
+        socketRef.current.emit('typing', { conversationId: activeConversationId, isTyping: true });
+        lastTypingSentRef.current = now;
+      }
+      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = window.setTimeout(() => {
+        socketRef.current?.emit('typing', { conversationId: activeConversationId, isTyping: false });
+        typingTimerRef.current = null;
+      }, 2200);
+    } else {
+      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+      socketRef.current.emit('typing', { conversationId: activeConversationId, isTyping: false });
+    }
+  }
+
   async function handleSendMessage() {
+    sendTyping(false);
     if (!activeConversationId) return;
     if (!composerText.trim() && !uploadFile) return;
 
@@ -299,12 +554,7 @@ export function MessengerWorkspace({
         throw new Error(payload.message || 'Failed to send message');
       }
       const data = await response.json();
-      setMessageStore((prev) => {
-        const next = prev[activeConversationId]
-          ? [...prev[activeConversationId], data.message]
-          : [data.message];
-        return { ...prev, [activeConversationId]: next };
-      });
+      setMessageStore((prev) => appendUniqueMessage(prev, activeConversationId, data.message));
       setComposerText('');
       setUploadFile(null);
     } catch (error) {
@@ -335,12 +585,7 @@ export function MessengerWorkspace({
         throw new Error(payload.message || 'Failed to send message');
       }
       const data = await response.json();
-      setChannelMessages((prev) => {
-        const next = prev[activeChannelId]
-          ? [...prev[activeChannelId], data.message]
-          : [data.message];
-        return { ...prev, [activeChannelId]: next };
-      });
+      setChannelMessages((prev) => appendUniqueChannelMessage(prev, activeChannelId, data.message));
       setChannelComposer('');
       setChannelUpload(null);
     } catch (error) {
@@ -375,28 +620,42 @@ export function MessengerWorkspace({
     }
   }
 
-  async function startCall(conversationId: number, options?: { initiator?: boolean; initialSignal?: SignalData }) {
-    if (!socketRef.current) return;
+  async function startCall(conversationId: number, options?: { initiator?: boolean; initialSignal?: SignalData }, mediaType: 'audio' | 'video' = 'audio'): Promise<boolean> {
+    if (!socketRef.current) return false;
+    setCallError('');
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      const audioConstraint: MediaTrackConstraints | boolean = audioInputId ? { deviceId: { exact: audioInputId } } : true;
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint, video: mediaType === 'video' });
+      mediaStream.getAudioTracks().forEach((track) => { track.enabled = !micMuted; });
       const peer = new SimplePeer({
         initiator: options?.initiator ?? true,
         trickle: false,
         stream: mediaStream
       });
 
+      if (options?.initiator !== false) {
+        awaitingCallAcceptRef.current = conversationId;
+        queuedCallSignalsRef.current = [];
+      }
       const state: CallState = {
         conversationId,
         peer,
         localStream: mediaStream,
         remoteStream: null,
         isScreenSharing: false,
-        initiator: options?.initiator ?? true
+        initiator: options?.initiator ?? true,
+        mediaType,
+        startedAt: Date.now()
       };
       callStateRef.current = state;
       setCallState(state);
+      if (options?.initiator !== false) socketRef.current.emit('call:invite', { conversationId, mediaType });
 
       peer.on('signal', (payload) => {
+        if (awaitingCallAcceptRef.current === conversationId) {
+          queuedCallSignalsRef.current.push(payload);
+          return;
+        }
         socketRef.current?.emit('call:signal', { conversationId, payload });
       });
 
@@ -413,37 +672,76 @@ export function MessengerWorkspace({
         endCall();
       });
 
-      if (options?.initialSignal) {
-        peer.signal(options.initialSignal);
-      }
+      if (options?.initialSignal) peer.signal(options.initialSignal);
+      return true;
     } catch (error) {
+      const mediaError = error as DOMException;
+      const message = mediaError?.name === 'NotAllowedError'
+        ? 'Разрешите Nexo доступ к микрофону и камере в настройках Windows.'
+        : mediaError?.name === 'NotFoundError'
+          ? 'Не найдено подходящее аудиоустройство. Проверьте подключение микрофона.'
+          : mediaError?.name === 'NotReadableError'
+            ? 'Устройство уже используется другим приложением.'
+            : (mediaError?.message || 'Не удалось начать звонок.');
+      setCallError(message);
       console.error('Failed to start call', error);
+      return false;
     }
   }
 
   async function handleIncomingSignal(conversationId: number, payload: SignalData) {
     const current = callStateRef.current;
-    if (!current) {
-      await startCall(conversationId, { initiator: false, initialSignal: payload });
+    if (!current || current.conversationId !== conversationId) {
+      pendingIncomingSignalRef.current = payload;
       return;
     }
-
-    if (current.conversationId !== conversationId) {
-      return;
-    }
-
     current.peer?.signal(payload);
   }
 
-  function endCall() {
-    if (callStateRef.current?.peer) {
-      callStateRef.current.peer.destroy();
+  async function acceptIncomingCall() {
+    if (!incomingCall) return;
+    const call = incomingCall;
+    pendingIncomingSignalRef.current = null;
+    setIncomingCall(null);
+    const started = await startCall(call.conversationId, { initiator: false }, call.mediaType);
+    if (!started) {
+      socketRef.current?.emit('call:reject', { conversationId: call.conversationId });
+      onIncomingCallHandled?.();
+      return;
     }
-    callStateRef.current?.localStream?.getTracks().forEach((track) => track.stop());
-    callStateRef.current?.remoteStream?.getTracks().forEach((track) => track.stop());
+    socketRef.current?.emit('call:accept', { conversationId: call.conversationId });
+    onIncomingCallHandled?.();
+  }
+
+  function rejectIncomingCall() {
+    if (!incomingCall) return;
+    socketRef.current?.emit('call:reject', { conversationId: incomingCall.conversationId });
+    pendingIncomingSignalRef.current = null;
+    setIncomingCall(null);
+    onIncomingCallHandled?.();
+  }
+
+  useEffect(() => {
+    callState?.localStream?.getAudioTracks().forEach((track) => { track.enabled = !micMuted; });
+  }, [callState, micMuted]);
+
+  useEffect(() => {
+    const onGlobalEndCall = () => { if (callStateRef.current) endCall(true); };
+    window.addEventListener('nexo-end-call', onGlobalEndCall);
+    return () => window.removeEventListener('nexo-end-call', onGlobalEndCall);
+  }, []);
+
+  function endCall(notifyRemote = true) {
+    const current = callStateRef.current;
+    if (!current) return;
+    if (awaitingCallAcceptRef.current === current.conversationId) awaitingCallAcceptRef.current = null;
+    queuedCallSignalsRef.current = [];
     callStateRef.current = null;
     setCallState(null);
-    socketRef.current?.emit('call:end', { conversationId: activeConversationId });
+    if (notifyRemote) socketRef.current?.emit('call:end', { conversationId: current.conversationId });
+    current.peer?.destroy();
+    current.localStream?.getTracks().forEach((track) => track.stop());
+    current.remoteStream?.getTracks().forEach((track) => track.stop());
   }
 
   async function shareScreen() {
@@ -476,7 +774,7 @@ export function MessengerWorkspace({
 
   function renderDirectMessages() {
     return (
-      <div className="workspace-grid">
+      <div className={'workspace-grid ' + (showConversationList ? '' : 'embedded-dm')}>
         <aside className="conversation-list">
           <header>
             <h3><MessageCircle size={16} />Диалоги</h3>
@@ -490,11 +788,7 @@ export function MessengerWorkspace({
                 className={`conversation-item ${conversation.id === activeConversationId ? 'active' : ''}`}
                 onClick={() => setActiveConversationId(conversation.id)}
               >
-                <div className="avatar">
-                  {conversation.counterpart?.display_name?.[0]?.toUpperCase() ||
-                    conversation.counterpart?.username?.[0]?.toUpperCase() ||
-                    '#'}
-                </div>
+                <Avatar user={conversation.counterpart} size={36} showStatus />
                 <div>
                   <p>{conversation.title}</p>
                   <small>
@@ -518,8 +812,11 @@ export function MessengerWorkspace({
                   {activeConversation.title}
                 </div>
                 <div className="chat-actions">
-                  <button type="button" className="ghost" onClick={() => startCall(activeConversation.id)}>
-                    <Phone size={16} />Позвонить
+                  <button type="button" className="ghost" onClick={() => startCall(activeConversation.id, { initiator: true }, 'audio')}>
+                    <Phone size={16} />Голос
+                  </button>
+                  <button type="button" className="ghost" onClick={() => startCall(activeConversation.id, { initiator: true }, 'video')}>
+                    <Monitor size={16} />Видео
                   </button>
                 </div>
               </header>
@@ -531,22 +828,25 @@ export function MessengerWorkspace({
                     const grouped = Boolean(previous && previous.author.id === message.author.id &&
                       new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() < 5 * 60 * 1000);
                     const authorName = message.author.display_name || message.author.username;
+                    const dayChanged = !previous || getMessageDayKey(previous.created_at) !== getMessageDayKey(message.created_at);
                     return (
-                      <article key={message.id} className={`message-row ${grouped ? 'grouped' : ''}`}>
-                        {grouped ? <span className="message-avatar-spacer" /> : (
-                          <span className="message-avatar" style={{ backgroundColor: message.author.avatar_color || '#D97757' }}>
-                            {(authorName[0] || 'N').toUpperCase()}
-                          </span>
-                        )}
-                        <div className="message-body">
-                          {!grouped && <header><strong>{authorName}</strong><time>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
-                          {message.content && <p>{message.content}</p>}
-                          {message.attachment && <AttachmentPreview attachment={message.attachment} />}
-                        </div>
-                      </article>
+                      <Fragment key={message.id}>
+                        {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
+                        <article id={`nexo-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
+                          onContextMenu={(event) => openMessageMenu(event, message, 'dm')}>
+                          {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
+                          <div className="message-body">
+                            {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                            {message.content && <MessageContent content={message.content} />}
+                            {message.attachment && <AttachmentPreview attachment={message.attachment} />}
+                          </div>
+                        </article>
+                      </Fragment>
                     );
                   })}
               </div>
+              {typingUser && <div className="typing-indicator">{typingUser.display_name || typingUser.username} печатает…</div>}
+              {callError && <p className="status error call-error">{callError}</p>}
               <div className="composer">
                 <label className="file-pill">
                   <Paperclip size={16} />
@@ -559,10 +859,15 @@ export function MessengerWorkspace({
                     }}
                   />
                 </label>
+                <button type="button" className="composer-code-button" title="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(false)}><Code size={16} /></button>
                 <textarea
+                  ref={composerRef}
                   placeholder="Напишите сообщение..."
                   value={composerText}
-                  onChange={(event) => setComposerText(event.target.value)}
+                  onChange={(event) => { setComposerText(event.target.value); sendTyping(Boolean(event.target.value.trim())); }}
+                  onBlur={() => sendTyping(false)}
+                  onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSendMessage(); } }}
+                  onPaste={(event) => { const file = Array.from(event.clipboardData.files)[0]; if (file) { event.preventDefault(); setUploadFile(file); } }}
                   rows={1}
                 />
                 <button className="primary tiny" onClick={handleSendMessage}>
@@ -600,7 +905,7 @@ export function MessengerWorkspace({
     }
 
     return (
-      <div className="workspace-grid servers">
+      <div className={'workspace-grid servers ' + (showChannelSidebar ? '' : 'embedded-channel')}>
         <section className="channel-column">
           {activeServer ? (
             <ServerSidebar
@@ -624,9 +929,10 @@ export function MessengerWorkspace({
                   <small>{activeChannel.topic}</small>
                 </div>
                 <div className="chat-actions">
-                  <button type="button" className="ghost" onClick={onOpenSettings}>
-                    <Settings size={16} />Настройки пространства
+                  <button type="button" className={showMembersPanel ? 'ghost active' : 'ghost'} onClick={() => setShowMembersPanel((value) => !value)} title="Показать участников" aria-label="Показать участников">
+                    <Users size={16} />Участники
                   </button>
+                  {onEditChannel && <button type="button" className="ghost" onClick={onEditChannel} title="Настройки канала" aria-label="Настройки канала"><Settings size={16} />Канал</button>}
                 </div>
               </header>
               <div className="message-stream">
@@ -637,19 +943,20 @@ export function MessengerWorkspace({
                     const grouped = Boolean(previous && previous.author.id === message.author.id &&
                       new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() < 5 * 60 * 1000);
                     const authorName = message.author.display_name || message.author.username;
+                    const dayChanged = !previous || getMessageDayKey(previous.created_at) !== getMessageDayKey(message.created_at);
                     return (
-                      <article key={message.id} className={`message-row ${grouped ? 'grouped' : ''}`}>
-                        {grouped ? <span className="message-avatar-spacer" /> : (
-                          <span className="message-avatar" style={{ backgroundColor: message.author.avatar_color || '#D97757' }}>
-                            {(authorName[0] || 'N').toUpperCase()}
-                          </span>
-                        )}
-                        <div className="message-body">
-                          {!grouped && <header><strong>{authorName}</strong><time>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
-                          {message.content && <p>{message.content}</p>}
-                          {message.attachment && <AttachmentPreview attachment={message.attachment} />}
-                        </div>
-                      </article>
+                      <Fragment key={message.id}>
+                        {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
+                        <article className={`message-row ${grouped ? 'grouped' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
+                          onContextMenu={(event) => openMessageMenu(event, message, 'channel')}>
+                          {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
+                          <div className="message-body">
+                            {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                            {message.content && <MessageContent content={message.content} />}
+                            {message.attachment && <AttachmentPreview attachment={message.attachment} />}
+                          </div>
+                        </article>
+                      </Fragment>
                     );
                   })}
               </div>
@@ -665,10 +972,14 @@ export function MessengerWorkspace({
                     }}
                   />
                 </label>
+                <button type="button" className="composer-code-button" title="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(true)}><Code size={16} /></button>
                 <textarea
+                  ref={channelComposerRef}
                   placeholder={`Сообщение #${activeChannel.name}`}
                   value={channelComposer}
                   onChange={(event) => setChannelComposer(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSendChannelMessage(); } }}
+                  onPaste={(event) => { const file = Array.from(event.clipboardData.files)[0]; if (file) { event.preventDefault(); setChannelUpload(file); } }}
                   rows={1}
                 />
                 <button className="primary tiny" onClick={handleSendChannelMessage}>
@@ -687,20 +998,42 @@ export function MessengerWorkspace({
             </>
           )}
         </section>
+        {showMembersPanel && (
+          <aside className="channel-members-panel">
+            <header><strong>Участники</strong><button type="button" className="ghost-icon" aria-label="Закрыть участников" title="Закрыть" onClick={() => setShowMembersPanel(false)}><X size={15} /></button></header>
+            {membersLoading && <p className="muted">Загружаем участников…</p>}
+            {membersError && <p className="status error">{membersError}</p>}
+            {!membersLoading && !membersError && <div className="channel-member-list">
+              {serverMembers.map((member) => (
+                <article key={member.id} className="channel-member-row">
+                  <Avatar user={member.user} size={30} />
+                  <div><strong>{member.nickname || member.user.display_name || member.user.username}</strong>
+                    <small>@{member.user.username}</small>
+                    <div className="channel-member-roles">
+                      {member.role === 'owner' && <span className="owner-role">Владелец</span>}
+                      {member.roles.map((role) => <span key={role.id} style={{ color: role.color }}>{role.name}</span>)}
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {serverMembers.length === 0 && <p className="muted">Список участников пуст.</p>}
+            </div>}
+          </aside>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="workspace-shell">
-      {mode === 'servers' && showServersRail && <ServersRail
+    <div className={'workspace-shell ' + (embedded ? 'workspace-shell-embedded' : '')}>
+      {mode === 'servers' && showServersRail && !embedded && <ServersRail
         servers={servers}
         activeServerId={activeServerId}
         onSelectServer={(serverId) => { setMode('servers'); setActiveServerId(serverId); }}
         onCreateServer={() => setShowCreateServer(true)}
       />}
       <div className="workspace-main">
-        {!hideNavigation && <div className="workspace-nav">
+        {!hideNavigation && !embedded && <div className="workspace-nav">
           <button
             className={mode === 'servers' ? 'active' : ''}
             onClick={() => setMode('servers')}
@@ -717,13 +1050,48 @@ export function MessengerWorkspace({
         {mode === 'friends' ? renderDirectMessages() : renderServerView()}
       </div>
 
-      {callState && (
-        <CallOverlay
-          state={callState}
-          onHangUp={endCall}
-          onShareScreen={shareScreen}
-        />
+      {messageContext && (
+        <div className="message-context-backdrop" onPointerDown={() => setMessageContext(null)}>
+          <div className="nexo-context-menu" style={{
+            left: Math.min(messageContext.x, window.innerWidth - 220),
+            top: Math.min(messageContext.y, window.innerHeight - 110)
+          }} onPointerDown={(event) => event.stopPropagation()}>
+            <button type="button" onClick={() => {
+              const value = messageContext.message.content || messageContext.message.attachment?.name || '';
+              void copyText(value);
+              setMessageContext(null);
+            }}><Copy size={14} /><span>Копировать текст</span></button>
+            <button type="button" onClick={() => {
+              const message = messageContext.message;
+              const link = messageContext.kind === 'dm' && 'conversation_id' in message
+                ? `nexo://dm/${message.conversation_id}/message/${message.id}`
+                : `nexo://channel/${(message as ChannelMessage).server_id}/${(message as ChannelMessage).channel_id}/message/${message.id}`;
+              void copyText(link);
+              setMessageContext(null);
+            }}><LinkIcon /><span>Копировать ссылку</span></button>
+            {messageContext.message.author.id === user.id && (
+              <button type="button" className="danger" onClick={() => void deleteMessage(messageContext.message, messageContext.kind)}>
+                <X size={14} /><span>Удалить сообщение</span>
+              </button>
+            )}
+          </div>
+        </div>
       )}
+      {incomingCall && (
+        <motion.div className="incoming-call-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.section className="incoming-call-card" initial={{ opacity: 0, y: 12, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}>
+            <Avatar user={incomingCall.user} size={52} showStatus />
+            <strong>{incomingCall.user.display_name || incomingCall.user.username} звонит вам</strong>
+            <p>{incomingCall.mediaType === 'video' ? 'Видеозвонок' : 'Голосовой звонок'}</p>
+            <button type="button" className="ghost ringtone-toggle" onClick={() => setRingtoneMuted((value) => !value)}>
+              {ringtoneMuted ? 'Включить звук звонка' : 'Отключить звук звонка'}
+            </button>
+            <div><button type="button" className="ghost" onClick={rejectIncomingCall}>Отклонить</button>
+              <button type="button" className="primary" onClick={() => void acceptIncomingCall()}>Принять</button></div>
+          </motion.section>
+        </motion.div>
+      )}
+      {callState && <CallOverlay state={callState} onHangUp={endCall} onShareScreen={shareScreen} audioOutputId={audioOutputId} deafened={deafened} />}
 
       {showCreateServer && (
         <CreateServerModal
@@ -821,6 +1189,75 @@ function ServerSidebar({
   );
 }
 
+function getMessageDayKey(value: string) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function getMessageDayLabel(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const dayStamp = (item: Date) => new Date(item.getFullYear(), item.getMonth(), item.getDate()).getTime();
+  if (dayStamp(date) === dayStamp(today)) return 'Сегодня';
+  if (dayStamp(date) === dayStamp(yesterday)) return 'Вчера';
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+}
+
+function copyText(value: string) {
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value);
+  const area = document.createElement('textarea');
+  area.value = value;
+  area.style.position = 'fixed';
+  area.style.opacity = '0';
+  document.body.appendChild(area);
+  area.select();
+  document.execCommand('copy');
+  area.remove();
+  return Promise.resolve();
+}
+
+function InlineContent({ text }: { text: string }) {
+  const expression = /`([^`]+)`|(https?:\/\/[^\s<>]+)/g;
+  const parts: ReactNode[] = [];
+  let last = 0, match: RegExpExecArray | null, key = 0;
+  while ((match = expression.exec(text))) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    if (match[1] !== undefined) {
+      parts.push(<code key={key++} className="inline-code">{match[1]}</code>);
+    } else if (match[2]) {
+      const href = match[2].replace(/[),.!?]+$/, '');
+      const suffix = match[2].slice(href.length);
+      parts.push(<a key={key++} href={href} target="_blank" rel="noreferrer">{href}</a>, suffix);
+    }
+    last = expression.lastIndex;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <>{parts}</>;
+}
+
+function MessageContent({ content }: { content: string }) {
+  const blocks = content.split(/```([a-zA-Z0-9_+.-]*)\n?([\s\S]*?)```/g);
+  if (blocks.length === 1) {
+    return <div className="message-content"><p><InlineContent text={content} /></p></div>;
+  }
+  const result: ReactNode[] = [];
+  for (let index = 0; index < blocks.length; index += 3) {
+    if (blocks[index]) result.push(<p key={`text-${index}`}><InlineContent text={blocks[index]} /></p>);
+    const language = blocks[index + 1];
+    const code = blocks[index + 2];
+    if (code !== undefined) {
+      result.push(<div className="message-code-block" key={`code-${index}`}>
+        <header><span>{language || 'CODE'}</span><button type="button" title="Копировать код" aria-label="Копировать код"
+          onClick={() => void copyText(code.trimEnd())}><Copy size={13} />Копировать</button></header>
+        <pre><code>{code.replace(/\n$/, '')}</code></pre>
+      </div>);
+    }
+  }
+  return <div className="message-content">{result}</div>;
+}
+
 function AttachmentPreview({ attachment }: { attachment: Message['attachment'] | ChannelMessage['attachment'] }) {
   if (!attachment) return null;
   const isImage = attachment.mime.startsWith('image/');
@@ -840,11 +1277,15 @@ function AttachmentPreview({ attachment }: { attachment: Message['attachment'] |
 function CallOverlay({
   state,
   onHangUp,
-  onShareScreen
+  onShareScreen,
+  audioOutputId,
+  deafened
 }: {
   state: CallState;
   onHangUp: () => void;
   onShareScreen: () => void;
+  audioOutputId: string;
+  deafened: boolean;
 }) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -861,6 +1302,11 @@ function CallOverlay({
     }
   }, [state.remoteStream]);
 
+  useEffect(() => {
+    const video = remoteVideoRef.current as (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }) | null;
+    if (video?.setSinkId && audioOutputId) void video.setSinkId(audioOutputId).catch((error) => console.warn('Audio output selection failed:', error));
+  }, [audioOutputId, state.remoteStream]);
+
   return (
     <motion.div
       className="call-overlay"
@@ -870,7 +1316,7 @@ function CallOverlay({
     >
       <div className="call-video remote">
         {state.remoteStream ? (
-          <video ref={remoteVideoRef} autoPlay playsInline />
+          <video ref={remoteVideoRef} autoPlay playsInline muted={deafened} />
         ) : (
           <p>Ожидание подключения...</p>
         )}

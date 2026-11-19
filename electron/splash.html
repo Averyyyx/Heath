@@ -8,81 +8,70 @@
 :root{color-scheme:dark;font-family:Inter,"Segoe UI",sans-serif;background:#262624;color:#faf9f5}
 *{box-sizing:border-box}
 body{margin:0;width:100vw;height:100vh;display:grid;place-items:center;background:#262624;overflow:hidden}
-.card{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 38px 24px;text-align:center}
-.mark{display:grid;width:58px;height:58px;place-items:center;border:1px solid rgba(217,119,87,.38);border-radius:18px;background:rgba(217,119,87,.12);color:#e38a6a;font:600 34px Georgia,serif;box-shadow:0 0 0 8px rgba(217,119,87,.035);animation:mark-in .7s cubic-bezier(.2,.8,.2,1) both}
-h1{margin:14px 0 2px;font:600 26px Georgia,serif;letter-spacing:-.4px}
-.version{color:#817f78;font:600 8px "Segoe UI",sans-serif;letter-spacing:.19em}
-.status{margin-top:20px;color:#c7c4bc;font-size:11px;min-height:16px}
-.phrase{margin-top:8px;color:#918e85;font:italic 12px Georgia,serif;min-height:34px;max-width:310px;line-height:1.45}
-.track{width:220px;height:2px;margin-top:21px;background:#42413e;overflow:hidden;border-radius:10px}
-.fill{height:100%;width:30%;background:#d97757;transform-origin:left;animation:load 2.6s ease-in-out infinite}
-.footer{margin-top:17px;color:#66645e;font-size:8px;letter-spacing:.12em}
-@keyframes load{0%{transform:translateX(-110%) scaleX(.25)}50%{transform:translateX(100%) scaleX(1.4)}100%{transform:translateX(360%) scaleX(.25)}}
-@keyframes mark-in{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
+.card{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 48px 32px;text-align:center}
+.logo{width:104px;height:104px;margin-bottom:22px;overflow:visible}
+.logo path{fill:none;stroke:#d97757;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:240;stroke-dashoffset:240;animation:draw 1.15s cubic-bezier(.2,.7,.2,1) forwards}
+.logo circle{fill:#d97757;opacity:.28;transform-box:fill-box;transform-origin:center;animation:node 1.15s ease-in-out infinite}
+.logo circle:nth-of-type(1){animation-delay:0s}.logo circle:nth-of-type(2){animation-delay:.22s}.logo circle:nth-of-type(3){animation-delay:.44s}.logo circle:nth-of-type(4){animation-delay:.66s}
+h1{margin:0;font:600 34px "Source Serif 4",Georgia,serif;letter-spacing:-.5px}
+.tagline{margin-top:5px;color:#88867f;font-size:9px;font-weight:600;letter-spacing:.19em}
+.status{margin-top:62px;color:#d8d5cd;font-size:13px;min-height:24px;line-height:1.5}
+.detail{margin-top:7px;color:#88867f;font-size:10px;min-height:16px;line-height:1.5}
+.track{width:272px;height:2px;margin-top:22px;background:#42413e;overflow:hidden;border-radius:10px}
+.fill{height:100%;width:0%;background:#d97757;transition:width .2s ease}
+.fill.indeterminate{width:35%;animation:load 1.25s ease-in-out infinite}
+.skip{margin-top:22px;min-height:31px;padding:5px 13px;border:1px solid #514f4b;border-radius:7px;background:transparent;color:#c8c5bd;opacity:0;pointer-events:none;transition:opacity .18s ease,background .12s ease}
+.skip.visible{opacity:1;pointer-events:auto;cursor:pointer}
+.skip:hover{background:#333330;color:#faf9f5}
+.footer{position:absolute;bottom:26px;color:#69675f;font-size:9px;letter-spacing:.14em}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes node{0%,100%{opacity:.25;transform:scale(.8)}35%{opacity:1;transform:scale(1.22)}}
+@keyframes load{0%{transform:translateX(-120%)}100%{transform:translateX(390%)}}
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="mark">N</div>
+  <svg class="logo" viewBox="0 0 100 100" role="img" aria-label="Nexo">
+    <path d="M18 78V22L82 78V22"/>
+    <circle cx="18" cy="78" r="6"/><circle cx="18" cy="22" r="6"/>
+    <circle cx="82" cy="78" r="6"/><circle cx="82" cy="22" r="6"/>
+  </svg>
   <h1>Nexo</h1>
-  <div class="version" id="version">ALPHA · CONNECTING</div>
-  <div class="status" id="status">Подготавливаем ваше пространство…</div>
-  <div class="phrase" id="phrase">Связь начинается с простого приветствия.</div>
-  <div class="track"><div class="fill"></div></div>
-  <div class="footer">A QUIETER PLACE TO CONNECT</div>
+  <div class="tagline">YOUR SPACE TO CONNECT</div>
+  <div class="status" id="status">Подготавливаем запуск…</div>
+  <div class="detail" id="detail"></div>
+  <div class="track"><div class="fill indeterminate" id="fill"></div></div>
+  <button class="skip" id="skip" type="button">Пропустить обновление</button>
 </div>
+<div class="footer" id="version">NEXO · ALPHA</div>
 <script>
-const { ipcRenderer } = require('electron');
-const phrases = [
-  'Здесь разговоры находят своё продолжение.',
-  'Хорошие идеи редко рождаются в одиночку.',
-  'Настраиваем место для следующей мысли.',
-  'Пусть важное не потеряется в потоке.',
-  'Каждое пространство начинается с людей.',
-  'Собираем ваши разговоры в одном месте.',
-  'Тишина перед началом хорошего проекта.',
-  'Связь — это больше, чем список контактов.',
-  'Ваша команда уже почти на месте.',
-  'Идеи любят ясное пространство.',
-  'Подключаемся к тому, что действительно важно.',
-  'Небольшая пауза — и можно продолжать.',
-  'Ни одна хорошая мысль не должна затеряться.',
-  'Рабочее место для людей, а не для шума.',
-  'Пусть путь от идеи до разговора будет короче.',
-  'Скоро здесь появится что-то интересное.',
-  'Ваше пространство, ваш ритм, ваши правила.',
-  'Собираем детали, чтобы вы могли собирать идеи.',
-  'Вместе проще довести начатое до конца.',
-  'Каждой команде нужно своё место встречи.',
-  'Подготавливаем каналы для новых открытий.',
-  'Общение без лишних перегородок.',
-  'Пусть нужные люди будут на расстоянии одного клика.',
-  'Запускаем инструменты для совместной работы.',
-  'Новый день — новый повод что-то создать.',
-  'Сначала связь. Затем всё остальное.',
-  'Оставим сложность внутри, а снаружи — ясность.',
-  'Ваши люди, проекты и мысли скоро встретятся.',
-  'Пусть разговор двигает работу вперёд.',
-  'Nexo готовит для вас место.'
-];
-const phrase=document.getElementById('phrase');
-const status=document.getElementById('status');
-const version=document.getElementById('version');
-let last=-1;
-function rotatePhrase(){
-  let next=Math.floor(Math.random()*phrases.length);
-  if(next===last) next=(next+1)%phrases.length;
-  last=next;
-  phrase.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:450,easing:'ease-out'});
-  phrase.textContent=phrases[next];
-}
-rotatePhrase();
-setInterval(rotatePhrase,2900);
-ipcRenderer.on('loading-status',(_event,text)=>{status.textContent=text;});
-ipcRenderer.on('app-version',(_event,value)=>{version.textContent='ALPHA · '+value;});
-ipcRenderer.on('update-status',(_event,payload)=>{
-  if(payload?.message) status.textContent=payload.message;
+const statusEl=document.getElementById('status');
+const detailEl=document.getElementById('detail');
+const fillEl=document.getElementById('fill');
+const skipEl=document.getElementById('skip');
+let downloadingAt=0;
+let skipTimer=null;
+setTimeout(()=>skipEl.classList.add('visible'),3000);
+window.nexoSplash.onLoadingStatus((value)=>{statusEl.textContent=String(value||'Запуск Nexo…');});
+window.nexoSplash.onAppVersion((value)=>{document.getElementById('version').textContent='NEXO · '+String(value);});
+window.nexoSplash.onUpdateStatus((payload)=>{
+  if(!payload)return;
+  if(payload.status==='checking'){statusEl.textContent='Проверяем обновления…';detailEl.textContent='';fillEl.classList.add('indeterminate');}
+  else if(payload.status==='development'){statusEl.textContent='Режим разработки';detailEl.textContent='Проверка обновлений пропущена';skipEl.classList.remove('visible');}
+  else if(payload.status==='up-to-date'){statusEl.textContent='У вас последняя версия';detailEl.textContent='';fillEl.classList.remove('indeterminate');fillEl.style.width='100%';skipEl.classList.remove('visible');}
+  else if(payload.status==='available'){statusEl.textContent=payload.message||'Найдена новая версия';detailEl.textContent=payload.version?'Версия '+payload.version:'';}
+  else if(payload.status==='downloading'){
+    if(!downloadingAt) downloadingAt=Date.now();
+    statusEl.textContent='Скачиваем обновление…';
+    detailEl.textContent=(Number.isFinite(payload.percent)?payload.percent:0)+'%';
+    fillEl.classList.remove('indeterminate');fillEl.style.width=(payload.percent||0)+'%';
+  }
+  else if(payload.status==='downloaded'){statusEl.textContent='Обновление проверено';detailEl.textContent=payload.version?'Nexo '+payload.version:'';fillEl.classList.remove('indeterminate');fillEl.style.width='100%';skipEl.classList.remove('visible');}
+  else if(payload.status==='installing'){statusEl.textContent='Устанавливаем обновление…';detailEl.textContent='Приложение перезапустится автоматически';}
+  else if(payload.status==='skipped'){statusEl.textContent='Запускаем Nexo…';detailEl.textContent='Обновление пропущено';}
+  else if(payload.status==='error'){statusEl.textContent='Не удалось проверить обновления';detailEl.textContent=payload.message||'Продолжаем запуск текущей версии';skipEl.classList.remove('visible');}
 });
+skipEl.addEventListener('click',()=>{skipEl.disabled=true;skipEl.textContent='Продолжаем запуск…';window.nexoSplash.skipUpdate();});
 </script>
 </body>
 </html>
