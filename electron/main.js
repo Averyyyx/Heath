@@ -173,7 +173,7 @@ function createTrayImage(count = notificationCount) {
 
 function createTaskbarOverlay(count) {
   if (!count) return null;
-  const overlayPath = path.join(getIconsDir(), `nexo-taskbar-badge-${Math.min(9, count)}.png`);
+  const overlayPath = path.join(getIconsDir(), `nexo-taskbar-overlay-${Math.min(9, count)}.png`);
   if (!fs.existsSync(overlayPath)) return null;
   return nativeImage.createFromPath(overlayPath);
 }
