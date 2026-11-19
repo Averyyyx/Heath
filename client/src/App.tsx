@@ -126,7 +126,7 @@ export default function App() {
   const [pendingDeepLink, setPendingDeepLink] = useState<DeepLinkPayload | null>(null);
   const [activeCallInfo, setActiveCallInfo] = useState<ActiveCallInfo | null>(null);
   const [callClock, setCallClock] = useState(Date.now());
-  const [appVersion, setAppVersion] = useState('0.0.4-alpha');
+  const [appVersion, setAppVersion] = useState('0.0.5-alpha');
 
   const desktopApi = typeof window !== 'undefined' ? window.nexoAPI : undefined;
   const tabStripRef = useRef<HTMLDivElement>(null);
@@ -399,7 +399,7 @@ export default function App() {
     const onMessage = ({ conversationId }: { conversationId: number }) => {
       const id = `dm:${conversationId}`;
       if (id !== activeTabId) {
-        setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + 1) }));
+        setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(9, (current[conversationId] || 0) + 1) }));
         playNexoSound('message');
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
@@ -411,7 +411,7 @@ export default function App() {
     const onChannelMessage = ({ channelId }: { channelId: number }) => {
       const id = `channel:${channelId}`;
       if (id !== activeTabId) {
-        setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + 1) }));
+        setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(9, (current[channelId] || 0) + 1) }));
         playNexoSound('message');
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
@@ -1065,7 +1065,7 @@ export default function App() {
                   return <motion.button type="button" key={server.id} layout className={`server-rail-item ${activeTab.serverId === server.id ? 'active' : ''} ${count ? 'unread' : ''}`}
                     onClick={() => selectServer(server)} title={server.name}>
                     <span className="server-rail-blob">{(server.name || 'S').slice(0, 1).toUpperCase()}</span>
-                    {count > 0 && <span className="server-rail-badge">{count > 9 ? '9+' : count}</span>}
+                    {count > 0 && <span className="server-rail-badge">{Math.min(9, count)}</span>}
                   </motion.button>;
                 })}
               </div>
@@ -1101,7 +1101,7 @@ export default function App() {
                         onContextMenu={(event) => contextTargetClick(event, item)}>
                         <Avatar user={person} size={27} showStatus />
                         <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Личный диалог</small></span>
-                        {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge">{unreadDmCounts[conversation.id] > 9 ? '9+' : unreadDmCounts[conversation.id]}</span>}
+                        {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge">{Math.min(9, unreadDmCounts[conversation.id])}</span>}
                       </button>;
                     })}
                     {conversations.length === 0 && <button type="button" className="sidebar-empty-action" onClick={() => openFriendsTab()}>Диалогов пока нет — найдите друга</button>}
@@ -1126,7 +1126,7 @@ export default function App() {
                             onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openChannelTab(server, channel.id, true); } }}
                             onContextMenu={(event) => contextTargetClick(event, item)}>
                             <HashIcon /><span className="sidebar-row-text"><strong>{channel.name}</strong></span>
-                            {unreadChannelCounts[channel.id] > 0 && <span className="sidebar-count-badge">{unreadChannelCounts[channel.id] > 9 ? '9+' : unreadChannelCounts[channel.id]}</span>}
+                            {unreadChannelCounts[channel.id] > 0 && <span className="sidebar-count-badge">{Math.min(9, unreadChannelCounts[channel.id])}</span>}
                           </button>;
                         })}
                       </div>
