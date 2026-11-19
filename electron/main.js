@@ -173,10 +173,10 @@ function createTrayImage(count = notificationCount) {
 
 function createTaskbarOverlay(count) {
   if (!count) return null;
-  const icon = createTrayImage(count);
-  return icon.isEmpty() ? null : icon.resize({ width: 16, height: 16 });
+  const overlayPath = path.join(getIconsDir(), `nexo-taskbar-badge-${Math.min(9, count)}.png`);
+  if (!fs.existsSync(overlayPath)) return null;
+  return nativeImage.createFromPath(overlayPath);
 }
-
 // Тестовый аккаунт разработчика (dev@nexo.local с премиум-подпиской).
 // Включён при запуске из исходников (`npm start` / `electron:dev`). В установленной сборке
 // включается переменной NEXO_DEV_ACCOUNT=1 или пустым файлом dev-account.enabled в папке
