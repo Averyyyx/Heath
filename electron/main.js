@@ -153,9 +153,26 @@ function getIconPath(iconName, size = 256) {
   return path.join(dir, `${iconName}-${size}.png`);
 }
 
-function getTrayIconPath() {
-  const iconName = notificationCount > 0 ? 'nexo-ico-mini-ping' : 'nexo-ico-mini';
-  return getIconPath(iconName, 32);
+function createTrayImage(count = notificationCount) {
+  const badge = count > 0
+    ? `<circle cx="25" cy="24" r="7.2" fill="#D94F55" stroke="#242321" stroke-width="1.7"/><text x="25" y="27.1" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="8.3" font-weight="700" fill="#FFFFFF">${Math.min(9, count)}</text>`
+    : '';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+    <circle cx="16" cy="16" r="14" fill="#302C29" stroke="#E9784E" stroke-width="1.8"/>
+    <path d="M9.5 22V10L22.5 22V10" fill="none" stroke="#FFD7C0" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/>
+    ${badge}
+  </svg>`;
+  return nativeImage.createFromDataURL('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+}
+
+function createTaskbarOverlay(count) {
+  if (!count) return null;
+  const value = Math.min(9, count);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+    <circle cx="16" cy="16" r="15" fill="#D94F55" stroke="#242321" stroke-width="2"/>
+    <text x="16" y="22" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="${value > 6 ? 17 : 19}" font-weight="800" fill="#FFFFFF">${value}</text>
+  </svg>`;
+  return nativeImage.createFromDataURL('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
 }
 
 // Тестовый аккаунт разработчика (dev@nexo.local с премиум-подпиской).
@@ -198,18 +215,8 @@ function getOrCreateSecrets() {
 function createTray() {
   console.log('Creating system tray...');
   
-  const trayIconPath = getTrayIconPath();
-  console.log('Tray icon path:', trayIconPath);
-  
-  // Проверяем существование файла иконки
-  if (!fs.existsSync(trayIconPath)) {
-    console.error('Tray icon not found:', trayIconPath);
-    // Используем встроенную иконку если файл не найден
-    tray = new Tray(nativeImage.createEmpty());
-  } else {
-    const trayImage = nativeImage.createFromPath(trayIconPath);
-    tray = new Tray(trayImage);
-  }
+  // Отдельный компактный знак для системного трея: он намеренно не совпадает с desktop-иконкой.
+  tray = new Tray(createTrayImage(notificationCount));
   
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -320,33 +327,20 @@ function setupIPCHandlers() {
 
 function updateTrayIcon() {
   if (!tray) return;
-  
-  const trayIconPath = getTrayIconPath();
-  const trayImage = nativeImage.createFromPath(trayIconPath);
-  tray.setImage(trayImage);
-  
-  const tooltip = notificationCount > 0 
-    ? `Nexo (${notificationCount} уведомлений)` 
-    : 'Nexo';
-  tray.setToolTip(tooltip);
+  tray.setImage(createTrayImage(notificationCount));
+  tray.setToolTip(notificationCount > 0 ? `Nexo · ${notificationCount} уведомлений` : 'Nexo');
 }
 
 function setNotificationCount(count) {
   const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Math.floor(Number(count))) : 0;
-  notificationCount = Math.min(safeCount, 9); // Максимум 9
+  notificationCount = Math.min(safeCount, 9);
 
-  // Обновляем иконку трея
+  // Системный трей показывает отдельную мини-иконку со счётчиком.
   updateTrayIcon();
 
-  // Обновляем иконку главного окна
-  if (mainWindow) {
-    const iconName = notificationCount > 0
-      ? `Nexo-desctop-ico-${notificationCount}ping`
-      : 'Nexo-Desctop-ico';
-    const iconPath = getIconPath(iconName);
-    if (fs.existsSync(iconPath)) {
-      mainWindow.setIcon(nativeImage.createFromPath(iconPath));
-    }
+  // Значок приложения остаётся фирменным; число выводится отдельным Windows taskbar overlay.
+  if (mainWindow && !mainWindow.isDestroyed() && process.platform === 'win32') {
+    mainWindow.setOverlayIcon(createTaskbarOverlay(notificationCount), notificationCount > 0 ? `${notificationCount} непрочитанных уведомлений` : '');
   }
 }
 
