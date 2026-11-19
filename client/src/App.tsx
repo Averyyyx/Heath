@@ -30,7 +30,7 @@ type WorkspaceTab = {
   serverId?: number;
   channelId?: number;
   messageId?: number;
-  initialSection?: 'account' | 'profile' | 'appearance' | 'notifications' | 'voice' | 'accessibility' | 'premium' | 'servers' | 'updates';
+  initialSection?: 'account' | 'profile' | 'appearance' | 'notifications' | 'voice' | 'hotkeys' | 'accessibility' | 'premium' | 'servers' | 'updates';
   pinned?: boolean;
   unread?: number;
 };
