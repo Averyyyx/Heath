@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Palette,
   RefreshCw,
@@ -16,13 +16,14 @@ import {
   LogOut
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { getNexoSoundPreferences, playNexoSound, saveNexoSoundPreferences, type NexoSoundPreferences } from '../lib/sounds';
 import { Avatar } from './Avatar';
 import type { User } from '../types';
 import { applyTheme, isThemeChoice } from '../lib/theme';
 import { t } from '../lib/strings';
 import type { Channel, Server, ServerRole } from '../types';
 
-type SettingsSection = 'account' | 'profile' | 'appearance' | 'premium' | 'servers' | 'updates';
+type SettingsSection = 'account' | 'profile' | 'appearance' | 'notifications' | 'accessibility' | 'premium' | 'servers' | 'updates';
 
 type SettingsPanelProps = {
   user: User;
@@ -105,6 +106,7 @@ const PERMISSION_FLAGS = [
 
 export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.4-alpha', onCheckUpdates }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [soundPreferences, setSoundPreferences] = useState<NexoSoundPreferences>(() => getNexoSoundPreferences());
   const [accountName, setAccountName] = useState(user.display_name || '');
   const [accountHandle, setAccountHandle] = useState(user.username || '');
   const [profileBio, setProfileBio] = useState(user.bio || '');
@@ -144,6 +146,12 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   >({});
 
   useEffect(() => {
+    if (settings?.reduce_motion) document.documentElement.dataset.reduceMotion = 'true';
+    else delete document.documentElement.dataset.reduceMotion;
+    return () => { delete document.documentElement.dataset.reduceMotion; };
+  }, [settings?.reduce_motion]);
+
+  useEffect(() => {
     window.nexoAPI?.getUpdatePreferences?.()
       .then((preferences) => setAutoDownloadUpdates(preferences.autoDownload !== false))
       .catch(() => {});
@@ -160,6 +168,14 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
     });
     return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
   }, []);
+
+  function changeSoundPreference<K extends keyof NexoSoundPreferences>(key: K, value: NexoSoundPreferences[K]) {
+    setSoundPreferences((current) => {
+      const next = { ...current, [key]: value };
+      saveNexoSoundPreferences(next);
+      return next;
+    });
+  }
 
   async function changeAutoDownload(value: boolean) {
     setAutoDownloadUpdates(value);
@@ -1246,6 +1262,10 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       case 'profile': return renderProfileSettings();
       case 'appearance':
         return renderAppearance();
+      case 'notifications':
+        return renderNotifications();
+      case 'accessibility':
+        return renderAccessibility();
       case 'premium':
         return renderPremium();
       case 'servers':
@@ -1255,8 +1275,8 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       default:
         return (
           <div className="settings-section">
-            <h2>Раздел скоро появится</h2>
-            <p className="muted">Уведомления, безопасность и приватность будут добавлены позже.</p>
+            <h2>Раздел не найден</h2>
+            <p className="muted">Выберите раздел в навигации настроек.</p>
           </div>
         );
     }
@@ -1272,10 +1292,17 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         <nav>
           <button className={section === 'account' ? 'active' : ''} onClick={() => setSection('account')}><UserCircle size={16} />Моя учётная запись</button>
           <button className={section === 'profile' ? 'active' : ''} onClick={() => setSection('profile')}><Avatar user={user} size={16} />Профиль</button>
+          <p className="settings-nav-group">ПРИЛОЖЕНИЕ</p>
           <button className={section === 'appearance' ? 'active' : ''} onClick={() => setSection('appearance')}>
-            <Palette size={16} />
-            Оформление
+            <Palette size={16} />Оформление
           </button>
+          <button className={section === 'notifications' ? 'active' : ''} onClick={() => setSection('notifications')}>
+            <Volume2 size={16} />Уведомления и звуки
+          </button>
+          <button className={section === 'accessibility' ? 'active' : ''} onClick={() => setSection('accessibility')}>
+            <Check size={16} />Специальные возможности
+          </button>
+          <p className="settings-nav-group">СООБЩЕСТВА</p>
           <button className={section === 'premium' ? 'active' : ''} onClick={() => setSection('premium')}>
             <Star size={16} />
             Nexo Pulse
@@ -1294,8 +1321,12 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           <button className="ghost" onClick={onClose}>Закрыть</button>
         </div>
       </motion.aside>
-      <motion.section className="settings-content" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}>
-        {renderSection()}
+      <motion.section className="settings-content" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={section} initial={{ opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: .16 }}>
+            {renderSection()}
+          </motion.div>
+        </AnimatePresence>
       </motion.section>
     </div>
   );
