@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, UserPlus, X, MessageCircle, Search, Users, CircleDot, Clock3 } from 'lucide-react';
+import { Check, UserPlus, X, MessageCircle, Search, Users, Clock3 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { Avatar } from './Avatar';
