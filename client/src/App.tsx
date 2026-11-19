@@ -294,7 +294,12 @@ export default function App() {
     if (!user || !workspaceRestored) return;
     try {
       const saved = JSON.parse(localStorage.getItem(unreadStorageKey(user.id)) || '{}') as { dm?: Record<string, number>; channels?: Record<string, number> };
-      const normalize = (value?: Record<string, number>) => Object.fromEntries(Object.entries(value || {}).map(([key, count]) => [key, Math.max(0, Math.min(9, Math.floor(Number(count) || 0)))]).filter(([, count]) => count > 0));
+      const normalize = (value?: Record<string, number>): Record<number, number> => {
+        const entries: Array<[string, number]> = Object.entries(value || {}).map(([key, count]) => [
+          key, Math.max(0, Math.min(9, Math.floor(Number(count) || 0)))
+        ]);
+        return Object.fromEntries(entries.filter(([, count]) => count > 0)) as Record<number, number>;
+      };
       setUnreadDmCounts(normalize(saved.dm));
       setUnreadChannelCounts(normalize(saved.channels));
     } catch { /* Ignore a damaged local unread cache */ }
