@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import type { DragEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Home, Users, MessageCircle, Settings, Plus, X, ChevronDown, ChevronRight,
@@ -316,7 +316,7 @@ export default function App() {
       }));
     };
     socket.on('user:update', onUserUpdate);
-    return () => socket.off('user:update', onUserUpdate);
+    return () => { socket.off('user:update', onUserUpdate); };
   }, [user?.id, conversations]);
 
   useEffect(() => {
@@ -353,7 +353,7 @@ export default function App() {
       if (conversation) openDmTab(conversation);
     };
     socket.on('call:invite', onCallInvite);
-    return () => socket.off('call:invite', onCallInvite);
+    return () => { socket.off('call:invite', onCallInvite); };
   }, [user?.id, conversations]);
 
   useEffect(() => {
@@ -989,7 +989,7 @@ export default function App() {
             <div className="tab-scroll-arrow"><button aria-label="Прокрутить вкладки влево" onClick={() => tabStripRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}><ChevronLeft size={15} /></button></div>
             <div className="nexo-tabs" ref={tabStripRef}>
               <AnimatePresence initial={false}>
-              {tabs.map((tab, index) => (
+              {tabs.map((tab) => (
                 <motion.button key={tab.id} initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: tab.pinned ? 42 : 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: .18 }} layoutId={tab.pinned ? undefined : `tab-${tab.id}`}
                   ref={(node) => { tabNodeRefs.current[tab.id] = node; }}
                   type="button" draggable={tab.kind !== 'home'}
@@ -997,9 +997,9 @@ export default function App() {
                   title={tab.title} aria-selected={activeTabId === tab.id}
                   onClick={() => setActiveTabId(tab.id)}
                   onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); closeTab(tab.id); } }}
-                  onDragStart={(event) => { event.dataTransfer.setData('text/nexo-tab', tab.id); event.dataTransfer.effectAllowed = 'move'; }}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => { event.preventDefault(); reorderTabs(event.dataTransfer.getData('text/nexo-tab'), tab.id); }}
+                  onDragStartCapture={(event: DragEvent<HTMLButtonElement>) => { event.dataTransfer.setData('text/nexo-tab', tab.id); event.dataTransfer.effectAllowed = 'move'; }}
+                  onDragOverCapture={(event: DragEvent<HTMLButtonElement>) => event.preventDefault()}
+                  onDropCapture={(event: DragEvent<HTMLButtonElement>) => { event.preventDefault(); reorderTabs(event.dataTransfer.getData('text/nexo-tab'), tab.id); }}
                   onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, tabId: tab.id }); }}>
                   {tab.kind === 'home' ? <Home size={14} /> : tab.kind === 'friends' ? <Users size={14} /> : tab.kind === 'dm' ? <Avatar user={conversations.find((conversation) => conversation.id === tab.targetId)?.counterpart || conversations.find((conversation) => conversation.id === tab.targetId)?.participants.find((participant) => participant.id !== user?.id)} size={19} /> : tab.kind === 'channel' ? <HashIcon /> : <Settings size={14} />}
                   {!tab.pinned && <span className="tab-title">{tab.title}</span>}

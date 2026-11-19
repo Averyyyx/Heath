@@ -6,6 +6,7 @@ import {
   Image as ImageIcon,
   Code,
   Copy,
+  Link as LinkIcon,
   Monitor,
   Paperclip,
   Phone,
@@ -27,7 +28,8 @@ import type {
   User
 } from '../types';
 import { apiFetch } from '../lib/api';
-import { getSocket, disconnectSocket } from '../lib/socket';
+import { Avatar } from './Avatar';
+import { getSocket } from '../lib/socket';
 
 type WorkspaceMode = 'servers' | 'friends';
 
@@ -156,13 +158,13 @@ export function MessengerWorkspace({
       callWasActiveRef.current = true;
       window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: {
         active: true, conversationId: callState.conversationId,
-        title: activeConversation?.title || 'Личный звонок', startedAt: callState.startedAt
+        title: 'Личный звонок', startedAt: callState.startedAt
       } }));
     } else if (callWasActiveRef.current) {
       callWasActiveRef.current = false;
       window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: { active: false } }));
     }
-  }, [callState, activeConversation?.title]);
+  }, [callState]);
 
   useEffect(() => {
     if (!pendingIncomingCall || pendingIncomingCall.conversationId !== openConversationId) return;
@@ -1089,7 +1091,7 @@ export function MessengerWorkspace({
           </motion.section>
         </motion.div>
       )}
-      {callState && <CallOverlay state={callState} onHangUp={endCall} onShareScreen={shareScreen} audioOutputId={audioOutputId} />}
+      {callState && <CallOverlay state={callState} onHangUp={endCall} onShareScreen={shareScreen} audioOutputId={audioOutputId} deafened={deafened} />}
 
       {showCreateServer && (
         <CreateServerModal
@@ -1276,12 +1278,14 @@ function CallOverlay({
   state,
   onHangUp,
   onShareScreen,
-  audioOutputId
+  audioOutputId,
+  deafened
 }: {
   state: CallState;
   onHangUp: () => void;
   onShareScreen: () => void;
   audioOutputId: string;
+  deafened: boolean;
 }) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);

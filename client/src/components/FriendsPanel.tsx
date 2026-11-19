@@ -32,7 +32,7 @@ export function FriendsPanel({ user, onRefresh, onOpenConversation }: FriendsPan
       }));
     };
     socket.on('user:update', onUserUpdate);
-    return () => socket.off('user:update', onUserUpdate);
+    return () => { socket.off('user:update', onUserUpdate); };
   }, []);
 
   async function refreshFriends() {
