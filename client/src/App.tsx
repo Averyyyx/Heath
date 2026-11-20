@@ -3,10 +3,10 @@ import type { DragEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Home, Users, MessageCircle, Settings, Plus, X, ChevronDown, ChevronRight,
-  ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command, Layers3,
-  Phone, Mic, MicOff, Headphones, HeadphoneOff, CircleHelp, LogOut, Moon,
+  ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command,
+  Phone, Mic, MicOff, Headphones, HeadphoneOff, LogOut, Moon,
   Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus,
-  PanelLeftClose, PanelLeftOpen, Check, Volume2, Clock3, Circle, Sparkles,
+  Check, Volume2, Circle,
 } from 'lucide-react';
 import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
