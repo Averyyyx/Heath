@@ -2977,3 +2977,6 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .settings-toggle-row strong, .sound-volume strong { font-size: 13px; }
 .settings-toggle-row small, .sound-volume small { font-size: 12px; }
 .sound-preview-grid .ghost { font-size: 12px; padding: 9px 13px; }
+
+.home-continue-list > button time { flex: 0 0 auto; color: var(--text-faint); font: 11px var(--font-mono); }
+.home-unread { display: inline-grid; min-width: 19px; height: 19px; flex: 0 0 auto; place-items: center; padding: 0 5px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font: 700 11px var(--font-sans); }
