@@ -2980,3 +2980,7 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 
 .home-continue-list > button time { flex: 0 0 auto; color: var(--text-faint); font: 11px var(--font-mono); }
 .home-unread { display: inline-grid; min-width: 19px; height: 19px; flex: 0 0 auto; place-items: center; padding: 0 5px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font: 700 11px var(--font-sans); }
+
+.app-loading-screen { place-items: center; align-content: center; }
+.app-loading-screen .loading-track { position: fixed; right: max(28px, calc((100vw - 360px) / 2)); bottom: 30px; left: max(28px, calc((100vw - 360px) / 2)); width: auto; }
+.app-loading-screen .loading-footnote { position: fixed; bottom: 10px; left: 0; width: 100%; text-align: center; }
