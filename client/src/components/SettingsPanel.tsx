@@ -1427,7 +1427,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         <nav>
           <button className={section === 'account' ? 'active' : ''} onClick={() => setSection('account')}><UserCircle size={16} />Моя учётная запись</button>
           <button className={section === 'profile' ? 'active' : ''} onClick={() => setSection('profile')}><Avatar user={user} size={16} />Профиль</button>
-          <p className="settings-nav-group">ПРИЛОЖЕНИЕ</p>
+          <p className="settings-nav-group">Приложение</p>
           <button className={section === 'appearance' ? 'active' : ''} onClick={() => setSection('appearance')}>
             <Palette size={16} />Оформление
           </button>
@@ -1443,7 +1443,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           <button className={section === 'accessibility' ? 'active' : ''} onClick={() => setSection('accessibility')}>
             <Check size={16} />Специальные возможности
           </button>
-          <p className="settings-nav-group">СООБЩЕСТВА</p>
+          <p className="settings-nav-group">Сообщества</p>
           <button className={section === 'premium' ? 'active' : ''} onClick={() => setSection('premium')}>
             <Star size={16} />
             Nexo Pulse
