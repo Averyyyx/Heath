@@ -43,7 +43,8 @@ function setupLogging() {
 
   function logToFile(message) {
     const timestamp = new Date().toISOString();
-    const logMessage = `[${timestamp}] ${message}\n`;
+    const logMessage = `[${timestamp}] ${message}
+`;
     try {
       fs.appendFileSync(logFile, logMessage);
     } catch (err) {
@@ -867,7 +868,12 @@ app.whenReady().then(async () => {
   const startupDeepLink = process.argv.find((argument) => argument.startsWith('nexo://'));
   if (startupDeepLink) dispatchDeepLink(startupDeepLink);
 
-  // Стабильный AppUserModelId нужен Windows для правильного значка панели задач.\n  if (process.platform === 'win32') app.setAppUserModelId('com.nexo.app');\n\n  // Инициализируем логирование после того, как app готов\n  setupLogging();\n  ensureDesktopShortcut();
+  // Стабильный AppUserModelId нужен Windows для правильного значка панели задач.
+  if (process.platform === 'win32') app.setAppUserModelId('com.nexo.app');
+
+  // Инициализируем логирование после того, как app готов
+  setupLogging();
+  ensureDesktopShortcut();
   
   // Регистрируем IPC handlers
   setupIPCHandlers();
