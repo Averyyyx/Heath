@@ -158,6 +158,26 @@ function getIconPath(iconName, size = 256) {
   return path.join(dir, `${iconName}-${size}.png`);
 }
 
+function ensureDesktopShortcut() {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  const shortcutPath = path.join(app.getPath('desktop'), 'Nexo.lnk');
+  if (fs.existsSync(shortcutPath)) return;
+  try {
+    const created = shell.writeShortcutLink(shortcutPath, 'create', {
+      target: process.execPath,
+      args: [],
+      cwd: path.dirname(process.execPath),
+      description: 'Nexo — рабочее пространство для общения и совместной работы',
+      icon: getDesktopIconPath(),
+      iconIndex: 0
+    });
+    if (created) console.log('Desktop shortcut created:', shortcutPath);
+    else console.warn('Windows did not create the Nexo desktop shortcut.');
+  } catch (error) {
+    console.warn('Could not create Nexo desktop shortcut:', error.message);
+  }
+}
+
 function getTrayIconPath(count = notificationCount) {
   const fileName = count > 0
     ? `nexo-ico-mini-${Math.min(9, count)}ping-32.png`
@@ -718,7 +738,7 @@ function createWindow() {
     width: 1280,
     height: 800,
     minWidth: 1024,
-    minHeight: 768,
+    minHeight: 700,
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#262624', symbolColor: '#ECE9E3', height: 34 },
     webPreferences: {
@@ -847,8 +867,7 @@ app.whenReady().then(async () => {
   const startupDeepLink = process.argv.find((argument) => argument.startsWith('nexo://'));
   if (startupDeepLink) dispatchDeepLink(startupDeepLink);
 
-  // Инициализируем логирование после того, как app готов
-  setupLogging();
+  // Стабильный AppUserModelId нужен Windows для правильного значка панели задач.\n  if (process.platform === 'win32') app.setAppUserModelId('com.nexo.app');\n\n  // Инициализируем логирование после того, как app готов\n  setupLogging();\n  ensureDesktopShortcut();
   
   // Регистрируем IPC handlers
   setupIPCHandlers();
