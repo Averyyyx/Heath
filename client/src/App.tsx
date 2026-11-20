@@ -1201,8 +1201,8 @@ export default function App() {
             <main className="nexo-tab-content">
               {tabs.map((tab) => (
                 <section key={tab.id} className="nexo-tab-panel" hidden={activeTabId !== tab.id}>
-                  {tab.kind === 'home' && <HomeView user={user} conversations={conversations} openFriends={openFriendsTab} openPalette={openPalette}
-                    openDm={openDmTab} />}
+                  {tab.kind === 'home' && <HomeView user={user} conversations={conversations} servers={servers} openFriends={openFriendsTab} openPalette={openPalette}
+                    openDm={openDmTab} openChannel={(server, channelId) => openChannelTab(server, channelId)} />}
                   {tab.kind === 'friends' && <FriendsPanel user={user} onOpenConversation={(friend) => void handleOpenFriend(friend.username)} />}
                   {tab.kind === 'dm' && <MessengerWorkspace key={tab.id} user={user} initialMode="friends" embedded
                     showConversationList={false} openConversationId={tab.targetId || null} openMessageId={tab.messageId || null}
@@ -1335,29 +1335,47 @@ function SidebarTarget({ item, onClick, onContextMenu }: { item: SidebarPin; onC
   </button>;
 }
 
-function HomeView({ user, conversations, openFriends, openPalette, openDm }: {
-  user: User; conversations: Conversation[]; openFriends: () => void; openPalette: () => void;
-  openDm: (conversation: Conversation) => void;
+function HomeView({ user, conversations, servers, openFriends, openPalette, openDm, openChannel }: {
+  user: User; conversations: Conversation[]; servers: Server[]; openFriends: () => void; openPalette: () => void;
+  openDm: (conversation: Conversation) => void; openChannel: (server: Server, channelId: number) => void;
 }) {
   const recent = conversations.slice(0, 6);
+  const channels = servers.flatMap((server) => server.channels
+    .filter((channel) => channel.type === 'text')
+    .slice(0, 3)
+    .map((channel) => ({ server, channel }))).slice(0, 6);
+  const hasItems = recent.length > 0 || channels.length > 0;
   return <div className="nexo-home-view">
-    <div className="home-welcome"><div><span className="eyebrow">РАБОЧЕЕ ПРОСТРАНСТВО</span>
-      <h1>Рады видеть, {user.display_name || user.username}</h1><p>Продолжайте разговоры и возвращайтесь к своим проектам.</p></div>
+    <div className="home-welcome">
+      <div><h1>Рады видеть, {user.display_name || user.username}</h1>
+        <p>Продолжайте разговоры и возвращайтесь к своим проектам.</p></div>
       <button type="button" className="primary" onClick={openPalette}><Command size={16} />Быстрый переход <kbd>Ctrl K</kbd></button>
     </div>
-    <div className="home-overview-grid">
-      <button type="button" className="home-action" onClick={openFriends}><span><Users size={18} /></span><strong>Найти людей</strong><small>Знакомьтесь и добавляйте друзей</small></button>
-      <button type="button" className="home-action" onClick={openPalette}><span><Plus size={18} /></span><strong>Новое сообщение</strong><small>Начните личный разговор</small></button>
-      <button type="button" className="home-action" onClick={openPalette}><span><Layers3 size={18} /></span><strong>Открыть пространство</strong><small>Перейдите к каналу команды</small></button>
-    </div>
-    <section className="home-recent"><header><div><span className="eyebrow">НЕДАВНО</span><h2>Недавние диалоги</h2></div><button className="ghost" onClick={openFriends}>Все друзья</button></header>
-      {recent.length ? <div className="home-recent-list">{recent.map((conversation) => {
-        const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
-        return <button key={conversation.id} type="button" onClick={() => openDm(conversation)}>
-          <Avatar user={person} size={34} showStatus /><span><strong>{person?.display_name || person?.username || conversation.title}</strong><small>Личный диалог</small></span><ChevronRight size={15} /></button>;
-      })}</div> : <div className="home-empty"><MessageCircle size={22} /><strong>Пока нет диалогов</strong><p>Найдите друга, чтобы начать общение.</p><button className="primary tiny" onClick={openFriends}>Найти друга</button></div>}
+    <section className="home-continue">
+      <h2>Продолжить</h2>
+      {hasItems ? <div className="home-continue-list">
+        {recent.map((conversation) => {
+          const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
+          const name = person?.display_name || person?.username || conversation.title || 'Диалог';
+          const last = (conversation as Conversation & { last_message?: { content?: string }; lastMessage?: { content?: string } }).last_message
+            || (conversation as Conversation & { lastMessage?: { content?: string } }).lastMessage;
+          return <button key={`dm-${conversation.id}`} type="button" onClick={() => openDm(conversation)}>
+            <Avatar user={person} size={36} showStatus />
+            <span><strong>{name}</strong><small>{last?.content || 'Личный диалог'}</small></span>
+            <ChevronRight size={15} />
+          </button>;
+        })}
+        {channels.map(({ server, channel }) => <button key={`channel-${channel.id}`} type="button" onClick={() => openChannel(server, channel.id)}>
+          <span className="home-channel-avatar"><HashIcon /></span>
+          <span><strong>{channel.name}</strong><small>{server.name} · Канал пространства</small></span>
+          <ChevronRight size={15} />
+        </button>)}
+      </div> : <div className="home-empty">
+        <MessageCircle size={22} /><strong>Пока здесь тихо</strong>
+        <p>Добавьте друга, чтобы начать общение.</p>
+        <button className="primary tiny" onClick={openFriends}>Найти друга</button>
+      </div>}
     </section>
-    <div className="home-note"><Sparkles size={16} /><p>Nexo объединяет разговоры, пространства и совместную работу в одном рабочем месте.</p></div>
   </div>;
 }
 
