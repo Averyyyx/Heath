@@ -12,7 +12,7 @@ const DEFAULTS: NexoSoundPreferences = {
   messages: true,
   calls: true,
   devices: true,
-  volume: 0.32
+  volume: 0.28
 };
 
 let audioContext: AudioContext | null = null;
@@ -46,32 +46,39 @@ function context(): AudioContext | null {
 }
 
 type SoundKind = 'message' | 'mic-on' | 'mic-off' | 'headphones-on' | 'headphones-off' | 'ring';
+type SoundNote = { frequency: number; at: number; duration: number; gain: number; wave?: OscillatorType };
 
-const patterns: Record<SoundKind, Array<{ frequency: number; at: number; duration: number; gain: number }>> = {
+const patterns: Record<SoundKind, SoundNote[]> = {
   message: [
-    { frequency: 784, at: 0, duration: 0.12, gain: 0.65 },
-    { frequency: 988, at: 0.085, duration: 0.16, gain: 0.42 }
+    { frequency: 740, at: 0, duration: 0.12, gain: 0.38 },
+    { frequency: 880, at: 0.11, duration: 0.17, gain: 0.3 }
   ],
   'mic-on': [
-    { frequency: 523, at: 0, duration: 0.11, gain: 0.52 },
-    { frequency: 659, at: 0.08, duration: 0.14, gain: 0.58 }
+    { frequency: 523, at: 0, duration: 0.1, gain: 0.35 },
+    { frequency: 659, at: 0.09, duration: 0.13, gain: 0.38 }
   ],
   'mic-off': [
-    { frequency: 659, at: 0, duration: 0.11, gain: 0.48 },
-    { frequency: 440, at: 0.08, duration: 0.15, gain: 0.52 }
+    { frequency: 659, at: 0, duration: 0.1, gain: 0.32 },
+    { frequency: 523, at: 0.09, duration: 0.13, gain: 0.34 }
   ],
   'headphones-on': [
-    { frequency: 587, at: 0, duration: 0.12, gain: 0.52 },
-    { frequency: 784, at: 0.1, duration: 0.2, gain: 0.55 }
+    { frequency: 587, at: 0, duration: 0.11, gain: 0.34 },
+    { frequency: 784, at: 0.1, duration: 0.16, gain: 0.36 }
   ],
   'headphones-off': [
-    { frequency: 784, at: 0, duration: 0.12, gain: 0.48 },
-    { frequency: 587, at: 0.1, duration: 0.2, gain: 0.52 }
+    { frequency: 784, at: 0, duration: 0.11, gain: 0.3 },
+    { frequency: 587, at: 0.1, duration: 0.16, gain: 0.32 }
   ],
+  // Original Nexo ringtone: a soft, repeating major-key chime rather than three harsh test beeps.
   ring: [
-    { frequency: 659, at: 0, duration: 0.22, gain: 0.58 },
-    { frequency: 784, at: 0.18, duration: 0.22, gain: 0.58 },
-    { frequency: 988, at: 0.38, duration: 0.28, gain: 0.5 }
+    { frequency: 523.25, at: 0, duration: 0.28, gain: 0.25, wave: 'triangle' },
+    { frequency: 659.25, at: 0.17, duration: 0.28, gain: 0.24, wave: 'triangle' },
+    { frequency: 783.99, at: 0.34, duration: 0.36, gain: 0.23, wave: 'triangle' },
+    { frequency: 659.25, at: 0.62, duration: 0.3, gain: 0.22, wave: 'triangle' },
+    { frequency: 587.33, at: 1.08, duration: 0.28, gain: 0.22, wave: 'triangle' },
+    { frequency: 698.46, at: 1.25, duration: 0.28, gain: 0.23, wave: 'triangle' },
+    { frequency: 880, at: 1.42, duration: 0.38, gain: 0.22, wave: 'triangle' },
+    { frequency: 698.46, at: 1.72, duration: 0.3, gain: 0.2, wave: 'triangle' }
   ]
 };
 
@@ -87,15 +94,15 @@ export function playNexoSound(kind: SoundKind): void {
   for (const note of patterns[kind]) {
     const oscillator = audio.createOscillator();
     const gain = audio.createGain();
-    oscillator.type = 'sine';
+    oscillator.type = note.wave || 'sine';
     oscillator.frequency.setValueAtTime(note.frequency, now + note.at);
     gain.gain.setValueAtTime(0.0001, now + note.at);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, preferences.volume * note.gain), now + note.at + 0.018);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, preferences.volume * note.gain), now + note.at + 0.025);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + note.at + note.duration);
     oscillator.connect(gain);
     gain.connect(audio.destination);
     oscillator.start(now + note.at);
-    oscillator.stop(now + note.at + note.duration + 0.02);
+    oscillator.stop(now + note.at + note.duration + 0.03);
   }
 }
 
@@ -103,6 +110,6 @@ export function startNexoRingtone(): () => void {
   const preferences = getNexoSoundPreferences();
   if (!preferences.enabled || !preferences.calls) return () => {};
   playNexoSound('ring');
-  const timer = window.setInterval(() => playNexoSound('ring'), 1850);
+  const timer = window.setInterval(() => playNexoSound('ring'), 3000);
   return () => window.clearInterval(timer);
 }

@@ -3,10 +3,10 @@ import type { DragEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Home, Users, MessageCircle, Settings, Plus, X, ChevronDown, ChevronRight,
-  ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command, Layers3,
-  Phone, Mic, MicOff, Headphones, HeadphoneOff, CircleHelp, LogOut, Moon,
+  ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command,
+  Phone, Mic, MicOff, Headphones, HeadphoneOff, LogOut, Moon,
   Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus,
-  PanelLeftClose, PanelLeftOpen, Check, Volume2, Clock3, Circle, Sparkles,
+  PanelLeftClose, PanelLeftOpen, Check, Volume2, Circle,
 } from 'lucide-react';
 import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
@@ -930,6 +930,7 @@ export default function App() {
     function onKeyDown(event: globalThis.KeyboardEvent) {
       if (event.ctrlKey || event.metaKey) {
         if (event.key.toLowerCase() === 'k') { event.preventDefault(); openPalette(); }
+        else if (event.key.toLowerCase() === 'b') { event.preventDefault(); setSidebarCollapsed((value) => !value); }
         else if (event.shiftKey && event.key.toLowerCase() === 't') { event.preventDefault(); restoreClosedTab(); }
         else if (event.key.toLowerCase() === 't') { event.preventDefault(); openPalette(); }
         else if (event.key.toLowerCase() === 'w') { event.preventDefault(); closeTab(activeTabId); }
@@ -1063,6 +1064,12 @@ export default function App() {
       {stage === 'workspace' && user && (
         <>
           <div className="nexo-tabbar">
+            <button type="button" className="sidebar-toggle-button"
+              aria-label={sidebarCollapsed ? 'Показать боковую панель' : 'Скрыть боковую панель'}
+              title={sidebarCollapsed ? 'Показать боковую панель (Ctrl+B)' : 'Скрыть боковую панель (Ctrl+B)'}
+              onClick={() => setSidebarCollapsed((value) => !value)}>
+              {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+            </button>
             <div className="tab-scroll-arrow"><button aria-label="Прокрутить вкладки влево" onClick={() => tabStripRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}><ChevronLeft size={15} /></button></div>
             <div className="nexo-tabs" ref={tabStripRef}>
               <AnimatePresence initial={false}>
@@ -1095,24 +1102,6 @@ export default function App() {
           </div>
 
           <div className={`nexo-workbench ${activeTab.kind === 'settings' ? 'settings-active' : ''}`}>
-            <aside className="nexo-server-rail" aria-label="Навигация по Nexo">
-              <button type="button" className={`server-rail-home ${activeTab.kind === 'home' ? 'active' : ''}`} onClick={() => setActiveTabId('home')} title="Главная"><Home size={20} /></button>
-              <button type="button" className={`server-rail-home ${activeTab.kind === 'friends' ? 'active' : ''}`} onClick={() => openFriendsTab()} title="Друзья"><Users size={20} />{unreadRequests > 0 && <span className="server-rail-badge">{Math.min(9, unreadRequests)}</span>}</button>
-              <span className="server-rail-separator" />
-              <div className="server-rail-list">
-                {servers.map((server) => {
-                  const count = serverUnreadCounts[server.id] || 0;
-                  return <motion.button type="button" key={server.id} layout className={`server-rail-item ${activeTab.serverId === server.id ? 'active' : ''} ${count ? 'unread' : ''}`}
-                    onClick={() => selectServer(server)} title={server.name}>
-                    <span className="server-rail-blob">{server.icon && (server.icon.startsWith('http') || server.icon.startsWith('data:image/'))
-                      ? <img src={server.icon} alt="" /> : server.icon || (server.name || 'S').slice(0, 1).toUpperCase()}</span>
-                    {count > 0 && <span className="server-rail-badge">{Math.min(9, count)}</span>}
-                  </motion.button>;
-                })}
-              </div>
-              <button type="button" className="server-rail-add" onClick={() => setCreateSpaceOpen(true)} title="Создать пространство"><Plus size={20} /></button>
-              <div className="server-rail-bottom"><button type="button" onClick={() => openSettingsTab('account')} title="Настройки"><Settings size={19} /></button></div>
-            </aside>
             <aside className={`nexo-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}>
               {!sidebarCollapsed && (
                 <>
@@ -1123,6 +1112,7 @@ export default function App() {
                     </button>
                   </div>
 
+                  <div className="sidebar-scroll-area">
                   <SidebarSection title="Закреплённое" count={pinnedItems.length} collapsed={collapsedSections.includes('pinned')}
                     onToggle={() => setCollapsedSections((current) => current.includes('pinned') ? current.filter((item) => item !== 'pinned') : [...current, 'pinned'])}>
                     {pinnedItems.map((item) => <SidebarTarget key={item.id} item={item} onClick={() => openSidebarTarget(item)}
@@ -1141,7 +1131,7 @@ export default function App() {
                         onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openDmTab(conversation, true); } }}
                         onContextMenu={(event) => contextTargetClick(event, item)}>
                         <Avatar user={person} size={27} showStatus />
-                        <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Личный диалог</small></span>
+                        <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Откройте, чтобы продолжить разговор</small></span>
                         {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge">{Math.min(9, unreadDmCounts[conversation.id])}</span>}
                       </button>;
                     })}
@@ -1175,13 +1165,14 @@ export default function App() {
                     ))}
                     {servers.length === 0 && <small className="sidebar-empty">Ваши командные пространства появятся здесь.</small>}
                   </SidebarSection>
+                  </div>
                   <div className="sidebar-user-area">
                     {activeCallInfo && <div className="active-call-strip">
                       <div><span className="status-dot" /><strong>Звонок · {activeCallInfo.title}</strong><small>{formatCallDuration(callClock - activeCallInfo.startedAt)}</small></div>
                       <button type="button" title="Вернуться к звонку" aria-label="Вернуться к звонку" onClick={() => setActiveTabId(`dm:${activeCallInfo.conversationId}`)}><Phone size={14} /></button>
                       <button type="button" className="hangup" title="Завершить звонок" aria-label="Завершить звонок" onClick={() => window.dispatchEvent(new CustomEvent('nexo-end-call'))}><X size={14} /></button>
                     </div>}
-                    {!activeCallInfo && <div className="dock-call-status"><span className="status-dot" />Готов к работе</div>}
+                    
                     <div className="nexo-user-dock">
               <button type="button" className="dock-user" onClick={() => setStatusMenuOpen((value) => !value)} title="Изменить статус">
                 <Avatar user={user} size={36} showStatus />
@@ -1216,16 +1207,13 @@ export default function App() {
               <div className="sidebar-resizer" onMouseDown={beginResize} onDoubleClick={() => { setSidebarWidth(264); if (user) localStorage.setItem(sidebarStorageKey(user.id), '264'); }} title="Перетащите, чтобы изменить ширину" />
             </aside>
 
-            <button className="sidebar-collapse-toggle" type="button" onClick={() => setSidebarCollapsed((value) => !value)}
-              title={sidebarCollapsed ? 'Показать боковую панель' : 'Скрыть боковую панель'}>
-              {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-            </button>
-
             <main className="nexo-tab-content">
               {tabs.map((tab) => (
                 <section key={tab.id} className="nexo-tab-panel" hidden={activeTabId !== tab.id}>
-                  {tab.kind === 'home' && <HomeView user={user} conversations={conversations} openFriends={openFriendsTab} openPalette={openPalette}
-                    openDm={openDmTab} />}
+                  {tab.kind === 'home' && <HomeView user={user} conversations={conversations} servers={servers}
+                    unreadDmCounts={unreadDmCounts} unreadChannelCounts={unreadChannelCounts}
+                    openFriends={openFriendsTab} openPalette={openPalette} openDm={openDmTab}
+                    openChannel={(server, channelId) => openChannelTab(server, channelId)} />}
                   {tab.kind === 'friends' && <FriendsPanel user={user} onOpenConversation={(friend) => void handleOpenFriend(friend.username)} />}
                   {tab.kind === 'dm' && <MessengerWorkspace key={tab.id} user={user} initialMode="friends" embedded
                     showConversationList={false} openConversationId={tab.targetId || null} openMessageId={tab.messageId || null}
@@ -1358,29 +1346,98 @@ function SidebarTarget({ item, onClick, onContextMenu }: { item: SidebarPin; onC
   </button>;
 }
 
-function HomeView({ user, conversations, openFriends, openPalette, openDm }: {
-  user: User; conversations: Conversation[]; openFriends: () => void; openPalette: () => void;
-  openDm: (conversation: Conversation) => void;
+function HomeView({ user, conversations, servers, unreadDmCounts, unreadChannelCounts, openFriends, openPalette, openDm, openChannel }: {
+  user: User; conversations: Conversation[]; servers: Server[];
+  unreadDmCounts: Record<number, number>; unreadChannelCounts: Record<number, number>;
+  openFriends: () => void; openPalette: () => void;
+  openDm: (conversation: Conversation) => void; openChannel: (server: Server, channelId: number) => void;
 }) {
   const recent = conversations.slice(0, 6);
+  const channels = servers.flatMap((server) => server.channels
+    .filter((channel) => channel.type === 'text')
+    .slice(0, 3)
+    .map((channel) => ({ server, channel }))).slice(0, 6);
+  const [lastItems, setLastItems] = useState<Record<string, { content: string; created_at: string }>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPreviews() {
+      const entries = await Promise.all([
+        ...recent.map(async (conversation) => {
+          try {
+            const response = await apiFetch(`/api/conversations/${conversation.id}/messages`);
+            if (!response.ok) return null;
+            const payload = await response.json();
+            const message = (payload.messages || []).slice(-1)[0];
+            return message ? [`dm:${conversation.id}`, { content: message.content || (message.attachment ? 'Вложение' : 'Сообщение'), created_at: message.created_at }] as const : null;
+          } catch { return null; }
+        }),
+        ...channels.map(async ({ server, channel }) => {
+          try {
+            const response = await apiFetch(`/api/servers/${server.id}/channels/${channel.id}/messages`);
+            if (!response.ok) return null;
+            const payload = await response.json();
+            const message = (payload.messages || []).slice(-1)[0];
+            return message ? [`channel:${channel.id}`, { content: message.content || (message.attachment ? 'Вложение' : 'Сообщение'), created_at: message.created_at }] as const : null;
+          } catch { return null; }
+        })
+      ]);
+      if (!cancelled) {
+        const next: Record<string, { content: string; created_at: string }> = {};
+        for (const entry of entries) if (entry) next[entry[0]] = entry[1];
+        setLastItems(next);
+      }
+    }
+    void loadPreviews();
+    return () => { cancelled = true; };
+  }, [conversations, servers]);
+
+  const formatTime = (value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(date);
+  };
+  const hasItems = recent.length > 0 || channels.length > 0;
   return <div className="nexo-home-view">
-    <div className="home-welcome"><div><span className="eyebrow">РАБОЧЕЕ ПРОСТРАНСТВО</span>
-      <h1>Рады видеть, {user.display_name || user.username}</h1><p>Продолжайте разговоры и возвращайтесь к своим проектам.</p></div>
+    <div className="home-welcome">
+      <div><h1>Рады видеть, {user.display_name || user.username}</h1>
+        <p>Продолжайте разговоры и возвращайтесь к своим проектам.</p></div>
       <button type="button" className="primary" onClick={openPalette}><Command size={16} />Быстрый переход <kbd>Ctrl K</kbd></button>
     </div>
-    <div className="home-overview-grid">
-      <button type="button" className="home-action" onClick={openFriends}><span><Users size={18} /></span><strong>Найти людей</strong><small>Знакомьтесь и добавляйте друзей</small></button>
-      <button type="button" className="home-action" onClick={openPalette}><span><Plus size={18} /></span><strong>Новое сообщение</strong><small>Начните личный разговор</small></button>
-      <button type="button" className="home-action" onClick={openPalette}><span><Layers3 size={18} /></span><strong>Открыть пространство</strong><small>Перейдите к каналу команды</small></button>
-    </div>
-    <section className="home-recent"><header><div><span className="eyebrow">НЕДАВНО</span><h2>Недавние диалоги</h2></div><button className="ghost" onClick={openFriends}>Все друзья</button></header>
-      {recent.length ? <div className="home-recent-list">{recent.map((conversation) => {
-        const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
-        return <button key={conversation.id} type="button" onClick={() => openDm(conversation)}>
-          <Avatar user={person} size={34} showStatus /><span><strong>{person?.display_name || person?.username || conversation.title}</strong><small>Личный диалог</small></span><ChevronRight size={15} /></button>;
-      })}</div> : <div className="home-empty"><MessageCircle size={22} /><strong>Пока нет диалогов</strong><p>Найдите друга, чтобы начать общение.</p><button className="primary tiny" onClick={openFriends}>Найти друга</button></div>}
+    <section className="home-continue">
+      <h2>Продолжить</h2>
+      {hasItems ? <div className="home-continue-list">
+        {recent.map((conversation) => {
+          const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
+          const name = person?.display_name || person?.username || conversation.title || 'Диалог';
+          const preview = lastItems[`dm:${conversation.id}`];
+          const unread = unreadDmCounts[conversation.id] || 0;
+          return <button key={`dm-${conversation.id}`} type="button" onClick={() => openDm(conversation)}>
+            <Avatar user={person} size={36} showStatus />
+            <span><strong>{name}</strong><small>{preview?.content || 'Личный диалог'}</small></span>
+            {preview && <time>{formatTime(preview.created_at)}</time>}
+            {unread > 0 && <span className="home-unread">{unread > 99 ? '99+' : unread}</span>}
+            <ChevronRight size={15} />
+          </button>;
+        })}
+        {channels.map(({ server, channel }) => {
+          const preview = lastItems[`channel:${channel.id}`];
+          const unread = unreadChannelCounts[channel.id] || 0;
+          return <button key={`channel-${channel.id}`} type="button" onClick={() => openChannel(server, channel.id)}>
+            <span className="home-channel-avatar"><HashIcon /></span>
+            <span><strong>{channel.name}</strong><small>{preview?.content || server.name}</small></span>
+            {preview && <time>{formatTime(preview.created_at)}</time>}
+            {unread > 0 && <span className="home-unread">{unread > 99 ? '99+' : unread}</span>}
+            <ChevronRight size={15} />
+          </button>;
+        })}
+      </div> : <div className="home-empty">
+        <MessageCircle size={22} /><strong>Пока здесь тихо</strong>
+        <p>Добавьте друга, чтобы начать общение.</p>
+        <button className="primary tiny" onClick={openFriends}>Найти друга</button>
+      </div>}
     </section>
-    <div className="home-note"><Sparkles size={16} /><p>Nexo объединяет разговоры, пространства и совместную работу в одном рабочем месте.</p></div>
   </div>;
 }
 
