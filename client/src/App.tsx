@@ -930,6 +930,7 @@ export default function App() {
     function onKeyDown(event: globalThis.KeyboardEvent) {
       if (event.ctrlKey || event.metaKey) {
         if (event.key.toLowerCase() === 'k') { event.preventDefault(); openPalette(); }
+        else if (event.key.toLowerCase() === 'b') { event.preventDefault(); setSidebarCollapsed((value) => !value); }
         else if (event.shiftKey && event.key.toLowerCase() === 't') { event.preventDefault(); restoreClosedTab(); }
         else if (event.key.toLowerCase() === 't') { event.preventDefault(); openPalette(); }
         else if (event.key.toLowerCase() === 'w') { event.preventDefault(); closeTab(activeTabId); }
