@@ -23,6 +23,8 @@ jobs:
           cache: npm
       - name: Install desktop dependencies
         run: npm ci
+      - name: Install client dependencies
+        run: npm ci --prefix client
       - name: Run tests
         run: npm test
       - name: Build React client (TypeScript + Vite)
