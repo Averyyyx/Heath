@@ -2697,7 +2697,7 @@
 .nexo-titlebar .brand-image { width: 27px; height: 27px; display: block; object-fit: contain; border-radius: 8px; }
 .nexo-titlebar .titlebar-brand { align-items: center; gap: 9px; }
 .nexo-titlebar .titlebar-current { display: none; }
-.nexo-tabbar { display: none !important; }
+/* Tabs are the primary workspace navigation in 0.0.6. */
 .nexo-workbench { flex: 1 1 auto; min-height: 0; overflow: hidden; }
 .nexo-server-rail {
   position: relative; z-index: 3; display: flex; flex: 0 0 68px; width: 68px; min-width: 68px;
@@ -2884,3 +2884,59 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .hotkey-row kbd { min-width: 28px; padding: 4px 7px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--bg-secondary); color: var(--text-muted); font: 10px var(--font-mono); text-align: center; }
 .hotkeys-settings .settings-group { margin-top: 18px; }
 .hotkeys-settings .settings-nav-group { margin: 0 0 7px; }
+
+
+/* Nexo 0.0.6 — restore the original tree-and-tabs workspace */
+.nexo-tabbar { display: flex !important; }
+.nexo-server-rail { display: none !important; }
+.nexo-workbench { display: flex; min-height: 0; overflow: hidden; }
+.nexo-sidebar {
+  display: flex; height: 100%; min-height: 0; flex-direction: column;
+  flex: 0 0 auto; overflow: hidden; padding-bottom: 8px;
+}
+.sidebar-quick, .sidebar-user-area { flex: 0 0 auto; }
+.sidebar-scroll-area {
+  display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column;
+  gap: 7px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.sidebar-resizer { top: 0; right: -3px; bottom: 0; z-index: 5; width: 6px; }
+.sidebar-section-toggle { font-size: 12px; letter-spacing: 0; color: var(--text-muted); }
+.sidebar-row { min-height: 42px; }
+.sidebar-row-text strong { font-size: 14px; }
+.sidebar-row-text small { font-size: 12px; }
+.sidebar-quick > button { min-height: 40px; font-size: 13px; }
+.sidebar-empty, .sidebar-empty-action { font-size: 12px; }
+.sidebar-user-area { margin-top: 0 !important; padding-top: 8px; border-top: 1px solid var(--border); }
+.dock-call-status { display: none !important; }
+.nexo-user-dock { flex: 0 0 auto; }
+.sidebar-collapse-toggle { display: none !important; }
+.nexo-tab-content { min-width: 0; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+.nexo-tab-panel { min-width: 0; min-height: 0; }
+.nexo-home-view { width: min(100%, 760px); margin: 0; padding: 38px 46px; }
+.home-welcome { align-items: flex-start; gap: 20px; }
+.home-welcome .eyebrow, .home-recent .eyebrow { display: none; }
+.home-welcome h1 { margin-top: 0; }
+.home-welcome .primary kbd { color: rgba(255,255,255,.92); border-color: rgba(255,255,255,.45); }
+.home-overview-grid, .home-note, .home-recent > header > button { display: none !important; }
+.home-continue { margin-top: 32px; }
+.home-continue h2 { margin: 0 0 14px; font: 600 18px var(--font-serif); color: var(--text); }
+.home-continue-list { display: flex; flex-direction: column; gap: 7px; }
+.home-continue-list > button {
+  display: flex; min-height: 62px; align-items: center; gap: 12px; padding: 10px 13px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  color: var(--text); text-align: left; cursor: pointer; transition: background .15s ease, border-color .15s ease;
+}
+.home-continue-list > button:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+.home-continue-list > button > span:nth-child(2) { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
+.home-continue-list strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.home-continue-list small { overflow: hidden; color: var(--text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.home-channel-avatar { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: 10px; background: var(--accent-soft); color: var(--accent); }
+.home-empty { padding: 30px 20px; border: 1px dashed var(--border-strong); border-radius: 12px; text-align: center; }
+.app-loading-screen { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; width: auto; height: auto; background: var(--bg); }
+@media (max-height: 820px) {
+  .nexo-home-view { padding-top: 24px; padding-bottom: 24px; }
+}
+@media (max-width: 900px) {
+  .nexo-home-view { padding: 24px; }
+}
