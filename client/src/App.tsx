@@ -1095,24 +1095,6 @@ export default function App() {
           </div>
 
           <div className={`nexo-workbench ${activeTab.kind === 'settings' ? 'settings-active' : ''}`}>
-            <aside className="nexo-server-rail" aria-label="Навигация по Nexo">
-              <button type="button" className={`server-rail-home ${activeTab.kind === 'home' ? 'active' : ''}`} onClick={() => setActiveTabId('home')} title="Главная"><Home size={20} /></button>
-              <button type="button" className={`server-rail-home ${activeTab.kind === 'friends' ? 'active' : ''}`} onClick={() => openFriendsTab()} title="Друзья"><Users size={20} />{unreadRequests > 0 && <span className="server-rail-badge">{Math.min(9, unreadRequests)}</span>}</button>
-              <span className="server-rail-separator" />
-              <div className="server-rail-list">
-                {servers.map((server) => {
-                  const count = serverUnreadCounts[server.id] || 0;
-                  return <motion.button type="button" key={server.id} layout className={`server-rail-item ${activeTab.serverId === server.id ? 'active' : ''} ${count ? 'unread' : ''}`}
-                    onClick={() => selectServer(server)} title={server.name}>
-                    <span className="server-rail-blob">{server.icon && (server.icon.startsWith('http') || server.icon.startsWith('data:image/'))
-                      ? <img src={server.icon} alt="" /> : server.icon || (server.name || 'S').slice(0, 1).toUpperCase()}</span>
-                    {count > 0 && <span className="server-rail-badge">{Math.min(9, count)}</span>}
-                  </motion.button>;
-                })}
-              </div>
-              <button type="button" className="server-rail-add" onClick={() => setCreateSpaceOpen(true)} title="Создать пространство"><Plus size={20} /></button>
-              <div className="server-rail-bottom"><button type="button" onClick={() => openSettingsTab('account')} title="Настройки"><Settings size={19} /></button></div>
-            </aside>
             <aside className={`nexo-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}>
               {!sidebarCollapsed && (
                 <>
@@ -1123,7 +1105,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  <SidebarSection title="Закреплённое" count={pinnedItems.length} collapsed={collapsedSections.includes('pinned')}
+                  <div className="sidebar-scroll-area">\n                  <SidebarSection title="Закреплённое" count={pinnedItems.length} collapsed={collapsedSections.includes('pinned')}
                     onToggle={() => setCollapsedSections((current) => current.includes('pinned') ? current.filter((item) => item !== 'pinned') : [...current, 'pinned'])}>
                     {pinnedItems.map((item) => <SidebarTarget key={item.id} item={item} onClick={() => openSidebarTarget(item)}
                       onContextMenu={(event) => contextTargetClick(event, item)} />)}
@@ -1141,7 +1123,7 @@ export default function App() {
                         onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openDmTab(conversation, true); } }}
                         onContextMenu={(event) => contextTargetClick(event, item)}>
                         <Avatar user={person} size={27} showStatus />
-                        <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Личный диалог</small></span>
+                        <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Откройте, чтобы продолжить разговор</small></span>
                         {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge">{Math.min(9, unreadDmCounts[conversation.id])}</span>}
                       </button>;
                     })}
@@ -1175,13 +1157,13 @@ export default function App() {
                     ))}
                     {servers.length === 0 && <small className="sidebar-empty">Ваши командные пространства появятся здесь.</small>}
                   </SidebarSection>
-                  <div className="sidebar-user-area">
+                  </div>\n                  <div className="sidebar-user-area">
                     {activeCallInfo && <div className="active-call-strip">
                       <div><span className="status-dot" /><strong>Звонок · {activeCallInfo.title}</strong><small>{formatCallDuration(callClock - activeCallInfo.startedAt)}</small></div>
                       <button type="button" title="Вернуться к звонку" aria-label="Вернуться к звонку" onClick={() => setActiveTabId(`dm:${activeCallInfo.conversationId}`)}><Phone size={14} /></button>
                       <button type="button" className="hangup" title="Завершить звонок" aria-label="Завершить звонок" onClick={() => window.dispatchEvent(new CustomEvent('nexo-end-call'))}><X size={14} /></button>
                     </div>}
-                    {!activeCallInfo && <div className="dock-call-status"><span className="status-dot" />Готов к работе</div>}
+                    
                     <div className="nexo-user-dock">
               <button type="button" className="dock-user" onClick={() => setStatusMenuOpen((value) => !value)} title="Изменить статус">
                 <Avatar user={user} size={36} showStatus />
@@ -1215,11 +1197,6 @@ export default function App() {
               )}
               <div className="sidebar-resizer" onMouseDown={beginResize} onDoubleClick={() => { setSidebarWidth(264); if (user) localStorage.setItem(sidebarStorageKey(user.id), '264'); }} title="Перетащите, чтобы изменить ширину" />
             </aside>
-
-            <button className="sidebar-collapse-toggle" type="button" onClick={() => setSidebarCollapsed((value) => !value)}
-              title={sidebarCollapsed ? 'Показать боковую панель' : 'Скрыть боковую панель'}>
-              {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-            </button>
 
             <main className="nexo-tab-content">
               {tabs.map((tab) => (
