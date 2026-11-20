@@ -1204,8 +1204,10 @@ export default function App() {
             <main className="nexo-tab-content">
               {tabs.map((tab) => (
                 <section key={tab.id} className="nexo-tab-panel" hidden={activeTabId !== tab.id}>
-                  {tab.kind === 'home' && <HomeView user={user} conversations={conversations} servers={servers} openFriends={openFriendsTab} openPalette={openPalette}
-                    openDm={openDmTab} openChannel={(server, channelId) => openChannelTab(server, channelId)} />}
+                  {tab.kind === 'home' && <HomeView user={user} conversations={conversations} servers={servers}
+                    unreadDmCounts={unreadDmCounts} unreadChannelCounts={unreadChannelCounts}
+                    openFriends={openFriendsTab} openPalette={openPalette} openDm={openDmTab}
+                    openChannel={(server, channelId) => openChannelTab(server, channelId)} />}
                   {tab.kind === 'friends' && <FriendsPanel user={user} onOpenConversation={(friend) => void handleOpenFriend(friend.username)} />}
                   {tab.kind === 'dm' && <MessengerWorkspace key={tab.id} user={user} initialMode="friends" embedded
                     showConversationList={false} openConversationId={tab.targetId || null} openMessageId={tab.messageId || null}
@@ -1338,8 +1340,10 @@ function SidebarTarget({ item, onClick, onContextMenu }: { item: SidebarPin; onC
   </button>;
 }
 
-function HomeView({ user, conversations, servers, openFriends, openPalette, openDm, openChannel }: {
-  user: User; conversations: Conversation[]; servers: Server[]; openFriends: () => void; openPalette: () => void;
+function HomeView({ user, conversations, servers, unreadDmCounts, unreadChannelCounts, openFriends, openPalette, openDm, openChannel }: {
+  user: User; conversations: Conversation[]; servers: Server[];
+  unreadDmCounts: Record<number, number>; unreadChannelCounts: Record<number, number>;
+  openFriends: () => void; openPalette: () => void;
   openDm: (conversation: Conversation) => void; openChannel: (server: Server, channelId: number) => void;
 }) {
   const recent = conversations.slice(0, 6);
@@ -1347,6 +1351,47 @@ function HomeView({ user, conversations, servers, openFriends, openPalette, open
     .filter((channel) => channel.type === 'text')
     .slice(0, 3)
     .map((channel) => ({ server, channel }))).slice(0, 6);
+  const [lastItems, setLastItems] = useState<Record<string, { content: string; created_at: string }>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPreviews() {
+      const entries = await Promise.all([
+        ...recent.map(async (conversation) => {
+          try {
+            const response = await apiFetch(`/api/conversations/${conversation.id}/messages`);
+            if (!response.ok) return null;
+            const payload = await response.json();
+            const message = (payload.messages || []).slice(-1)[0];
+            return message ? [`dm:${conversation.id}`, { content: message.content || (message.attachment ? 'Вложение' : 'Сообщение'), created_at: message.created_at }] as const : null;
+          } catch { return null; }
+        }),
+        ...channels.map(async ({ server, channel }) => {
+          try {
+            const response = await apiFetch(`/api/servers/${server.id}/channels/${channel.id}/messages`);
+            if (!response.ok) return null;
+            const payload = await response.json();
+            const message = (payload.messages || []).slice(-1)[0];
+            return message ? [`channel:${channel.id}`, { content: message.content || (message.attachment ? 'Вложение' : 'Сообщение'), created_at: message.created_at }] as const : null;
+          } catch { return null; }
+        })
+      ]);
+      if (!cancelled) {
+        const next: Record<string, { content: string; created_at: string }> = {};
+        for (const entry of entries) if (entry) next[entry[0]] = entry[1];
+        setLastItems(next);
+      }
+    }
+    void loadPreviews();
+    return () => { cancelled = true; };
+  }, [conversations, servers]);
+
+  const formatTime = (value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(date);
+  };
   const hasItems = recent.length > 0 || channels.length > 0;
   return <div className="nexo-home-view">
     <div className="home-welcome">
@@ -1360,19 +1405,27 @@ function HomeView({ user, conversations, servers, openFriends, openPalette, open
         {recent.map((conversation) => {
           const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
           const name = person?.display_name || person?.username || conversation.title || 'Диалог';
-          const last = (conversation as Conversation & { last_message?: { content?: string }; lastMessage?: { content?: string } }).last_message
-            || (conversation as Conversation & { lastMessage?: { content?: string } }).lastMessage;
+          const preview = lastItems[`dm:${conversation.id}`];
+          const unread = unreadDmCounts[conversation.id] || 0;
           return <button key={`dm-${conversation.id}`} type="button" onClick={() => openDm(conversation)}>
             <Avatar user={person} size={36} showStatus />
-            <span><strong>{name}</strong><small>{last?.content || 'Личный диалог'}</small></span>
+            <span><strong>{name}</strong><small>{preview?.content || 'Личный диалог'}</small></span>
+            {preview && <time>{formatTime(preview.created_at)}</time>}
+            {unread > 0 && <span className="home-unread">{unread > 99 ? '99+' : unread}</span>}
             <ChevronRight size={15} />
           </button>;
         })}
-        {channels.map(({ server, channel }) => <button key={`channel-${channel.id}`} type="button" onClick={() => openChannel(server, channel.id)}>
-          <span className="home-channel-avatar"><HashIcon /></span>
-          <span><strong>{channel.name}</strong><small>{server.name} · Канал пространства</small></span>
-          <ChevronRight size={15} />
-        </button>)}
+        {channels.map(({ server, channel }) => {
+          const preview = lastItems[`channel:${channel.id}`];
+          const unread = unreadChannelCounts[channel.id] || 0;
+          return <button key={`channel-${channel.id}`} type="button" onClick={() => openChannel(server, channel.id)}>
+            <span className="home-channel-avatar"><HashIcon /></span>
+            <span><strong>{channel.name}</strong><small>{preview?.content || server.name}</small></span>
+            {preview && <time>{formatTime(preview.created_at)}</time>}
+            {unread > 0 && <span className="home-unread">{unread > 99 ? '99+' : unread}</span>}
+            <ChevronRight size={15} />
+          </button>;
+        })}
       </div> : <div className="home-empty">
         <MessageCircle size={22} /><strong>Пока здесь тихо</strong>
         <p>Добавьте друга, чтобы начать общение.</p>
