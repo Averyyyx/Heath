@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command,
   Phone, Mic, MicOff, Headphones, HeadphoneOff, LogOut, Moon,
   Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus,
-  Check, Volume2, Circle,
+  PanelLeftClose, PanelLeftOpen, Check, Volume2, Circle,
 } from 'lucide-react';
 import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
@@ -1064,6 +1064,12 @@ export default function App() {
       {stage === 'workspace' && user && (
         <>
           <div className="nexo-tabbar">
+            <button type="button" className="sidebar-toggle-button"
+              aria-label={sidebarCollapsed ? 'Показать боковую панель' : 'Скрыть боковую панель'}
+              title={sidebarCollapsed ? 'Показать боковую панель (Ctrl+B)' : 'Скрыть боковую панель (Ctrl+B)'}
+              onClick={() => setSidebarCollapsed((value) => !value)}>
+              {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+            </button>
             <div className="tab-scroll-arrow"><button aria-label="Прокрутить вкладки влево" onClick={() => tabStripRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}><ChevronLeft size={15} /></button></div>
             <div className="nexo-tabs" ref={tabStripRef}>
               <AnimatePresence initial={false}>
