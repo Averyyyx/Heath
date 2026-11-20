@@ -2984,3 +2984,19 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .app-loading-screen { place-items: center; align-content: center; }
 .app-loading-screen .loading-track { position: fixed; right: max(28px, calc((100vw - 360px) / 2)); bottom: 30px; left: max(28px, calc((100vw - 360px) / 2)); width: auto; }
 .app-loading-screen .loading-footnote { position: fixed; bottom: 10px; left: 0; width: 100%; text-align: center; }
+
+.settings-section input:not([type="checkbox"]):not([type="range"]):not([type="file"]),
+.settings-section textarea,
+.settings-section select {
+  width: min(100%, 420px); min-height: 40px; padding: 9px 11px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg-secondary); color: var(--text); font: 13px var(--font-sans);
+  outline: none; transition: border-color .15s ease, box-shadow .15s ease;
+}
+.settings-section input:not([type="checkbox"]):not([type="range"]):focus,
+.settings-section textarea:focus,
+.settings-section select:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.settings-section label > span { font-size: 12px; }
+.settings-section .primary { width: auto; min-width: 140px; align-self: flex-start; }
