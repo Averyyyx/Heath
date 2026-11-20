@@ -1106,7 +1106,8 @@ export default function App() {
                     </button>
                   </div>
 
-                  <div className="sidebar-scroll-area">\n                  <SidebarSection title="Закреплённое" count={pinnedItems.length} collapsed={collapsedSections.includes('pinned')}
+                  <div className="sidebar-scroll-area">
+                  <SidebarSection title="Закреплённое" count={pinnedItems.length} collapsed={collapsedSections.includes('pinned')}
                     onToggle={() => setCollapsedSections((current) => current.includes('pinned') ? current.filter((item) => item !== 'pinned') : [...current, 'pinned'])}>
                     {pinnedItems.map((item) => <SidebarTarget key={item.id} item={item} onClick={() => openSidebarTarget(item)}
                       onContextMenu={(event) => contextTargetClick(event, item)} />)}
@@ -1158,7 +1159,8 @@ export default function App() {
                     ))}
                     {servers.length === 0 && <small className="sidebar-empty">Ваши командные пространства появятся здесь.</small>}
                   </SidebarSection>
-                  </div>\n                  <div className="sidebar-user-area">
+                  </div>
+                  <div className="sidebar-user-area">
                     {activeCallInfo && <div className="active-call-strip">
                       <div><span className="status-dot" /><strong>Звонок · {activeCallInfo.title}</strong><small>{formatCallDuration(callClock - activeCallInfo.startedAt)}</small></div>
                       <button type="button" title="Вернуться к звонку" aria-label="Вернуться к звонку" onClick={() => setActiveTabId(`dm:${activeCallInfo.conversationId}`)}><Phone size={14} /></button>
