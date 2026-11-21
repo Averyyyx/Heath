@@ -9,6 +9,11 @@ const crypto = require('crypto');
 const { compareReleaseVersions } = require('./version');
 const { parseNexoDeepLink } = require('./deeplink');
 
+// Windows связывает иконку окна и ярлык с этим ID. Задаём до app.whenReady(),
+// иначе Windows может закрепить процесс под общим значком Electron.
+if (process.platform === 'win32') app.setAppUserModelId('com.nexo.app');
+app.setName('Nexo');
+
 let mainWindow = null;
 let splashWindow = null;
 let tray = null;
@@ -877,9 +882,6 @@ app.whenReady().then(async () => {
 
   const startupDeepLink = process.argv.find((argument) => argument.startsWith('nexo://'));
   if (startupDeepLink) dispatchDeepLink(startupDeepLink);
-
-  // Стабильный AppUserModelId нужен Windows для правильного значка панели задач.
-  if (process.platform === 'win32') app.setAppUserModelId('com.nexo.app');
 
   // Инициализируем логирование после того, как app готов
   setupLogging();
