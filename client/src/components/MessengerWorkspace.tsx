@@ -48,6 +48,7 @@ type MessengerWorkspaceProps = {
   openChannelId?: number | null;
   openMessageId?: number | null;
   embedded?: boolean;
+  isActive?: boolean;
   showConversationList?: boolean;
   showChannelSidebar?: boolean;
   micMuted?: boolean;
@@ -102,6 +103,7 @@ export function MessengerWorkspace({
   openChannelId = null,
   openMessageId = null,
   embedded = false,
+  isActive = true,
   showConversationList = true,
   showChannelSidebar = true,
   micMuted = false,
@@ -346,6 +348,7 @@ export function MessengerWorkspace({
   }, [user, activeConversationId, incomingCall, onIncomingCallHandled]);
 
   useEffect(() => {
+    if (!isActive) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
         event.preventDefault();
@@ -355,7 +358,7 @@ export function MessengerWorkspace({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [messageSearchOpen]);
+  }, [isActive, messageSearchOpen]);
 
   useEffect(() => {
     if (!incomingCall) return;
