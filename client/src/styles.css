@@ -1624,7 +1624,6 @@
   }
 }
 
-
 /* ==================== Full-window social workspace ==================== */
 /* The centered auth layout must not constrain the signed-in application. */
 .app-root {
@@ -1828,7 +1827,6 @@
   .friends-sidebar { flex-basis: 210px; }
 }
 
-
 /* Friends panels: retain Nexo palette and typography, improve spacing and hierarchy. */
 .friends-quick-panel {
   display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden;
@@ -1941,7 +1939,6 @@
   .friends-panel .friend-form-fields { flex-direction: column; }
   .friends-quick-header { padding-left: 12px; padding-right: 12px; }
 }
-
 
 /* ==================== Nexo 0.0.3 · unified workspace ==================== */
 .app-root {
@@ -2273,7 +2270,6 @@
 /* Reserve the native Windows caption-button area in the overlay title bar. */
 .app-nav .titlebar-actions { min-width: 140px; justify-content: flex-end; padding-right: 142px; }
 
-
 /* Full-screen branded loading phase shown after the compact Electron splash. */
 .app-loading-screen {
   display: flex; width: min(100%, 440px); flex-direction: column; align-items: center;
@@ -2294,7 +2290,6 @@
 .loading-track span { display: block; width: 100%; height: 100%; transform-origin: left;
   border-radius: inherit; background: var(--accent); }
 .loading-footnote { margin-top: 22px; color: var(--text-faint); font-size: 12px; letter-spacing: .15em; }
-
 
 /* ================= Nexo 0.0.4 · tabbed workbench ================= */
 .app-root.nexo-root { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -2607,7 +2602,6 @@
   .channel-members-panel { padding: 8px 6px; }
 }
 
-
 /* Chat composition, safe code rendering, date markers and keyboard-friendly controls. */
 .message-content p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .inline-code { padding: 1px 5px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); color: var(--accent); font: 12px var(--font-mono); }
@@ -2646,7 +2640,6 @@
 @media (prefers-reduced-motion: reduce) {
   .message-code-block *, .composer-code-button { transition-duration: .01ms !important; }
 }
-
 
 /* ================= Nexo 0.0.5 · Discord-inspired workspace ================= */
 .nexo-titlebar .brand-image { width: 27px; height: 27px; display: block; object-fit: contain; border-radius: 8px; }
@@ -2698,7 +2691,7 @@
 .nexo-sidebar .nexo-user-dock { border-radius: 12px; background: var(--surface); }
 .nexo-tab-content { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; overflow: hidden; background: var(--bg); }
 .nexo-tab-panel { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; }
-.nexo-tab-panel[hidden] { display: none !important; }
+
 .app-root.nexo-root { background: var(--bg); }
 .nexo-titlebar { border-bottom: 1px solid var(--border); background: var(--bg); }
 
@@ -2834,7 +2827,6 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .hotkeys-settings .settings-group { margin-top: 18px; }
 .hotkeys-settings .settings-nav-group { margin: 0 0 7px; }
 
-
 /* Nexo 0.0.6 — restore the original tree-and-tabs workspace */
 .nexo-tabbar { display: flex !important; }
 .nexo-workbench { display: flex; min-height: 0; overflow: hidden; }
@@ -2885,7 +2877,6 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 @media (max-width: 900px) {
   .nexo-home-view { padding: 24px; }
 }
-
 
 /* Consistent, readable settings forms across every settings page */
 .settings-nav-group { margin: 12px 8px 4px; color: var(--text-muted); font-size: 12px; font-weight: 600; letter-spacing: 0; }
@@ -2952,7 +2943,6 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   border-radius: 7px; background: transparent; color: var(--text-muted); cursor: pointer;
 }
 .sidebar-toggle-button:hover { border-color: var(--border); background: var(--surface-hover); color: var(--text); }
-
 
 /* Nexo 0.0.7 — compact dock and distinct unread / mention signals */
 .nexo-user-dock {
