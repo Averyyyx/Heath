@@ -3405,3 +3405,26 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 }
 .incoming-call-actions .call-accept-audio { min-width: 112px; background: #5b7771; }
 .incoming-call-actions button span { white-space: nowrap; }
+
+
+/* Call surface 0.0.8 */
+.call-overlay {
+  display: flex; min-height: 220px; max-height: 280px; flex-direction: column; align-items: stretch; justify-content: space-between;
+  gap: 12px; padding: 14px 16px; border: 1px solid rgba(255,255,255,.08); border-radius: 14px;
+  background: #161514; color: #f4f0e9;
+}
+.call-banner-participants { justify-content: center; gap: 16px; }
+.call-banner-person small { color: #d2ccc2; }
+.call-banner-media { width: 100%; min-height: 90px; max-height: 140px; flex: 1 1 auto; border-color: rgba(255,255,255,.08); border-radius: 12px; background: #0f0e0e; }
+.call-banner-controls { justify-content: center; gap: 8px; margin: 0 auto; }
+.call-control-group { display: flex; align-items: center; gap: 4px; padding: 6px; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; background: #211f1e; }
+.call-banner-controls .call-control { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 10px; background: transparent; color: #f4f0e9; }
+.call-banner-controls .call-control:hover { background: rgba(255,255,255,.09); }
+.call-banner-controls .call-control.danger { background: rgba(214,64,69,.25); color: #ff8b8f; }
+.call-banner-controls .call-control.call-hangup { width: 56px; height: 44px; border-radius: 14px; background: #d64045; color: white; }
+.call-banner-duration { position: absolute; right: 16px; top: 13px; color: #a9a39a; }
+.call-audio-sink { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+@media (max-width: 760px) {
+  .call-overlay { min-height: 220px; }
+  .call-banner-controls { width: 100%; justify-content: center; flex-wrap: wrap; }
+}
