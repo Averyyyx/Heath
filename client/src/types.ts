@@ -140,6 +140,9 @@ export type Channel = {
   is_nsfw: boolean;
   bitrate: number;
   user_limit: number;
+  canConnect?: boolean;
+  canSpeak?: boolean;
+  canStream?: boolean;
   soundscape: string;
   overrides?: ChannelPermissionOverride[];
   created_at: string;
