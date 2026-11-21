@@ -83,7 +83,10 @@ export function getNexoSoundPreferences(): NexoSoundPreferences {
 }
 
 export function saveNexoSoundPreferences(next: NexoSoundPreferences): void {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* Storage may be unavailable */ }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nexo-sound-preferences-updated', { detail: next }));
+  } catch { /* Storage may be unavailable */ }
 }
 
 function getAudioContext(): AudioContext | null {
