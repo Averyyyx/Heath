@@ -176,8 +176,12 @@ export default function App() {
     const onVoiceState = (event: Event) => {
       const detail = (event as CustomEvent<{ active: boolean; serverId?: number; channelId?: number; serverName?: string; channelName?: string; joinedAt?: number }>).detail;
       if (detail?.active && detail.serverId && detail.channelId) {
+        document.documentElement.dataset.nexoVoiceActive = 'true';
+        document.documentElement.dataset.nexoVoiceChannelId = String(detail.channelId);
         setActiveVoiceInfo({ serverId: detail.serverId, channelId: detail.channelId, serverName: detail.serverName || '', channelName: detail.channelName || '', joinedAt: detail.joinedAt || Date.now() });
       } else if (!detail?.active) {
+        delete document.documentElement.dataset.nexoVoiceActive;
+        delete document.documentElement.dataset.nexoVoiceChannelId;
         setActiveVoiceInfo((current) => current && (detail?.channelId === undefined || detail.channelId === current.channelId) ? null : current);
       }
     };
