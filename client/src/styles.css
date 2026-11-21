@@ -3091,3 +3091,5 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .call-banner-person.pending .nexo-avatar { opacity: .45; filter: grayscale(.4); outline: 2px solid rgba(255,255,255,.82); outline-offset: 2px; animation: nexo-call-pulse 1.2s ease-in-out infinite; }
 .call-banner-person.connected .nexo-avatar { opacity: 1; filter: none; }
 @keyframes nexo-call-pulse { 0%,100% { outline-color: rgba(255,255,255,.35); } 50% { outline-color: rgba(255,255,255,1); } }
+
+.sidebar-badge { min-width: 19px; height: 19px; font-size: 12px; font-weight: 650; }
