@@ -56,6 +56,22 @@ function pinStorageKey(userId: number) { return `nexo.pins.v1.${userId}`; }
 function sidebarStorageKey(userId: number) { return `nexo.sidebar-width.v1.${userId}`; }
 function unreadStorageKey(userId: number) { return `nexo.unreads.v1.${userId}`; }
 
+function countUserMentions(content: string, username: string): number {
+  const needle = `@${username.trim().toLocaleLowerCase('en-US')}`;
+  if (!content || needle === '@') return 0;
+  const source = content.toLocaleLowerCase('en-US');
+  const isWord = (character: string) => /[a-z0-9_]/i.test(character);
+  let count = 0;
+  let cursor = 0;
+  while ((cursor = source.indexOf(needle, cursor)) !== -1) {
+    const before = cursor > 0 ? source[cursor - 1] : '';
+    const after = source[cursor + needle.length] || '';
+    if (!isWord(before) && !isWord(after)) count += 1;
+    cursor += needle.length;
+  }
+  return count;
+}
+
 function fuzzyMatch(text: string, query: string) {
   const source = text.toLocaleLowerCase('ru-RU');
   const needle = query.trim().toLocaleLowerCase('ru-RU');
@@ -86,6 +102,8 @@ export default function App() {
   const [servers, setServers] = useState<Server[]>([]);
   const [unreadDmCounts, setUnreadDmCounts] = useState<Record<number, number>>({});
   const [unreadChannelCounts, setUnreadChannelCounts] = useState<Record<number, number>>({});
+  const [unreadDmMentionCounts, setUnreadDmMentionCounts] = useState<Record<number, number>>({});
+  const [unreadChannelMentionCounts, setUnreadChannelMentionCounts] = useState<Record<number, number>>({});
   const [expandedServers, setExpandedServers] = useState<number[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<string[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(264);
@@ -293,7 +311,7 @@ export default function App() {
   useEffect(() => {
     if (!user || !workspaceRestored) return;
     try {
-      const saved = JSON.parse(localStorage.getItem(unreadStorageKey(user.id)) || '{}') as { dm?: Record<string, number>; channels?: Record<string, number> };
+      const saved = JSON.parse(localStorage.getItem(unreadStorageKey(user.id)) || '{}') as { dm?: Record<string, number>; channels?: Record<string, number>; dmMentions?: Record<string, number>; channelMentions?: Record<string, number> };
       const normalize = (value?: Record<string, number>): Record<number, number> => {
         const entries: Array<[string, number]> = Object.entries(value || {}).map(([key, count]) => [
           key, Math.max(0, Math.min(9, Math.floor(Number(count) || 0)))
@@ -302,15 +320,17 @@ export default function App() {
       };
       setUnreadDmCounts(normalize(saved.dm));
       setUnreadChannelCounts(normalize(saved.channels));
+      setUnreadDmMentionCounts(normalize(saved.dmMentions));
+      setUnreadChannelMentionCounts(normalize(saved.channelMentions));
     } catch { /* Ignore a damaged local unread cache */ }
   }, [user?.id, workspaceRestored]);
 
   useEffect(() => {
     if (!user || !workspaceRestored) return;
     try {
-      localStorage.setItem(unreadStorageKey(user.id), JSON.stringify({ dm: unreadDmCounts, channels: unreadChannelCounts }));
+      localStorage.setItem(unreadStorageKey(user.id), JSON.stringify({ dm: unreadDmCounts, channels: unreadChannelCounts, dmMentions: unreadDmMentionCounts, channelMentions: unreadChannelMentionCounts }));
     } catch { /* Storage may be unavailable */ }
-  }, [user?.id, workspaceRestored, unreadDmCounts, unreadChannelCounts]);
+  }, [user?.id, workspaceRestored, unreadDmCounts, unreadChannelCounts, unreadDmMentionCounts, unreadChannelMentionCounts]);
 
   useEffect(() => {
     if (!user) return;
@@ -419,11 +439,13 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const socket = getSocket();
-    const onMessage = ({ conversationId }: { conversationId: number }) => {
+    const onMessage = ({ conversationId, message }: { conversationId: number; message?: Message }) => {
       const id = `dm:${conversationId}`;
       const isVisibleConversation = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
       if (!isVisibleConversation) {
-        setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(9, (current[conversationId] || 0) + 1) }));
+        setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + 1) }));
+        const mentions = countUserMentions(message?.content || '', user.username);
+        if (mentions > 0) setUnreadDmMentionCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + mentions) }));
         playNexoSound('message');
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
@@ -432,11 +454,13 @@ export default function App() {
       const existing = conversations.find((conversation) => conversation.id === conversationId);
       if (existing) setConversations((current) => [existing, ...current.filter((item) => item.id !== conversationId)]);
     };
-    const onChannelMessage = ({ channelId }: { channelId: number }) => {
+    const onChannelMessage = ({ channelId, message }: { channelId: number; message?: ChannelMessage }) => {
       const id = `channel:${channelId}`;
       const isVisibleChannel = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
       if (!isVisibleChannel) {
-        setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(9, (current[channelId] || 0) + 1) }));
+        setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + 1) }));
+        const mentions = countUserMentions(message?.content || '', user.username);
+        if (mentions > 0) setUnreadChannelMentionCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + mentions) }));
         playNexoSound('message');
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
@@ -483,7 +507,9 @@ export default function App() {
     if (!activeTabId) return;
     setTabs((current) => current.map((tab) => tab.id === activeTabId && tab.unread ? { ...tab, unread: 0 } : tab));
     if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
+    if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmMentionCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
     if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
+    if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelMentionCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
     tabNodeRefs.current[activeTabId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }, [activeTabId, activeTab.kind, activeTab.targetId, activeTab.channelId]);
 
@@ -491,7 +517,9 @@ export default function App() {
     const clearVisibleUnread = () => {
       if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
       if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
+    if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmMentionCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
       if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
+    if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelMentionCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
       setTabs((current) => current.map((tab) => tab.id === activeTabId && tab.unread ? { ...tab, unread: 0 } : tab));
     };
     window.addEventListener('focus', clearVisibleUnread);
@@ -1126,13 +1154,14 @@ export default function App() {
                     {conversations.map((conversation) => {
                       const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
                       const item: SidebarPin = { id: `dm:${conversation.id}`, kind: 'dm', title: person?.display_name || person?.username || 'Диалог', targetId: conversation.id };
-                      return <button type="button" key={conversation.id} className={`sidebar-row ${activeTabId === item.id ? 'active' : ''}`}
+                      return <button type="button" key={conversation.id} className={`sidebar-row ${activeTabId === item.id ? 'active' : ''} ${unreadDmCounts[conversation.id] ? 'has-unread' : ''} ${unreadDmMentionCounts[conversation.id] ? 'has-mention' : ''}`}
                         onClick={(event) => openDmTab(conversation, event.ctrlKey || event.metaKey)}
                         onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openDmTab(conversation, true); } }}
                         onContextMenu={(event) => contextTargetClick(event, item)}>
                         <Avatar user={person} size={27} showStatus />
                         <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Откройте, чтобы продолжить разговор</small></span>
-                        {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge">{Math.min(9, unreadDmCounts[conversation.id])}</span>}
+                        {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge" title={`${unreadDmCounts[conversation.id]} новых сообщений`}>{unreadDmCounts[conversation.id] > 99 ? '99+' : unreadDmCounts[conversation.id]}</span>}
+                        {unreadDmMentionCounts[conversation.id] > 0 && <span className="sidebar-mention-badge" title={`${unreadDmMentionCounts[conversation.id]} упоминаний`}>@{unreadDmMentionCounts[conversation.id] > 99 ? '99+' : unreadDmMentionCounts[conversation.id]}</span>}
                       </button>;
                     })}
                     {conversations.length === 0 && <button type="button" className="sidebar-empty-action" onClick={() => openFriendsTab()}>Диалогов пока нет — найдите друга</button>}
@@ -1153,12 +1182,13 @@ export default function App() {
                         {expandedServers.includes(server.id) && server.channels.map((channel) => {
                           const item: SidebarPin = { id: `channel:${channel.id}`, kind: 'channel', title: `# ${channel.name} · ${server.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id };
                           if (channel.type !== 'text') return <div key={channel.id} className="sidebar-row disabled" title="Скоро"><Volume2 size={14} /><span>{channel.name}</span><small>Скоро</small></div>;
-                          return <button type="button" key={channel.id} className={`sidebar-row channel-row ${activeTabId === item.id ? 'active' : ''}`}
+                          return <button type="button" key={channel.id} className={`sidebar-row channel-row ${activeTabId === item.id ? 'active' : ''} ${unreadChannelCounts[channel.id] ? 'has-unread' : ''} ${unreadChannelMentionCounts[channel.id] ? 'has-mention' : ''}`}
                             onClick={(event) => openChannelTab(server, channel.id, event.ctrlKey || event.metaKey)}
                             onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openChannelTab(server, channel.id, true); } }}
                             onContextMenu={(event) => contextTargetClick(event, item)}>
                             <HashIcon /><span className="sidebar-row-text"><strong>{channel.name}</strong></span>
-                            {unreadChannelCounts[channel.id] > 0 && <span className="sidebar-count-badge">{Math.min(9, unreadChannelCounts[channel.id])}</span>}
+                            {unreadChannelCounts[channel.id] > 0 && <span className="sidebar-count-badge" title={`${unreadChannelCounts[channel.id]} новых сообщений`}>{unreadChannelCounts[channel.id] > 99 ? '99+' : unreadChannelCounts[channel.id]}</span>}
+                            {unreadChannelMentionCounts[channel.id] > 0 && <span className="sidebar-mention-badge" title={`${unreadChannelMentionCounts[channel.id]} упоминаний`}>@{unreadChannelMentionCounts[channel.id] > 99 ? '99+' : unreadChannelMentionCounts[channel.id]}</span>}
                           </button>;
                         })}
                       </div>
