@@ -194,14 +194,14 @@ export function MessengerWorkspace({
       callWasActiveRef.current = true;
       window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: {
         active: true, conversationId: callState.conversationId,
-        title: activeConversation?.counterpart?.display_name || activeConversation?.counterpart?.username || 'Личный звонок',
+        title: conversations.find((conversation) => conversation.id === callState.conversationId)?.counterpart?.display_name || conversations.find((conversation) => conversation.id === callState.conversationId)?.counterpart?.username || 'Личный звонок',
         startedAt: callState.startedAt
       } }));
     } else if (callWasActiveRef.current) {
       callWasActiveRef.current = false;
       window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: { active: false } }));
     }
-  }, [callState, activeConversation]);
+  }, [callState, conversations]);
 
   useEffect(() => {
     if (!pendingIncomingCall || pendingIncomingCall.conversationId !== openConversationId) return;
