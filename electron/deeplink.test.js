@@ -16,6 +16,11 @@ test('parses valid server channel message links', () => {
   });
 });
 
+test('parses conversation-only links for incoming calls', () => {
+  assert.deepEqual(parseNexoDeepLink('nexo://dm/321'), { type: 'dm', conversationId: 321 });
+  assert.deepEqual(parseNexoDeepLink('nexo://channel/12/34'), { type: 'channel', serverId: 12, channelId: 34 });
+});
+
 test('rejects malformed and foreign deep links', () => {
   assert.equal(parseNexoDeepLink('https://example.com/dm/1/message/2'), null);
   assert.equal(parseNexoDeepLink('nexo://dm/nope/message/2'), null);
