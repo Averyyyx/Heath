@@ -27,7 +27,7 @@ test('removed legacy navigation classes are not reintroduced', () => {
     'dock-call-status',
     'workspace-nav'
   ]) {
-    assert.doesNotMatch(stylesheet, new RegExp('\\\\.' + legacyClass + '\\b'));
+    assert.equal(stylesheet.includes('.' + legacyClass), false, legacyClass + ' must stay removed');
   }
 });
 
