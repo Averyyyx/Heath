@@ -93,6 +93,8 @@ export type MessageReaction = {
   user_ids: number[];
 };
 
+export type MessagePin = { pinned_at: string; pinned_by: number };
+
 export type MessageReply = {
   id: number;
   content: string;
@@ -109,6 +111,7 @@ export type Message = {
   edited_at?: string | null;
   reactions?: MessageReaction[];
   reply_to?: MessageReply | null;
+  pin?: MessagePin | null;
 };
 
 export type Conversation = {
@@ -175,5 +178,6 @@ export type ChannelMessage = {
   edited_at?: string | null;
   reactions?: MessageReaction[];
   reply_to?: MessageReply | null;
+  pin?: MessagePin | null;
 };
 
