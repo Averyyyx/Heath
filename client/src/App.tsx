@@ -1099,6 +1099,8 @@ export default function App() {
   async function changeStatus(next: UserStatus) {
     wasManuallySetStatusRef.current = next !== 'online';
     await updateStatus(next, user?.custom_status || '');
+  }
+
   function contextTargetClick(event: MouseEvent, target: SidebarPin) {
     if (event.type === 'contextmenu') {
       event.preventDefault();
