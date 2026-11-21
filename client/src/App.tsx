@@ -744,6 +744,14 @@ export default function App() {
   function openVoiceTab(server: Server, channelId: number) {
     const channel = server.channels.find((item) => item.id === channelId && item.type === 'voice');
     if (!channel) return;
+    if (activeCallInfo && !window.confirm('Выйти из личного звонка и подключиться к голосовому каналу?')) return;
+    if (activeCallInfo) window.dispatchEvent(new CustomEvent('nexo-end-call'));
+    if (activeVoiceInfo && activeVoiceInfo.channelId !== channelId) {
+      if (!window.confirm('Выйти из текущего голосового канала и подключиться к другому?')) return;
+      window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }));
+      window.setTimeout(() => openTab({ id: `voice:${channel.id}`, kind: 'voice', title: `Голосовой · ${channel.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id }), 140);
+      return;
+    }
     openTab({ id: `voice:${channel.id}`, kind: 'voice', title: `Голосовой · ${channel.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id });
   }
 
