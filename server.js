@@ -2024,18 +2024,26 @@ function updateServerSettingsRecord(serverId, payload) {
 }
 
 function listVoiceParticipants(channelId) {
-  return selectVoiceSessionsByChannel.all(channelId).map((session) => ({
-    user: {
-      id: session.user_id,
-      username: session.username,
-      display_name: session.display_name,
-      avatar_url: session.avatar_url,
-      avatar_color: session.avatar_color || '#D97757'
-    },
-    muted: Boolean(session.muted),
-    deafened: Boolean(session.deafened),
-    joined_at: session.joined_at
-  }));
+  return selectVoiceSessionsByChannel.all(channelId).map((session) => {
+    let canSpeak = false;
+    try {
+      const access = ensureChannelAccess(session.server_id, channelId, session.user_id);
+      canSpeak = hasPermission(access.permissions, PERMISSIONS.SPEAK_VOICE);
+    } catch {}
+    return {
+      user: {
+        id: session.user_id,
+        username: session.username,
+        display_name: session.display_name,
+        avatar_url: session.avatar_url,
+        avatar_color: session.avatar_color || '#D97757'
+      },
+      muted: Boolean(session.muted),
+      deafened: Boolean(session.deafened),
+      canSpeak,
+      joined_at: session.joined_at
+    };
+  });
 }
 
 function broadcastVoiceState(channelId) {
