@@ -65,6 +65,7 @@ type MessengerWorkspaceProps = {
   deafened?: boolean;
   audioInputId?: string;
   audioOutputId?: string;
+  videoInputId?: string;
   pendingIncomingCall?: IncomingCall | null;
   onIncomingCallHandled?: () => void;
   onOpenSettings?: () => void;
@@ -1033,7 +1034,8 @@ export function MessengerWorkspace({
     setCallError('');
     try {
       const audioConstraint: MediaTrackConstraints | boolean = audioInputId ? { deviceId: { exact: audioInputId } } : true;
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint, video: mediaType === 'video' });
+      const videoConstraint: MediaTrackConstraints | boolean = mediaType === 'video' ? (videoInputId ? { deviceId: { exact: videoInputId } } : true) : false;
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint, video: videoConstraint });
       mediaStream.getAudioTracks().forEach((track) => { track.enabled = !micMuted; });
       const peer = new SimplePeer({
         initiator: options?.initiator ?? true,
