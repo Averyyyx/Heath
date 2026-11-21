@@ -14,6 +14,7 @@ import { MessengerWorkspace } from './components/MessengerWorkspace';
 import { FriendsPanel } from './components/FriendsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Avatar } from './components/Avatar';
+import { DefaultAvatar } from './components/DefaultAvatar';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
@@ -1184,7 +1185,7 @@ export default function App() {
                           onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, server }); }}>
                           {expandedServers.includes(server.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           <span className="server-tree-icon">{server.icon && (server.icon.startsWith('http') || server.icon.startsWith('data:image/'))
-                            ? <img src={server.icon} alt="" /> : server.icon || (server.name[0] || 'S').toUpperCase()}</span>
+                            ? <img src={server.icon} alt="" /> : server.icon || <DefaultAvatar preset={(server.id * 7 + 3) % 12} size={26} />}</span>
                           <strong>{server.name}</strong>
                         </button>
                         {expandedServers.includes(server.id) && server.channels.map((channel) => {
