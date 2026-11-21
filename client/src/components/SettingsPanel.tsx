@@ -208,6 +208,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
     setAccountHandle(user.username || '');
     setProfileBio(user.bio || '');
     setProfileColor(user.avatar_color || '#D97757');
+    setProfileAvatarPreset(user.avatar_preset ?? 0);
   }, [user]);
 
   useEffect(() => {
