@@ -3,6 +3,7 @@ import type { FC } from 'react';
 import { Search, Users, UserRound, Check, X, MessageCircle } from 'lucide-react';
 import type { FriendRecord, User, UserStatus } from '../../types';
 import { apiFetch } from '../../lib/api';
+import { Input } from '../ui';
 
 interface FriendUser extends Omit<User, 'status'> { status: UserStatus; }
 interface ExtendedFriendRecord extends Omit<FriendRecord, 'user'> { user: FriendUser; }
