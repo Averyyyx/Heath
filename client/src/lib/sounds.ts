@@ -142,7 +142,6 @@ export function playNexoSound(kind: SoundKind): void {
   const volume = kind === 'ring' || kind === 'outgoing-ring'
     ? preferences.ringtoneVolume : preferences.volume;
   if (volume <= 0) return;
-  const now = audio.currentTime;
   for (const note of patterns[kind]) {
     window.setTimeout(() => {
       if (activeVoices >= 2 || audio.state !== 'running') return;
@@ -170,7 +169,7 @@ export function playNexoSound(kind: SoundKind): void {
   }
 }
 
-export function startNexoRingtone(options: { allowInDnd?: boolean } = {}): () => void {
+export function startNexoRingtone(): () => void {
   const preferences = getNexoSoundPreferences();
   if (!preferences.enabled || !preferences.events.ring) return () => {};
   if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true') return () => {};
