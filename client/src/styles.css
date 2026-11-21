@@ -3452,3 +3452,13 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .voice-invite-actions button { width: auto; min-width: 90px; height: 36px; padding: 0 13px; border-radius: 9px; }
 .modal-panel:has(.nexo-field) { width: min(560px, calc(100vw - 32px)); }
 .modal-panel:has(.nexo-field) > form { display: flex; flex-direction: column; gap: 16px; }
+
+
+.voice-room-grid.compact { grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); }
+.voice-room-grid.large { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.voice-room-more-wrap { position: relative; }
+.voice-room-controls .voice-room-more-wrap > button { display: flex; min-width: 76px; height: 44px; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; border: 0; border-radius: 10px; background: #211f1e; color: #f4f0e9; cursor: pointer; }
+.voice-room-more-popover { position: absolute; right: 0; bottom: calc(100% + 9px); z-index: 20; display: flex; width: min(280px, calc(100vw - 48px)); flex-direction: column; gap: 14px; padding: 14px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: #211f1e; color: #f4f0e9; }
+.voice-room-more-popover > div, .voice-room-more-popover > label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; }
+.voice-room-more-popover .nexo-slider { color: #f4f0e9; }
+.voice-room-more-popover .nexo-select { min-height: 32px; background: #302d2b; color: #f4f0e9; }
