@@ -20,7 +20,7 @@ import { DefaultAvatar } from './components/DefaultAvatar';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
-import { getNexoSoundPreferences, playNexoSound, saveNexoSoundPreferences } from './lib/sounds';
+import { playNexoSound } from './lib/sounds';
 import { getSocket } from './lib/socket';
 import type { ChannelMessage, Conversation, FriendPayload, Message, Server, User, UserStatus } from './types';
 
@@ -136,14 +136,8 @@ export default function App() {
   const [micMuted, setMicMuted] = useState(false);
   const [deafened, setDeafened] = useState(false);
   const [savedMicMuted, setSavedMicMuted] = useState(false);
-  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
-  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
   const [audioInputId, setAudioInputId] = useState('');
   const [audioOutputId, setAudioOutputId] = useState('');
-  const [dockSoundVolume, setDockSoundVolume] = useState(() => getNexoSoundPreferences().volume);
-  const [customStatusOpen, setCustomStatusOpen] = useState(false);
-  const [customStatusDraft, setCustomStatusDraft] = useState('');
   const [notificationUpdate, setNotificationUpdate] = useState<{ version: string; message: string } | null>(null);
   const [pendingIncomingCall, setPendingIncomingCall] = useState<IncomingCallInfo | null>(null);
   const [pendingVoiceInvite, setPendingVoiceInvite] = useState<VoiceInviteInfo | null>(null);
@@ -210,12 +204,6 @@ export default function App() {
     applyTheme(theme);
     desktopApi?.setWindowTheme?.(theme);
   }, [theme, desktopApi]);
-
-  useEffect(() => {
-    const syncSoundVolume = () => setDockSoundVolume(getNexoSoundPreferences().volume);
-    window.addEventListener('nexo-sound-preferences-updated', syncSoundVolume);
-    return () => window.removeEventListener('nexo-sound-preferences-updated', syncSoundVolume);
-  }, []);
 
   useEffect(() => {
     if (user?.status === 'dnd') document.documentElement.dataset.nexoDnd = 'true';
@@ -385,10 +373,6 @@ export default function App() {
     setAudioInputId(savedInput);
     setAudioOutputId(savedOutput);
     setMicMuted(savedMic);
-    void navigator.mediaDevices?.enumerateDevices?.().then((devices) => {
-      setAudioInputs(devices.filter((device) => device.kind === 'audioinput'));
-      setAudioOutputs(devices.filter((device) => device.kind === 'audiooutput'));
-    }).catch(() => {});
   }, [user]);
 
   useEffect(() => {
@@ -1111,14 +1095,6 @@ export default function App() {
   async function changeStatus(next: UserStatus) {
     wasManuallySetStatusRef.current = next !== 'online';
     await updateStatus(next, user?.custom_status || '');
-    setStatusMenuOpen(false);
-  }
-
-  async function saveCustomStatus() {
-    await updateStatus(user?.status || 'online', customStatusDraft.trim().slice(0, 60));
-    setCustomStatusOpen(false);
-  }
-
   function contextTargetClick(event: MouseEvent, target: SidebarPin) {
     if (event.type === 'contextmenu') {
       event.preventDefault();
@@ -1455,12 +1431,6 @@ export default function App() {
               </div>}
         </div>
       </motion.form></div>}
-      {customStatusOpen && <div className="modal-backdrop"><motion.form className="modal-panel" onSubmit={(event) => { event.preventDefault(); void saveCustomStatus(); }}
-        initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }}>
-        <h2>Свой статус</h2><input value={customStatusDraft} onChange={(event) => setCustomStatusDraft(event.target.value)} maxLength={60} placeholder="Над чем работаете?" />
-        <button className="primary" type="submit">Сохранить</button>
-      </motion.form></div>}
-
       {pendingVoiceInvite && <div className="modal-backdrop">
         <motion.section className="modal-panel voice-incoming-invite" role="dialog" aria-modal="true" aria-label="Приглашение в голосовой канал"
           initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }}>
