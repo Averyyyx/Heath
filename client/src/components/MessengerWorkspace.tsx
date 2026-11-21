@@ -1225,13 +1225,14 @@ export function MessengerWorkspace({
               <p>{incomingCall.groupTitle ? `${incomingCall.user.display_name || incomingCall.user.username} приглашает в звонок` : incomingCall.mediaType === 'video' ? 'Входящий видеозвонок' : 'Входящий голосовой звонок'}</p>
             </div>
             {incomingCall.mediaType === 'video' && <span className="incoming-call-video-label"><Monitor size={14} /> Видеозвонок</span>}
+            {callState && <p className="incoming-call-busy-note">Вы уже в звонке. Принятие завершит текущий вызов.</p>}
             <button type="button" className="ringtone-toggle" onClick={() => setRingtoneMuted((value) => !value)}>
               {ringtoneMuted ? 'Включить звук звонка' : 'Отключить звук звонка'}
             </button>
             <div className="incoming-call-actions">
               <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" title="Отклонить"><PhoneOff size={20} /></button>
               {incomingCall.mediaType === 'video' && <button type="button" className="call-accept call-accept-audio" onClick={() => void acceptIncomingCall('audio')} aria-label="Принять без видео" title="Принять без видео"><Phone size={18} /><small>Без видео</small></button>}
-              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title="Принять"><Phone size={20} /></button>
+              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title={callState ? 'Принять и завершить текущий' : 'Принять'}><Phone size={20} /></button>
             </div>
           </motion.section>
         </motion.div>
