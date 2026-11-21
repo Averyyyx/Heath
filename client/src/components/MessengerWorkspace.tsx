@@ -303,6 +303,12 @@ export function MessengerWorkspace({
         ? prev.map((item) => item.id === server.id ? server : item)
         : [...prev, server]);
     };
+    const onServerMessageUpdate = ({ channelId, message }: { channelId: number; message: ChannelMessage }) => {
+      setChannelMessages((prev) => ({
+        ...prev,
+        [channelId]: (prev[channelId] || []).map((item) => item.id === message.id ? message : item)
+      }));
+    };
     const onChannelMessage = ({ channelId, message }: { channelId: number; message: ChannelMessage }) => {
       setChannelMessages((prev) => appendUniqueChannelMessage(prev, channelId, message));
       if (message.author.id !== user.id) {
@@ -334,6 +340,7 @@ export function MessengerWorkspace({
     socket.on('call:end', onCallEnd);
     socket.on('server:upsert', onServerUpsert);
     socket.on('channel:message:new', onChannelMessage);
+    socket.on('server:message:update', onServerMessageUpdate);
     socket.on('channel:message:delete', onChannelMessageDelete);
     socket.on('channel:deleted', onChannelDeleted);
     socket.on('error', onSocketError);
@@ -353,6 +360,7 @@ export function MessengerWorkspace({
       socket.off('call:end', onCallEnd);
       socket.off('server:upsert', onServerUpsert);
       socket.off('channel:message:new', onChannelMessage);
+      socket.off('server:message:update', onServerMessageUpdate);
       socket.off('channel:message:delete', onChannelMessageDelete);
       socket.off('channel:deleted', onChannelDeleted);
       socket.off('error', onSocketError);
