@@ -418,8 +418,8 @@ export default function App() {
       setPendingIncomingCall(nextPayload);
       if (conversation) openDmTab(conversation);
     };
-    socket.on('call:invite', onCallInvite);
-    return () => { socket.off('call:invite', onCallInvite); };
+    socket.on('call:ring', onCallInvite);
+    return () => { socket.off('call:ring', onCallInvite); };
   }, [user?.id, conversations]);
 
   useEffect(() => {
