@@ -454,6 +454,15 @@ export default function App() {
         const mentions = countUserMentions(message?.content || '', user.username);
         if (mentions > 0) setUnreadDmMentionCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + mentions) }));
         playNexoSound(mentions > 0 ? 'notification' : 'message');
+        if (user.status !== 'dnd' && message) {
+          const conversation = conversations.find((item) => item.id === conversationId);
+          const title = conversation?.counterpart?.display_name || conversation?.counterpart?.username || 'Новое сообщение';
+          void desktopApi?.showNotification?.({
+            title: mentions > 0 ? `Упоминание · ${title}` : title,
+            body: message.content || (message.attachment ? 'Отправлено вложение' : 'Новое сообщение'),
+            deepLink: `nexo://dm/${conversationId}/message/${message.id}`
+          }).catch(() => {});
+        }
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
         ? { ...tab, unread: (tab.unread || 0) + 1 }
@@ -470,6 +479,16 @@ export default function App() {
         const mentions = countUserMentions(message?.content || '', user.username);
         if (mentions > 0) setUnreadChannelMentionCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + mentions) }));
         playNexoSound(mentions > 0 ? 'notification' : 'message');
+        if (user.status !== 'dnd' && message) {
+          const server = servers.find((item) => item.id === message.server_id);
+          const channel = server?.channels.find((item) => item.id === channelId);
+          const title = server && channel ? `${server.name} · #${channel.name}` : 'Новое сообщение в пространстве';
+          void desktopApi?.showNotification?.({
+            title: mentions > 0 ? `Упоминание · ${title}` : title,
+            body: message.content || (message.attachment ? 'Отправлено вложение' : 'Новое сообщение'),
+            deepLink: `nexo://channel/${message.server_id}/${channelId}/message/${message.id}`
+          }).catch(() => {});
+        }
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
         ? { ...tab, unread: (tab.unread || 0) + 1 }
@@ -509,7 +528,7 @@ export default function App() {
       socket.off('channel:deleted', onChannelDeleted);
       socket.off('server:leave', onServerLeave);
     };
-  }, [user, activeTabId, conversations, tabs]);
+  }, [user, activeTabId, conversations, tabs, servers, desktopApi]);
 
   useEffect(() => {
     if (!activeTabId) return;
