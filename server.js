@@ -1277,12 +1277,13 @@ io.on('connection', (socket) => {
   socket.on('call:ring', handleCallRing);
   socket.on('call:invite', handleCallRing);
 
-  socket.on('call:accept', ({ conversationId }) => {
+  socket.on('call:accept', ({ conversationId, mediaType = 'audio' }) => {
     try {
       ensureConversationAccess(conversationId, socket.user.id);
       const accepted = {
         conversationId,
-        from: socket.user.id
+        from: socket.user.id,
+        mediaType: mediaType === 'video' ? 'video' : 'audio'
       };
       getConversationParticipants(conversationId)
         .filter((participant) => participant.id !== socket.user.id)
