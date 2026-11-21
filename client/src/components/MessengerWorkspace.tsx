@@ -43,6 +43,7 @@ import type {
 } from '../types';
 import { apiFetch } from '../lib/api';
 import { Avatar } from './Avatar';
+import { Input, Textarea } from './ui';
 import { getSocket } from '../lib/socket';
 
 type WorkspaceMode = 'servers' | 'friends';
@@ -1257,7 +1258,7 @@ export function MessengerWorkspace({
               {messageSearchOpen && <div className="message-search-panel">
                 <div className="message-search-input-wrap">
                   <Search size={15} />
-                  <input autoFocus value={messageSearchQuery} onChange={(event) => setMessageSearchQuery(event.target.value)}
+                  <Input autoFocus value={messageSearchQuery} onChange={(event) => setMessageSearchQuery(event.target.value)}
                     placeholder="Поиск по сообщениям и авторам…" aria-label="Поиск по сообщениям" />
                   <button type="button" className="ghost-icon" onClick={() => setMessageSearchOpen(false)} aria-label="Закрыть поиск"><X size={15} /></button>
                 </div>
@@ -1321,7 +1322,7 @@ export function MessengerWorkspace({
                 )}
                 <label className="file-pill">
                   <Paperclip size={16} />
-                  <input
+                  <Input
                     type="file"
                     hidden
                     onChange={(event) => {
@@ -1331,7 +1332,7 @@ export function MessengerWorkspace({
                   />
                 </label>
                 <button type="button" className="composer-code-button" title="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(false)}><Code size={16} /></button>
-                <textarea
+                <Textarea
                   ref={composerRef}
                   placeholder="Напишите сообщение..."
                   value={composerText}
@@ -1459,7 +1460,7 @@ export function MessengerWorkspace({
               <div className="composer">
                 <label className="file-pill">
                   <Paperclip size={16} />
-                  <input
+                  <Input
                     type="file"
                     hidden
                     onChange={(event) => {
@@ -1469,7 +1470,7 @@ export function MessengerWorkspace({
                   />
                 </label>
                 <button type="button" className="composer-code-button" title="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(true)}><Code size={16} /></button>
-                <textarea
+                <Textarea
                   ref={channelComposerRef}
                   placeholder={`Сообщение #${activeChannel.name}`}
                   value={channelComposer}
@@ -1934,7 +1935,7 @@ function CreateServerModal({
         <form className="modal-form" onSubmit={handleSubmit}>
           <label>
             <span>Название</span>
-            <input
+            <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Например, Orbit Studio"
@@ -1945,7 +1946,7 @@ function CreateServerModal({
           </label>
           <label>
             <span>Описание</span>
-            <textarea
+            <Textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Для команды, сообщества или друзей."
