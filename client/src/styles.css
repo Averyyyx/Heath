@@ -3487,3 +3487,6 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 
 .sidebar-voice-channel.locked .voice-channel-row { color: var(--text-faint); cursor: not-allowed; opacity: .62; }
 .sidebar-voice-channel.locked .voice-channel-row:hover { background: transparent; color: var(--text-faint); }
+
+.sidebar-voice-member.speaking > :first-child { border-radius: 50%; box-shadow: 0 0 0 2px var(--accent); }
+.voice-room-controls button:disabled { opacity: .45; cursor: not-allowed; }
