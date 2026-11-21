@@ -797,6 +797,11 @@ const listMessages = db.prepare(`
   LIMIT ?
   OFFSET ?
 `);
+const selectLastMessageForConversation = db.prepare(`
+  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
+  FROM messages m JOIN users u ON u.id = m.author_id
+  WHERE m.conversation_id = ? ORDER BY m.id DESC LIMIT 1
+`);
 const listFriendships = db.prepare('SELECT * FROM friendships WHERE requester_id = ? OR addressee_id = ?');
 const insertAttachmentRecord = db.prepare(`
   INSERT INTO attachments (id, message_id, conversation_id, name, mime, size, path)
@@ -1751,6 +1756,7 @@ function serializeConversation(conversation, currentUserId) {
     title: conversation.title || (counterpart?.display_name || counterpart?.username),
     participants,
     counterpart,
+    last_message: serializeMessage(selectLastMessageForConversation.get(conversation.id)),
     updated_at: conversation.updated_at
   };
 }
