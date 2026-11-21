@@ -139,7 +139,19 @@ function getIconsDir() {
 
 function getDesktopIconPath() {
   const iconPath = path.join(getIconsDir(), 'Nexo-Desctop-ico.ico');
-  return fs.existsSync(iconPath) ? iconPath : getIconPath('Nexo-Desctop-ico', 256);
+  if (fs.existsSync(iconPath)) {
+    const ico = nativeImage.createFromPath(iconPath);
+    if (!ico.isEmpty()) return iconPath;
+    console.warn('Nexo ICO is unreadable; falling back to the PNG app icon:', iconPath);
+  }
+
+  const pngPath = getIconPath('Nexo-Desctop-ico', 256);
+  if (fs.existsSync(pngPath)) {
+    const png = nativeImage.createFromPath(pngPath);
+    if (!png.isEmpty()) return pngPath;
+  }
+  console.error('No readable Nexo application icon was found.');
+  return iconPath;
 }
 
 // Файлы иконок лежат с суффиксом размера (Nexo-Desctop-ico-256.png), поэтому ищем
