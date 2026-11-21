@@ -498,7 +498,7 @@ export function MessengerWorkspace({
       || activeChannelMessages.some((message) => message.id === openMessageId);
     if (!exists) return;
     const frame = window.requestAnimationFrame(() => {
-      document.getElementById(`nexo-message-${mode === 'friends' ? 'dm-' + activeConversationId : 'channel-' + activeServerId + '-' + activeChannelId}-${openMessageId}`)
+      document.getElementById(mode === 'friends' ? `nexo-message-${openMessageId}` : `nexo-channel-message-${openMessageId}`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
     return () => window.cancelAnimationFrame(frame);
