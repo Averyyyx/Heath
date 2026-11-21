@@ -6,6 +6,7 @@ import {
   Image as ImageIcon,
   Code,
   Copy,
+  Search,
   Link as LinkIcon,
   Monitor,
   Paperclip,
@@ -146,6 +147,8 @@ export function MessengerWorkspace({
   const [serverMembers, setServerMembers] = useState<ServerMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [messageContext, setMessageContext] = useState<{ x: number; y: number; message: Message | ChannelMessage; kind: 'dm' | 'channel' } | null>(null);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [membersError, setMembersError] = useState('');
   const pendingIncomingSignalRef = useRef<SignalData | null>(null);
   const awaitingCallAcceptRef = useRef<number | null>(null);
@@ -343,6 +346,18 @@ export function MessengerWorkspace({
   }, [user, activeConversationId, incomingCall, onIncomingCallHandled]);
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        setMessageSearchOpen(true);
+      }
+      if (event.key === 'Escape' && messageSearchOpen) setMessageSearchOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [messageSearchOpen]);
+
+  useEffect(() => {
     if (!incomingCall) return;
     const conversationId = incomingCall.conversationId;
     const timeout = window.setTimeout(() => {
@@ -467,6 +482,12 @@ export function MessengerWorkspace({
     [activeServer, activeChannelId]
   );
   const activeChannelMessages = activeChannelId ? channelMessages[activeChannelId] || [] : [];
+  const messageSearchItems = useMemo(() => activeChannel ? activeChannelMessages : activeMessages, [activeChannel, activeChannelMessages, activeMessages]);
+  const messageSearchResults = useMemo(() => {
+    const query = messageSearchQuery.trim().toLocaleLowerCase('ru-RU');
+    if (!query) return [];
+    return messageSearchItems.filter((message) => `${message.author.display_name || message.author.username} ${message.content || ''}`.toLocaleLowerCase('ru-RU').includes(query)).slice(0, 20);
+  }, [messageSearchItems, messageSearchQuery]);
 
   useEffect(() => {
     if (!openMessageId) return;
@@ -570,6 +591,14 @@ export function MessengerWorkspace({
         setChannelMessages((prev) => ({ ...prev, [channelId]: (prev[channelId] || []).filter((item) => item.id !== message.id) }));
       }
     } catch (error) { window.alert((error as Error).message); }
+  }
+
+  function jumpToSearchResult(messageId: number) {
+    const prefix = activeChannel ? 'nexo-channel-message-' : 'nexo-message-';
+    setMessageSearchOpen(false);
+    window.requestAnimationFrame(() => {
+      document.getElementById(prefix + messageId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
   }
 
   function openMessageMenu(event: ReactMouseEvent, message: Message | ChannelMessage, kind: 'dm' | 'channel') {
@@ -896,6 +925,7 @@ export function MessengerWorkspace({
                   {activeConversation.title}
                 </div>
                 <div className="chat-actions">
+                  <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
                   <button type="button" className="ghost" onClick={() => startCall(activeConversation.id, { initiator: true }, 'audio')}>
                     <Phone size={16} />Голос
                   </button>
@@ -916,6 +946,23 @@ export function MessengerWorkspace({
                 audioOutputId={audioOutputId}
                 deafened={deafened}
               />}
+              {messageSearchOpen && <div className="message-search-panel">
+                <div className="message-search-input-wrap">
+                  <Search size={15} />
+                  <input autoFocus value={messageSearchQuery} onChange={(event) => setMessageSearchQuery(event.target.value)}
+                    placeholder="Поиск по сообщениям и авторам…" aria-label="Поиск по сообщениям" />
+                  <button type="button" className="ghost-icon" onClick={() => setMessageSearchOpen(false)} aria-label="Закрыть поиск"><X size={15} /></button>
+                </div>
+                {messageSearchQuery.trim() && <div className="message-search-results">
+                  {messageSearchResults.length ? messageSearchResults.map((message) => (
+                    <button key={message.id} type="button" onClick={() => jumpToSearchResult(message.id)}>
+                      <strong>{message.author.display_name || message.author.username}</strong>
+                      <span>{message.content || 'Вложение'}</span>
+                      <time>{new Date(message.created_at).toLocaleDateString('ru-RU')}</time>
+                    </button>
+                  )) : <p>Ничего не найдено в загруженной истории.</p>}
+                </div>}
+              </div>}
               <div className="message-stream">
                 {loadingMessages && <p className="muted">Загружаем…</p>}
                 {!loadingMessages &&
@@ -1025,6 +1072,7 @@ export function MessengerWorkspace({
                   <small>{activeChannel.topic}</small>
                 </div>
                 <div className="chat-actions">
+                  <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
                   <button type="button" className={showMembersPanel ? 'ghost active' : 'ghost'} onClick={() => setShowMembersPanel((value) => !value)} title="Показать участников" aria-label="Показать участников">
                     <Users size={16} />Участники
                   </button>
@@ -1043,7 +1091,7 @@ export function MessengerWorkspace({
                     return (
                       <Fragment key={message.id}>
                         {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
-                        <article className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
+                        <article id={`nexo-channel-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
                           onContextMenu={(event) => openMessageMenu(event, message, 'channel')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
