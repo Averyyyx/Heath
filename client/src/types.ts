@@ -167,6 +167,8 @@ export type Server = {
   created_at: string;
 };
 
+export type ChannelMessageReadReceipt = { read_count: number; member_count: number };
+
 export type ChannelMessage = {
   id: number;
   server_id: number;
@@ -179,5 +181,6 @@ export type ChannelMessage = {
   reactions?: MessageReaction[];
   reply_to?: MessageReply | null;
   pin?: MessagePin | null;
+  read_receipt?: ChannelMessageReadReceipt | null;
 };
 

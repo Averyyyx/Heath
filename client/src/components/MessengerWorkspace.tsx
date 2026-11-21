@@ -170,6 +170,7 @@ export function MessengerWorkspace({
   const typingTimerRef = useRef<number | null>(null);
   const lastTypingSentRef = useRef(0);
   const lastReadSentRef = useRef<Record<number, number>>({});
+  const lastChannelReadSentRef = useRef<Record<number, number>>({});
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const channelComposerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -331,6 +332,21 @@ export function MessengerWorkspace({
     };
     const onChannelReactionsUpdate = ({ channelId, messageId, reactions }: { channelId: number; messageId: number; reactions: MessageReaction[] }) =>
       setChannelMessages((prev) => ({ ...prev, [channelId]: (prev[channelId] || []).map((item) => item.id === messageId ? { ...item, reactions } : item) }));
+    const onChannelReadUpdate = ({ channelId, userId, previousReadMessageId, lastReadMessageId }: {
+      channelId: number; userId: number; previousReadMessageId: number; lastReadMessageId: number
+    }) => {
+      setChannelMessages((prev) => ({
+        ...prev,
+        [channelId]: (prev[channelId] || []).map((message) => {
+          if (message.author.id === userId || message.id <= previousReadMessageId || message.id > lastReadMessageId) return message;
+          const receipt = message.read_receipt || { read_count: 0, member_count: 0 };
+          return { ...message, read_receipt: {
+            ...receipt,
+            read_count: Math.min(receipt.member_count, receipt.read_count + 1)
+          } };
+        })
+      }));
+    };
     const onChannelMessage = ({ channelId, message }: { channelId: number; message: ChannelMessage }) => {
       setChannelMessages((prev) => appendUniqueChannelMessage(prev, channelId, message));
       if (message.author.id !== user.id) {
@@ -366,6 +382,7 @@ export function MessengerWorkspace({
     socket.on('channel:message:new', onChannelMessage);
     socket.on('channel:reactions:update', onChannelReactionsUpdate);
     socket.on('channel:pin:update', onChannelPinUpdate);
+    socket.on('channel:read:update', onChannelReadUpdate);
     socket.on('server:message:update', onServerMessageUpdate);
     socket.on('channel:message:delete', onChannelMessageDelete);
     socket.on('channel:deleted', onChannelDeleted);
@@ -390,6 +407,7 @@ export function MessengerWorkspace({
       socket.off('channel:message:new', onChannelMessage);
       socket.off('channel:reactions:update', onChannelReactionsUpdate);
       socket.off('channel:pin:update', onChannelPinUpdate);
+      socket.off('channel:read:update', onChannelReadUpdate);
       socket.off('server:message:update', onServerMessageUpdate);
       socket.off('channel:message:delete', onChannelMessageDelete);
       socket.off('channel:deleted', onChannelDeleted);
@@ -573,6 +591,27 @@ export function MessengerWorkspace({
     [activeServer, activeChannelId]
   );
   const activeChannelMessages = activeChannelId ? channelMessages[activeChannelId] || [] : [];
+
+  useEffect(() => {
+    const latestMessage = activeChannelMessages[activeChannelMessages.length - 1];
+    if (mode !== 'servers' || !activeServerId || !activeChannelId || !isActive || !latestMessage) return;
+    const previousReadId = lastChannelReadSentRef.current[activeChannelId] || 0;
+    if (latestMessage.id <= previousReadId) return;
+    lastChannelReadSentRef.current[activeChannelId] = latestMessage.id;
+    void apiFetch(`/api/servers/${activeServerId}/channels/${activeChannelId}/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId: latestMessage.id })
+    }).then((response) => {
+      if (!response.ok && lastChannelReadSentRef.current[activeChannelId] === latestMessage.id) {
+        lastChannelReadSentRef.current[activeChannelId] = previousReadId;
+      }
+    }).catch(() => {
+      if (lastChannelReadSentRef.current[activeChannelId] === latestMessage.id) {
+        lastChannelReadSentRef.current[activeChannelId] = previousReadId;
+      }
+    });
+  }, [mode, activeServerId, activeChannelId, activeChannelMessages, isActive]);
   const messageSearchItems = useMemo(() => activeChannel ? activeChannelMessages : activeMessages, [activeChannel, activeChannelMessages, activeMessages]);
   const messageSearchResults = useMemo(() => {
     const query = messageSearchQuery.trim().toLocaleLowerCase('ru-RU');
@@ -1377,6 +1416,7 @@ export function MessengerWorkspace({
                             {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-channel-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.pin && <small className="message-pinned-label"><Pin size={11} />Закреплено</small>}
+                            {message.author.id === user.id && message.read_receipt && message.read_receipt.read_count > 0 && <small className="message-read-receipt">Прочитано {message.read_receipt.read_count}/{message.read_receipt.member_count}</small>}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'channel', emoji)} />
                           </div>
