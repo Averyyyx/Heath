@@ -121,6 +121,7 @@ export function MessengerWorkspace({
   deafened = false,
   audioInputId = '',
   audioOutputId = '',
+  videoInputId = '',
   pendingIncomingCall = null,
   onIncomingCallHandled,
   onOpenSettings,
