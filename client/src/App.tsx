@@ -134,7 +134,6 @@ export default function App() {
   const [deafened, setDeafened] = useState(false);
   const [savedMicMuted, setSavedMicMuted] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  const [deviceMenu, setDeviceMenu] = useState<'input' | 'output' | null>(null);
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
   const [audioInputId, setAudioInputId] = useState('');
@@ -1007,27 +1006,6 @@ export default function App() {
     window.addEventListener('mouseup', onUp);
   }
 
-  async function loadAudioDevices() {
-    if (!navigator.mediaDevices?.enumerateDevices) {
-      setDeviceMenu(null);
-      alert('Браузер не поддерживает список аудиоустройств.');
-      return;
-    }
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const inputs = devices.filter((device) => device.kind === 'audioinput');
-      const outputs = devices.filter((device) => device.kind === 'audiooutput');
-      setAudioInputs(inputs);
-      setAudioOutputs(outputs);
-      if (deviceMenu === 'input' && !inputs.length) alert('Микрофоны не найдены. Разрешите доступ к микрофону и повторите попытку.');
-      if (deviceMenu === 'output' && !outputs.length) alert('Устройства вывода не найдены.');
-    } catch { alert('Не удалось получить список устройств. Проверьте разрешения Windows.'); }
-  }
-
-  useEffect(() => {
-    if (!deviceMenu) return;
-    void loadAudioDevices();
-  }, [deviceMenu]);
 
   function setMic(next: boolean) {
     if (micMuted !== next) playNexoSound(next ? 'mic-off' : 'mic-on');
@@ -1504,15 +1482,6 @@ function HomeView({ user, conversations, servers, unreadDmCounts, unreadChannelC
         <button className="primary tiny" onClick={openFriends}>Найти друга</button>
       </div>}
     </section>
-  </div>;
-}
-
-function DeviceMenu({ devices, selected, onSelect }: { devices: MediaDeviceInfo[]; selected: string; onSelect: (id: string) => void }) {
-  return <div className="device-popover">
-    {devices.length ? devices.map((device, index) => <button type="button" key={device.deviceId || index}
-      className={selected === device.deviceId ? 'active' : ''} onClick={() => onSelect(device.deviceId)}>
-      {device.label || `Устройство ${index + 1}`}{selected === device.deviceId && <Check size={13} />}
-    </button>) : <p>Устройства не найдены. Разрешите доступ к аудио.</p>}
   </div>;
 }
 
