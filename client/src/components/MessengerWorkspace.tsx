@@ -11,6 +11,9 @@ import {
   Paperclip,
   Phone,
   PhoneOff,
+  Camera,
+  CameraOff,
+  ChevronUp,
   Plus,
   SendHorizontal,
   Settings,
@@ -45,6 +48,7 @@ type MessengerWorkspaceProps = {
   showConversationList?: boolean;
   showChannelSidebar?: boolean;
   micMuted?: boolean;
+  onToggleMic?: () => void;
   deafened?: boolean;
   audioInputId?: string;
   audioOutputId?: string;
@@ -99,6 +103,7 @@ export function MessengerWorkspace({
   showConversationList = true,
   showChannelSidebar = true,
   micMuted = false,
+  onToggleMic,
   deafened = false,
   audioInputId = '',
   audioOutputId = '',
@@ -798,6 +803,13 @@ export function MessengerWorkspace({
     current.remoteStream?.getTracks().forEach((track) => track.stop());
   }
 
+  function toggleCamera() {
+    const track = callStateRef.current?.localStream?.getVideoTracks()[0];
+    if (!track || callStateRef.current?.isScreenSharing) return;
+    track.enabled = !track.enabled;
+    setCallState((current) => current ? { ...current } : current);
+  }
+
   async function shareScreen() {
     if (!callStateRef.current?.peer) return;
     try {
@@ -874,6 +886,18 @@ export function MessengerWorkspace({
                   </button>
                 </div>
               </header>
+              {callState?.conversationId === activeConversation.id && <CallOverlay
+                state={callState}
+                peer={activeConversation.counterpart || activeConversation.participants.find((participant) => participant.id !== user.id) || null}
+                currentUser={user}
+                micMuted={micMuted}
+                onToggleMic={onToggleMic}
+                onHangUp={endCall}
+                onShareScreen={shareScreen}
+                onToggleCamera={toggleCamera}
+                audioOutputId={audioOutputId}
+                deafened={deafened}
+              />}
               <div className="message-stream">
                 {loadingMessages && <p className="muted">Загружаем…</p>}
                 {!loadingMessages &&
@@ -1157,7 +1181,6 @@ export function MessengerWorkspace({
           </motion.section>
         </motion.div>
       )}
-      {callState && <CallOverlay state={callState} onHangUp={endCall} onShareScreen={shareScreen} audioOutputId={audioOutputId} deafened={deafened} />}
 
       {showCreateServer && (
         <CreateServerModal
@@ -1341,66 +1364,78 @@ function AttachmentPreview({ attachment }: { attachment: Message['attachment'] |
 }
 
 function CallOverlay({
-  state,
-  onHangUp,
-  onShareScreen,
-  audioOutputId,
-  deafened
+  state, peer, currentUser, micMuted = false, onToggleMic, onHangUp, onShareScreen, onToggleCamera, audioOutputId, deafened
 }: {
   state: CallState;
-  onHangUp: () => void;
+  peer: User | null;
+  currentUser: User;
+  micMuted?: boolean;
+  onToggleMic?: () => void;
+  onHangUp: (notifyRemote?: boolean) => void;
   onShareScreen: () => void;
-  audioOutputId: string;
-  deafened: boolean;
+  onToggleCamera: () => void;
+  audioOutputId?: string;
+  deafened?: boolean;
 }) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const [clock, setClock] = useState(Date.now());
+  const peerName = peer?.display_name || peer?.username || 'Собеседник';
+  const cameraTrack = state.localStream?.getVideoTracks()[0];
+  const cameraEnabled = Boolean(cameraTrack?.enabled && !state.isScreenSharing);
 
   useEffect(() => {
-    if (localVideoRef.current && state.localStream) {
-      localVideoRef.current.srcObject = state.localStream;
-    }
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (localVideoRef.current && state.localStream) localVideoRef.current.srcObject = state.localStream;
   }, [state.localStream]);
-
   useEffect(() => {
-    if (remoteVideoRef.current && state.remoteStream) {
-      remoteVideoRef.current.srcObject = state.remoteStream;
-    }
+    if (remoteVideoRef.current && state.remoteStream) remoteVideoRef.current.srcObject = state.remoteStream;
   }, [state.remoteStream]);
-
   useEffect(() => {
     const video = remoteVideoRef.current as (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }) | null;
     if (video?.setSinkId && audioOutputId) void video.setSinkId(audioOutputId).catch((error) => console.warn('Audio output selection failed:', error));
   }, [audioOutputId, state.remoteStream]);
 
+  const total = Math.max(0, Math.floor((clock - state.startedAt) / 1000));
+  const duration = `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`;
+  if (collapsed) return (
+    <div className="call-overlay-collapsed">
+      <span className="call-live-dot" />
+      <strong>Звонок · {peerName} · {duration}</strong>
+      <button type="button" className="ghost tiny" onClick={() => setCollapsed(false)}><ChevronUp size={14} />Развернуть</button>
+      <button type="button" className="call-hangup-small" onClick={() => onHangUp(true)} aria-label="Завершить звонок"><PhoneOff size={16} /></button>
+    </div>
+  );
+
   return (
-    <motion.div
-      className="call-overlay"
-      initial={{ opacity: 0, y: 60 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 40 }}
-    >
-      <div className="call-video remote">
-        {state.remoteStream ? (
-          <video ref={remoteVideoRef} autoPlay playsInline muted={deafened} />
-        ) : (
-          <p>Ожидание подключения...</p>
-        )}
+    <motion.section className="call-overlay"
+      initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
+      <div className="call-banner-participants">
+        <div className="call-banner-person"><Avatar user={currentUser} size={54} showStatus /><small>Вы</small></div>
+        <div className="call-banner-person"><Avatar user={peer} size={54} showStatus /><small>{peerName}</small></div>
       </div>
-      <div className="call-video local">
-        {state.localStream && <video ref={localVideoRef} autoPlay playsInline muted />}
+      <div className="call-banner-media">
+        {state.remoteStream?.getVideoTracks().length ? <video ref={remoteVideoRef} autoPlay playsInline muted={deafened} /> : <span>{state.remoteStream ? 'На связи' : 'Подключаемся…'}</span>}
+        {cameraTrack && <video ref={localVideoRef} className="call-local-preview" autoPlay playsInline muted />}
       </div>
-      <div className="call-controls">
-        <button className="ghost" onClick={onShareScreen}>
-          <Monitor size={18} />
-          Трансляция
+      <div className="call-banner-controls">
+        <button type="button" className={micMuted ? 'call-control danger' : 'call-control'} onClick={onToggleMic} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
+          {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
         </button>
-        <button className="primary" onClick={onHangUp}>
-          <Phone size={18} />
-          Завершить
+        <button type="button" className={cameraEnabled ? 'call-control' : 'call-control danger'} onClick={onToggleCamera}
+          disabled={!cameraTrack || state.isScreenSharing} title={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'} aria-label={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'}>
+          {cameraEnabled ? <Camera size={17} /> : <CameraOff size={17} />}
         </button>
+        <button type="button" className="call-control" onClick={onShareScreen} title="Поделиться экраном" aria-label="Поделиться экраном"><Monitor size={17} /></button>
+        <button type="button" className="call-control call-hangup" onClick={() => onHangUp(true)} title="Завершить звонок" aria-label="Завершить звонок"><PhoneOff size={17} /></button>
+        <button type="button" className="call-control" onClick={() => setCollapsed(true)} title="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
       </div>
-    </motion.div>
+      <span className="call-banner-duration">{duration}</span>
+    </motion.section>
   );
 }
 
