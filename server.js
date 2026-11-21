@@ -2923,7 +2923,7 @@ app.patch('/api/servers/:serverId/channels/:channelId/messages/:messageId', ensu
       WHERE sm.id = ?
     `).get(messageId);
     const message = serializeServerMessage(row);
-    io.to(`channel:${channelId}`).emit('server:message:update', { serverId, channelId, message });
+    io.to(getChannelRoom(channelId)).emit('server:message:update', { serverId, channelId, message });
     return res.json({ message });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось изменить сообщение.' });
