@@ -509,7 +509,7 @@ db.prepare(`
   )
 `).run();
 
-if (!db.prepare('PRAGMA table_info(server_messages).all().some((column) => column.name === 'edited_at')) {
+if (!db.prepare('PRAGMA table_info(server_messages)').all().some((column) => column.name === 'edited_at')) {
   db.prepare('ALTER TABLE server_messages ADD COLUMN edited_at DATETIME').run();
 }
 if (!db.prepare('PRAGMA table_info(server_messages)').all().some((column) => column.name === 'reply_to_message_id')) {
