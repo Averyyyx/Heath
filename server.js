@@ -494,6 +494,21 @@ db.prepare(`
   )
 `).run();
 
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS message_pins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope TEXT NOT NULL CHECK (scope IN ('dm', 'channel')),
+    message_id INTEGER NOT NULL,
+    conversation_id INTEGER,
+    server_id INTEGER,
+    channel_id INTEGER,
+    pinned_by INTEGER NOT NULL,
+    pinned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(scope, message_id),
+    FOREIGN KEY(pinned_by) REFERENCES users(id)
+  )
+`).run();
+
 if (!db.prepare('PRAGMA table_info(server_messages)').all().some((column) => column.name === 'edited_at')) {
   db.prepare('ALTER TABLE server_messages ADD COLUMN edited_at DATETIME').run();
 }
@@ -727,6 +742,12 @@ const selectMessageWithAuthor = db.prepare(`
   JOIN users u ON u.id = m.author_id
   WHERE m.id = ?
 `);
+const selectMessagePin = db.prepare('SELECT pinned_at, pinned_by FROM message_pins WHERE scope = ? AND message_id = ?');
+const insertMessagePin = db.prepare('INSERT OR IGNORE INTO message_pins (scope, message_id, conversation_id, server_id, channel_id, pinned_by) VALUES (?, ?, ?, ?, ?, ?)');
+const deleteMessagePin = db.prepare('DELETE FROM message_pins WHERE scope = ? AND message_id = ?');
+const listDmPins = db.prepare("SELECT message_id FROM message_pins WHERE scope = 'dm' AND conversation_id = ? ORDER BY datetime(pinned_at) DESC");
+const listChannelPins = db.prepare("SELECT message_id FROM message_pins WHERE scope = 'channel' AND channel_id = ? ORDER BY datetime(pinned_at) DESC");
+
 const listMessageReactions = db.prepare(`
   SELECT emoji, COUNT(*) AS count, GROUP_CONCAT(user_id) AS user_ids
   FROM message_reactions WHERE scope = ? AND message_id = ?
@@ -1592,6 +1613,11 @@ function getMessageReply(scope, replyToMessageId) {
   };
 }
 
+function getMessagePin(scope, messageId) {
+  const row = selectMessagePin.get(scope, messageId);
+  return row ? { pinned_at: row.pinned_at, pinned_by: row.pinned_by } : null;
+}
+
 function getMessageReactions(scope, messageId) {
   return listMessageReactions.all(scope, messageId).map((row) => ({
     emoji: row.emoji,
@@ -1618,7 +1644,8 @@ function serializeMessage(row) {
     created_at: row.created_at,
     edited_at: row.edited_at || null,
     reactions: getMessageReactions('dm', row.id),
-    reply_to: getMessageReply('dm', row.reply_to_message_id)
+    reply_to: getMessageReply('dm', row.reply_to_message_id),
+    pin: getMessagePin('dm', row.id)
   };
 }
 
@@ -1641,7 +1668,8 @@ function serializeServerMessage(row) {
     created_at: row.created_at,
     edited_at: row.edited_at || null,
     reactions: getMessageReactions('channel', row.id),
-    reply_to: getMessageReply('channel', row.reply_to_message_id)
+    reply_to: getMessageReply('channel', row.reply_to_message_id),
+    pin: getMessagePin('channel', row.id)
   };
 }
 
@@ -2876,6 +2904,8 @@ app.delete('/api/servers/:serverId/channels/:channelId', ensureAuthenticated, fr
   const attachments = db.prepare('SELECT path FROM server_attachments WHERE channel_id = ?').all(channelId);
   try {
     db.transaction(() => {
+      db.prepare("DELETE FROM message_reactions WHERE scope = 'channel' AND message_id IN (SELECT id FROM server_messages WHERE channel_id = ?)").run(channelId);
+      db.prepare("DELETE FROM message_pins WHERE scope = 'channel' AND channel_id = ?").run(channelId);
       db.prepare('DELETE FROM server_attachments WHERE channel_id = ?').run(channelId);
       db.prepare('DELETE FROM server_messages WHERE channel_id = ?').run(channelId);
       db.prepare('DELETE FROM voice_sessions WHERE channel_id = ?').run(channelId);
@@ -2973,6 +3003,47 @@ app.get('/api/servers/:serverId/channels/:channelId/messages', ensureAuthenticat
     return res.json({ messages });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ message: error.message });
+  }
+});
+
+app.get('/api/servers/:serverId/channels/:channelId/pins', ensureAuthenticated, (req, res) => {
+  const serverId = Number(req.params.serverId);
+  const channelId = Number(req.params.channelId);
+  if (![serverId, channelId].every(Number.isInteger)) return res.status(400).json({ message: 'Некорректный канал.' });
+  try {
+    const { permissions } = ensureChannelAccess(serverId, channelId, req.user.id);
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_CHANNEL)) return res.status(403).json({ message: 'Нет доступа к этому каналу.' });
+    const pins = listChannelPins.all(channelId)
+      .map(({ message_id }) => serializeServerMessage(selectServerMessageWithAuthor.get(message_id)))
+      .filter(Boolean);
+    return res.json({ pins });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message });
+  }
+});
+
+app.post('/api/servers/:serverId/channels/:channelId/messages/:messageId/pin', ensureAuthenticated, messageLimiter, (req, res) => {
+  const serverId = Number(req.params.serverId);
+  const channelId = Number(req.params.channelId);
+  const messageId = Number(req.params.messageId);
+  const action = req.body?.action;
+  if (![serverId, channelId, messageId].every(Number.isInteger) || !['pin', 'unpin'].includes(action)) {
+    return res.status(400).json({ message: 'Некорректное действие закрепления.' });
+  }
+  try {
+    const { permissions } = ensureChannelAccess(serverId, channelId, req.user.id);
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.MANAGE_MESSAGES)) {
+      return res.status(403).json({ message: 'Для закрепления сообщений требуется право «Управление сообщениями».' });
+    }
+    const message = db.prepare('SELECT id FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?').get(messageId, serverId, channelId);
+    if (!message) return res.status(404).json({ message: 'Сообщение не найдено.' });
+    if (action === 'pin') insertMessagePin.run('channel', messageId, null, serverId, channelId, req.user.id);
+    else deleteMessagePin.run('channel', messageId);
+    const pin = getMessagePin('channel', messageId);
+    io.to(getChannelRoom(channelId)).emit('channel:pin:update', { channelId, messageId, pin });
+    return res.json({ messageId, pin });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось закрепить сообщение.' });
   }
 });
 
@@ -3347,6 +3418,7 @@ app.delete('/api/servers/:serverId/channels/:channelId/messages/:messageId', ens
   try {
     db.transaction(() => {
       db.prepare("DELETE FROM message_reactions WHERE scope = 'channel' AND message_id = ?").run(messageId);
+      db.prepare("DELETE FROM message_pins WHERE scope = 'channel' AND message_id = ?").run(messageId);
       db.prepare('DELETE FROM server_attachments WHERE server_message_id = ?').run(messageId);
       db.prepare('DELETE FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?').run(messageId, serverId, channelId);
     })();
@@ -3397,6 +3469,41 @@ app.patch('/api/conversations/:id/messages/:messageId', ensureAuthenticated, mes
     return res.json({ message });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось изменить сообщение.' });
+  }
+});
+
+app.get('/api/conversations/:id/pins', ensureAuthenticated, (req, res) => {
+  const conversationId = Number(req.params.id);
+  if (!Number.isInteger(conversationId)) return res.status(400).json({ message: 'Некорректный диалог.' });
+  try {
+    ensureConversationAccess(conversationId, req.user.id);
+    const pins = listDmPins.all(conversationId)
+      .map(({ message_id }) => serializeMessage(selectMessageWithAuthor.get(message_id)))
+      .filter(Boolean);
+    return res.json({ pins });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message });
+  }
+});
+
+app.post('/api/conversations/:id/messages/:messageId/pin', ensureAuthenticated, messageLimiter, (req, res) => {
+  const conversationId = Number(req.params.id);
+  const messageId = Number(req.params.messageId);
+  const action = req.body?.action;
+  if (!Number.isInteger(conversationId) || !Number.isInteger(messageId) || !['pin', 'unpin'].includes(action)) {
+    return res.status(400).json({ message: 'Некорректное действие закрепления.' });
+  }
+  try {
+    ensureConversationAccess(conversationId, req.user.id);
+    const message = db.prepare('SELECT id FROM messages WHERE id = ? AND conversation_id = ?').get(messageId, conversationId);
+    if (!message) return res.status(404).json({ message: 'Сообщение не найдено.' });
+    if (action === 'pin') insertMessagePin.run('dm', messageId, conversationId, null, null, req.user.id);
+    else deleteMessagePin.run('dm', messageId);
+    const pin = getMessagePin('dm', messageId);
+    io.to(getConversationRoom(conversationId)).emit('message:pin:update', { conversationId, messageId, pin });
+    return res.json({ messageId, pin });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось закрепить сообщение.' });
   }
 });
 
@@ -3460,6 +3567,7 @@ app.delete('/api/conversations/:id/messages/:messageId', ensureAuthenticated, me
   try {
     db.transaction(() => {
       db.prepare("DELETE FROM message_reactions WHERE scope = 'dm' AND message_id = ?").run(messageId);
+      db.prepare("DELETE FROM message_pins WHERE scope = 'dm' AND message_id = ?").run(messageId);
       db.prepare('DELETE FROM attachments WHERE message_id = ?').run(messageId);
       db.prepare('DELETE FROM messages WHERE id = ? AND conversation_id = ?').run(messageId, conversationId);
       db.prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(conversationId);

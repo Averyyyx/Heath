@@ -11,6 +11,7 @@ import {
   Monitor,
   Paperclip,
   Pencil,
+  Pin,
   Phone,
   PhoneOff,
   Camera,
@@ -35,6 +36,7 @@ import type {
   Message,
   MessageReaction,
   MessageReply,
+  MessagePin,
   Server,
   User
 } from '../types';
@@ -157,6 +159,8 @@ export function MessengerWorkspace({
   const [messageContext, setMessageContext] = useState<{ x: number; y: number; message: Message | ChannelMessage; kind: 'dm' | 'channel' } | null>(null);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [pinnedPanelOpen, setPinnedPanelOpen] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState<Array<Message | ChannelMessage>>([]);
   const [membersError, setMembersError] = useState('');
   const pendingIncomingSignalRef = useRef<SignalData | null>(null);
   const awaitingCallAcceptRef = useRef<number | null>(null);
@@ -177,6 +181,8 @@ export function MessengerWorkspace({
     setEditingChannelMessageId(null);
     setChannelComposer('');
     setReplyingTo(null);
+    setPinnedPanelOpen(false);
+    setPinnedMessages([]);
   }, [activeChannelId]);
 
   const callWasActiveRef = useRef(false);
@@ -246,6 +252,10 @@ export function MessengerWorkspace({
       setMessageStore((prev) => appendUniqueMessage(prev, conversationId, message));
     const onMessageUpdate = ({ conversationId, message }: { conversationId: number; message: Message }) =>
       setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).map((item) => item.id === message.id ? message : item) }));
+    const onMessagePinUpdate = ({ conversationId, messageId, pin }: { conversationId: number; messageId: number; pin: MessagePin | null }) => {
+      setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).map((item) => item.id === messageId ? { ...item, pin } : item) }));
+      setPinnedMessages((prev) => pin ? prev : prev.filter((item) => item.id !== messageId));
+    };
     const onMessageReactionsUpdate = ({ conversationId, messageId, reactions }: { conversationId: number; messageId: number; reactions: MessageReaction[] }) =>
       setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).map((item) => item.id === messageId ? { ...item, reactions } : item) }));
     const onMessageDelete = ({ conversationId, messageId }: { conversationId: number; messageId: number }) =>
@@ -315,6 +325,10 @@ export function MessengerWorkspace({
         [channelId]: (prev[channelId] || []).map((item) => item.id === message.id ? message : item)
       }));
     };
+    const onChannelPinUpdate = ({ channelId, messageId, pin }: { channelId: number; messageId: number; pin: MessagePin | null }) => {
+      setChannelMessages((prev) => ({ ...prev, [channelId]: (prev[channelId] || []).map((item) => item.id === messageId ? { ...item, pin } : item) }));
+      setPinnedMessages((prev) => pin ? prev : prev.filter((item) => item.id !== messageId));
+    };
     const onChannelReactionsUpdate = ({ channelId, messageId, reactions }: { channelId: number; messageId: number; reactions: MessageReaction[] }) =>
       setChannelMessages((prev) => ({ ...prev, [channelId]: (prev[channelId] || []).map((item) => item.id === messageId ? { ...item, reactions } : item) }));
     const onChannelMessage = ({ channelId, message }: { channelId: number; message: ChannelMessage }) => {
@@ -338,6 +352,7 @@ export function MessengerWorkspace({
     socket.on('message:ack', onMessageAck);
     socket.on('message:update', onMessageUpdate);
     socket.on('message:reactions:update', onMessageReactionsUpdate);
+    socket.on('message:pin:update', onMessagePinUpdate);
     socket.on('message:delete', onMessageDelete);
     socket.on('typing', onTyping);
     socket.on('call:ring', onCallInvite);
@@ -350,6 +365,7 @@ export function MessengerWorkspace({
     socket.on('server:upsert', onServerUpsert);
     socket.on('channel:message:new', onChannelMessage);
     socket.on('channel:reactions:update', onChannelReactionsUpdate);
+    socket.on('channel:pin:update', onChannelPinUpdate);
     socket.on('server:message:update', onServerMessageUpdate);
     socket.on('channel:message:delete', onChannelMessageDelete);
     socket.on('channel:deleted', onChannelDeleted);
@@ -360,6 +376,7 @@ export function MessengerWorkspace({
       socket.off('message:ack', onMessageAck);
       socket.off('message:update', onMessageUpdate);
       socket.off('message:reactions:update', onMessageReactionsUpdate);
+      socket.off('message:pin:update', onMessagePinUpdate);
       socket.off('message:delete', onMessageDelete);
       socket.off('typing', onTyping);
       socket.off('call:ring', onCallInvite);
@@ -372,6 +389,7 @@ export function MessengerWorkspace({
       socket.off('server:upsert', onServerUpsert);
       socket.off('channel:message:new', onChannelMessage);
       socket.off('channel:reactions:update', onChannelReactionsUpdate);
+      socket.off('channel:pin:update', onChannelPinUpdate);
       socket.off('server:message:update', onServerMessageUpdate);
       socket.off('channel:message:delete', onChannelMessageDelete);
       socket.off('channel:deleted', onChannelDeleted);
@@ -479,6 +497,8 @@ export function MessengerWorkspace({
 
   useEffect(() => {
     setReplyingTo(null);
+    setPinnedPanelOpen(false);
+    setPinnedMessages([]);
   }, [activeConversationId]);
 
   useEffect(() => {
@@ -640,6 +660,53 @@ export function MessengerWorkspace({
       console.error(error);
     } finally {
       setLoadingChannelMessages(false);
+    }
+  }
+
+  async function toggleMessagePin(message: Message | ChannelMessage, kind: 'dm' | 'channel') {
+    const action = message.pin ? 'unpin' : 'pin';
+    try {
+      const path = kind === 'dm' && 'conversation_id' in message
+        ? `/api/conversations/${message.conversation_id}/messages/${message.id}/pin`
+        : `/api/servers/${(message as ChannelMessage).server_id}/channels/${(message as ChannelMessage).channel_id}/messages/${message.id}/pin`;
+      const response = await apiFetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось изменить закрепление.');
+      if (kind === 'dm' && 'conversation_id' in message) {
+        setMessageStore((prev) => ({ ...prev, [message.conversation_id]: (prev[message.conversation_id] || []).map((item) => item.id === message.id ? { ...item, pin: payload.pin } : item) }));
+      } else {
+        const channelId = (message as ChannelMessage).channel_id;
+        setChannelMessages((prev) => ({ ...prev, [channelId]: (prev[channelId] || []).map((item) => item.id === message.id ? { ...item, pin: payload.pin } : item) }));
+      }
+      setPinnedMessages((prev) => action === 'pin'
+        ? [...prev.filter((item) => item.id !== message.id), { ...message, pin: payload.pin }]
+        : prev.filter((item) => item.id !== message.id));
+      setMessageContext(null);
+    } catch (error) {
+      window.alert((error as Error).message);
+    }
+  }
+
+  async function togglePinnedPanel(kind: 'dm' | 'channel') {
+    if (pinnedPanelOpen) { setPinnedPanelOpen(false); return; }
+    try {
+      const path = kind === 'dm' && activeConversationId
+        ? `/api/conversations/${activeConversationId}/pins`
+        : activeServerId && activeChannelId
+          ? `/api/servers/${activeServerId}/channels/${activeChannelId}/pins`
+          : '';
+      if (!path) return;
+      const response = await apiFetch(path);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось загрузить закреплённые сообщения.');
+      setPinnedMessages(payload.pins || []);
+      setPinnedPanelOpen(true);
+    } catch (error) {
+      window.alert((error as Error).message);
     }
   }
 
@@ -1104,6 +1171,7 @@ export function MessengerWorkspace({
                 </div>
                 <div className="chat-actions">
                   <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
+                  <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('dm')} title="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
                   <button type="button" className="ghost" onClick={() => startCall(activeConversation.id, { initiator: true }, 'audio')}>
                     <Phone size={16} />Голос
                   </button>
@@ -1112,6 +1180,12 @@ export function MessengerWorkspace({
                   </button>
                 </div>
               </header>
+              {pinnedPanelOpen && <div className="pinned-messages-panel">
+                <strong>Закреплённые сообщения</strong>
+                {pinnedMessages.length ? pinnedMessages.map((pin) => <button key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                  <span>{pin.author.display_name || pin.author.username}</span><small>{pin.content || 'Вложение'}</small>
+                </button>) : <p>Пока ничего не закреплено.</p>}
+              </div>}
               {callState?.conversationId === activeConversation.id && <CallOverlay
                 state={callState}
                 peer={activeConversation.counterpart || activeConversation.participants.find((participant) => participant.id !== user.id) || null}
@@ -1161,6 +1235,7 @@ export function MessengerWorkspace({
                             {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.edited_at && <small className="message-edited-label">изменено</small>}
+                            {message.pin && <small className="message-pinned-label"><Pin size={11} />Закреплено</small>}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'dm', emoji)} />
                             {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) &&
@@ -1269,12 +1344,19 @@ export function MessengerWorkspace({
                 </div>
                 <div className="chat-actions">
                   <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
+                  <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('channel')} title="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
                   <button type="button" className={showMembersPanel ? 'ghost active' : 'ghost'} onClick={() => setShowMembersPanel((value) => !value)} title="Показать участников" aria-label="Показать участников">
                     <Users size={16} />Участники
                   </button>
                   {onEditChannel && <button type="button" className="ghost" onClick={onEditChannel} title="Настройки канала" aria-label="Настройки канала"><Settings size={16} />Канал</button>}
                 </div>
               </header>
+              {pinnedPanelOpen && <div className="pinned-messages-panel">
+                <strong>Закреплённые сообщения</strong>
+                {pinnedMessages.length ? pinnedMessages.map((pin) => <button key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-channel-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                  <span>{pin.author.display_name || pin.author.username}</span><small>{pin.content || 'Вложение'}</small>
+                </button>) : <p>Пока ничего не закреплено.</p>}
+              </div>}
               <div className="message-stream">
                 {loadingChannelMessages && <p className="muted">Загружаем…</p>}
                 {!loadingChannelMessages &&
@@ -1294,6 +1376,7 @@ export function MessengerWorkspace({
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-channel-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
+                            {message.pin && <small className="message-pinned-label"><Pin size={11} />Закреплено</small>}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'channel', emoji)} />
                           </div>
@@ -1402,6 +1485,9 @@ export function MessengerWorkspace({
                 <button key={emoji} type="button" title={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
               ))}
             </div>
+            <button type="button" onClick={() => void toggleMessagePin(messageContext.message, messageContext.kind)}>
+              <Pin size={14} /><span>{messageContext.message.pin ? 'Открепить' : 'Закрепить'}</span>
+            </button>
             <button type="button" onClick={() => beginReplyMessage(messageContext.message, messageContext.kind)}>
               <MessageCircle size={14} /><span>Ответить</span>
             </button>
