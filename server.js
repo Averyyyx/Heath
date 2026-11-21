@@ -1285,8 +1285,23 @@ io.on('connection', (socket) => {
 
   socket.on('call:reject', ({ conversationId }) => {
     try {
-      ensureConversationAccess(conversationId, socket.user.id);
-      socket.to(getConversationRoom(conversationId)).emit('call:reject', { conversationId, from: socket.user.id });
+      ensureConversationAccess(Number(conversationId), socket.user.id);
+      getConversationParticipants(Number(conversationId))
+        .filter((participant) => participant.id !== socket.user.id)
+        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:reject', {
+          conversationId: Number(conversationId), from: socket.user.id
+        }));
+    } catch (error) { socket.emit('error', { message: error.message }); }
+  });
+
+  socket.on('call:timeout', ({ conversationId }) => {
+    try {
+      ensureConversationAccess(Number(conversationId), socket.user.id);
+      getConversationParticipants(Number(conversationId))
+        .filter((participant) => participant.id !== socket.user.id)
+        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:timeout', {
+          conversationId: Number(conversationId), from: socket.user.id
+        }));
     } catch (error) { socket.emit('error', { message: error.message }); }
   });
 
@@ -1305,11 +1320,12 @@ io.on('connection', (socket) => {
 
   socket.on('call:end', ({ conversationId }) => {
     try {
-      ensureConversationAccess(conversationId, socket.user.id);
-      socket.to(getConversationRoom(conversationId)).emit('call:end', {
-        conversationId,
-        from: socket.user.id
-      });
+      ensureConversationAccess(Number(conversationId), socket.user.id);
+      getConversationParticipants(Number(conversationId))
+        .filter((participant) => participant.id !== socket.user.id)
+        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:end', {
+          conversationId: Number(conversationId), from: socket.user.id
+        }));
     } catch (error) {
       socket.emit('error', { message: error.message });
     }
