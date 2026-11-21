@@ -25,6 +25,7 @@ export type User = {
   status: UserStatus;
   custom_status?: string;
   last_online?: string;
+  last_read_message_id?: number | null;
 };
 
 export type Friend = {

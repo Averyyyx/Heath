@@ -672,12 +672,17 @@ const selectConversationBetween = db.prepare(`
 `);
 const insertParticipant = db.prepare('INSERT INTO conversation_participants (conversation_id, user_id, role) VALUES (?, ?, ?)');
 const selectParticipants = db.prepare(`
-  SELECT u.*
+  SELECT u.*, cp.last_read_message_id
   FROM conversation_participants cp
   JOIN users u ON u.id = cp.user_id
   WHERE cp.conversation_id = ?
 `);
 const selectParticipant = db.prepare('SELECT * FROM conversation_participants WHERE conversation_id = ? AND user_id = ?');
+const updateConversationRead = db.prepare(`
+  UPDATE conversation_participants
+  SET last_read_message_id = MAX(COALESCE(last_read_message_id, 0), ?)
+  WHERE conversation_id = ? AND user_id = ?
+`);
 const listConversationsForUser = db.prepare(`
   SELECT c.*, MAX(m.created_at) AS last_activity
   FROM conversations c
@@ -3232,6 +3237,27 @@ app.get('/api/conversations/:id/messages', ensureAuthenticated, (req, res) => {
   const rows = listMessages.all(conversationId, limit, offset);
   const messages = rows.map(serializeMessage).reverse();
   res.json({ messages });
+});
+
+app.post('/api/conversations/:id/read', ensureAuthenticated, (req, res) => {
+  const conversationId = Number(req.params.id);
+  const requestedMessageId = Number(req.body?.messageId);
+  if (!Number.isInteger(conversationId) || !Number.isInteger(requestedMessageId) || requestedMessageId < 0) {
+    return res.status(400).json({ message: 'Некорректная отметка прочтения.' });
+  }
+  try {
+    ensureConversationAccess(conversationId, req.user.id);
+    const readMessage = requestedMessageId === 0
+      ? { id: 0 }
+      : db.prepare('SELECT id FROM messages WHERE id = ? AND conversation_id = ?').get(requestedMessageId, conversationId);
+    if (!readMessage) return res.status(404).json({ message: 'Сообщение не найдено в этом диалоге.' });
+    const lastReadMessageId = readMessage.id;
+    updateConversationRead.run(lastReadMessageId, conversationId, req.user.id);
+    broadcastConversationUpdate(conversationId);
+    return res.json({ conversationId, userId: req.user.id, lastReadMessageId });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось отметить сообщения прочитанными.' });
+  }
 });
 
 app.delete('/api/conversations/:id/messages/:messageId', ensureAuthenticated, messageLimiter, async (req, res) => {
