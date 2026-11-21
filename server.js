@@ -2997,7 +2997,10 @@ app.post('/api/servers/:serverId/channels', ensureAuthenticated, (req, res) => {
   try {
     ensureServerOwnership(serverId, req.user.id);
     const existingCount = listChannelsForServer.all(serverId).length;
-    insertChannel.run(serverId, normalizedType, trimmedName, topic.slice(0, 240), existingCount);
+    const created = insertChannel.run(serverId, normalizedType, trimmedName, topic.slice(0, 240), existingCount);
+    const requestedLimit = Number(req.body?.userLimit);
+    const userLimit = Number.isInteger(requestedLimit) ? Math.min(8, Math.max(2, requestedLimit)) : 8;
+    if (normalizedType === 'voice') db.prepare('UPDATE channels SET user_limit = ? WHERE id = ?').run(userLimit, created.lastInsertRowid);
     broadcastServerUpdate(serverId);
     const server = selectServerById.get(serverId);
     return res.status(201).json({ server: serializeServerEntity(server, req.user.id) });
