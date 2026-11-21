@@ -310,7 +310,10 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       if (joinedRef.current) {
         playNexoSound('voice-leave');
         socket.emit('channel:leave', channel.id);
-        void apiFetch(`/api/servers/${server.id}/channels/${channel.id}/voice/leave`, { method: 'POST' }).catch(() => {});
+        void apiFetch(`/api/servers/${server.id}/channels/${channel.id}/voice/leave`, { method: 'POST' })
+          .then((response) => response.json().catch(() => ({})))
+          .then((payload) => window.dispatchEvent(new CustomEvent('nexo-voice-participants', { detail: { channelId: channel.id, participants: payload.participants || [] } })))
+          .catch(() => {});
       }
       joinedRef.current = false;
       window.dispatchEvent(new CustomEvent('nexo-voice-state', { detail: { active: false, channelId: channel.id } }));
