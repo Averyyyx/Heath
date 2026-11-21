@@ -3,6 +3,8 @@ name: Nexo 0.0.7 validation
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
