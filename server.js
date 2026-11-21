@@ -1912,7 +1912,7 @@ function ensureChannelAccess(serverId, channelId, userId) {
   return { server, membership, channel, permissions };
 }
 
-function serializeChannel(channel) {
+function serializeChannel(channel, currentUserId = null) {
   if (!channel) return null;
   const overrides = selectOverridesForChannel.all(channel.id).map((override) => ({
     target_type: override.target_type,
@@ -1932,6 +1932,16 @@ function serializeChannel(channel) {
     bitrate: channel.bitrate || 64000,
     user_limit: channel.user_limit || 0,
     soundscape: channel.soundscape || '',
+    ...(channel.type === 'voice' && Number.isInteger(currentUserId) ? (() => {
+      try {
+        const access = ensureChannelAccess(channel.server_id, channel.id, currentUserId);
+        return {
+          canConnect: hasPermission(access.permissions, PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.CONNECT_VOICE),
+          canSpeak: hasPermission(access.permissions, PERMISSIONS.SPEAK_VOICE),
+          canStream: hasPermission(access.permissions, PERMISSIONS.STREAM)
+        };
+      } catch { return { canConnect: false, canSpeak: false, canStream: false }; }
+    })() : {}),
     overrides,
     created_at: channel.created_at
   };
@@ -1939,7 +1949,7 @@ function serializeChannel(channel) {
 
 function serializeServerEntity(server, currentUserId) {
   if (!server) return null;
-  const channels = listChannelsForServer.all(server.id).map(serializeChannel);
+  const channels = listChannelsForServer.all(server.id).map((channel) => serializeChannel(channel, currentUserId));
   const roles = selectRolesForServer.all(server.id).map((role) => ({
     id: role.id,
     name: role.name,
