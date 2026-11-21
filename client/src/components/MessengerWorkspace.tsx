@@ -1113,20 +1113,6 @@ export function MessengerWorkspace({
         onCreateServer={() => setShowCreateServer(true)}
       />}
       <div className="workspace-main">
-        {!hideNavigation && !embedded && <div className="workspace-nav">
-          <button
-            className={mode === 'servers' ? 'active' : ''}
-            onClick={() => setMode('servers')}
-          >
-            Серверы
-          </button>
-          <button
-            className={mode === 'friends' ? 'active' : ''}
-            onClick={() => setMode('friends')}
-          >
-            Друзья
-          </button>
-        </div>}
         {mode === 'friends' ? renderDirectMessages() : renderServerView()}
       </div>
 
