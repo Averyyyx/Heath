@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Home, Users, MessageCircle, Settings, Plus, X, ChevronDown, ChevronRight,
   ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command,
-  Phone, PhoneOff, Mic, MicOff, Headphones, HeadphoneOff, LogOut, Moon,
+  Phone, PhoneOff, Mic, MicOff, Headphones, HeadphoneOff, Camera, MonitorUp, LogOut, Moon,
   Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus, RefreshCw, Keyboard,
   PanelLeftClose, PanelLeftOpen, Check, Volume2, Circle,
 } from 'lucide-react';
@@ -1291,8 +1291,8 @@ export default function App() {
                       <div className="active-voice-actions">
                         <button type="button" className={micMuted ? 'is-off' : ''} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => { if (deafened) setSavedMicMuted(!savedMicMuted); else setMic(!micMuted); }}>{micMuted ? <MicOff size={15} /> : <Mic size={15} />}</button>
                         <button type="button" className={deafened ? 'is-off' : ''} title={deafened ? 'Включить звук' : 'Выключить звук'} onClick={() => { if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); } else { setDeafened(false); setMic(savedMicMuted); } }}>{deafened ? <HeadphoneOff size={15} /> : <Headphones size={15} />}</button>
-                        <button type="button" title="Камера" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Monitor size={15} /></button>
-                        <button type="button" title="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><PanelLeftOpen size={15} /></button>
+                        <button type="button" title="Камера" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Camera size={15} /></button>
+                        <button type="button" title="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><MonitorUp size={15} /></button>
                       </div>
                     </div>}
                     {activeCallInfo && <div className="active-call-strip">
