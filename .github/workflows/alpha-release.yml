@@ -60,8 +60,6 @@ jobs:
           path: |
             dist/*.exe
             dist/*.exe.sha256
-            dist/latest.yml
-            dist/*.blockmap
           if-no-files-found: error
           retention-days: 30
 
