@@ -179,6 +179,12 @@ export default function App() {
   }, [theme, desktopApi]);
 
   useEffect(() => {
+    if (user?.status === 'dnd') document.documentElement.dataset.nexoDnd = 'true';
+    else delete document.documentElement.dataset.nexoDnd;
+    return () => { delete document.documentElement.dataset.nexoDnd; };
+  }, [user?.status]);
+
+  useEffect(() => {
     if (!loading) return;
     const timer = window.setInterval(() => {
       setLoadingPhraseIndex((current) => {
@@ -446,7 +452,7 @@ export default function App() {
         setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + 1) }));
         const mentions = countUserMentions(message?.content || '', user.username);
         if (mentions > 0) setUnreadDmMentionCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + mentions) }));
-        playNexoSound('message');
+        playNexoSound(mentions > 0 ? 'notification' : 'message');
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
         ? { ...tab, unread: (tab.unread || 0) + 1 }
@@ -461,7 +467,7 @@ export default function App() {
         setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + 1) }));
         const mentions = countUserMentions(message?.content || '', user.username);
         if (mentions > 0) setUnreadChannelMentionCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + mentions) }));
-        playNexoSound('message');
+        playNexoSound(mentions > 0 ? 'notification' : 'message');
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
         ? { ...tab, unread: (tab.unread || 0) + 1 }
