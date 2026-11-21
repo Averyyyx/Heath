@@ -19,7 +19,7 @@ import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
 import { playNexoSound } from './lib/sounds';
 import { getSocket } from './lib/socket';
-import type { Conversation, FriendPayload, Server, User, UserStatus } from './types';
+import type { ChannelMessage, Conversation, FriendPayload, Message, Server, User, UserStatus } from './types';
 
 type TabKind = 'home' | 'friends' | 'dm' | 'channel' | 'settings';
 type WorkspaceTab = {
