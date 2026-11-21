@@ -94,6 +94,7 @@ export type Message = {
   content: string | null;
   attachment: Attachment | null;
   created_at: string;
+  edited_at?: string | null;
 };
 
 export type Conversation = {

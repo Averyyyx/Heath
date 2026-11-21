@@ -399,6 +399,10 @@ db.prepare(`
   )
 `).run();
 
+if (!db.prepare('PRAGMA table_info(messages)').all().some((column) => column.name === 'edited_at')) {
+  db.prepare('ALTER TABLE messages ADD COLUMN edited_at DATETIME').run();
+}
+
 db.prepare(`
   CREATE TABLE IF NOT EXISTS attachments (
     id TEXT PRIMARY KEY,
@@ -1553,7 +1557,8 @@ function serializeMessage(row) {
     },
     content: row.content,
     attachment: serializeAttachment(row.attachment),
-    created_at: row.created_at
+    created_at: row.created_at,
+    edited_at: row.edited_at || null
   };
 }
 
@@ -3237,6 +3242,28 @@ app.get('/api/conversations/:id/messages', ensureAuthenticated, (req, res) => {
   const rows = listMessages.all(conversationId, limit, offset);
   const messages = rows.map(serializeMessage).reverse();
   res.json({ messages });
+});
+
+app.patch('/api/conversations/:id/messages/:messageId', ensureAuthenticated, messageLimiter, (req, res) => {
+  const conversationId = Number(req.params.id);
+  const messageId = Number(req.params.messageId);
+  const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
+  if (!Number.isInteger(conversationId) || !Number.isInteger(messageId) || !content || content.length > 4000) {
+    return res.status(400).json({ message: 'Сообщение должно содержать от 1 до 4000 символов.' });
+  }
+  try {
+    ensureConversationAccess(conversationId, req.user.id);
+    const existing = db.prepare('SELECT id, author_id, attachment FROM messages WHERE id = ? AND conversation_id = ?').get(messageId, conversationId);
+    if (!existing) return res.status(404).json({ message: 'Сообщение не найдено.' });
+    if (existing.author_id !== req.user.id) return res.status(403).json({ message: 'Можно редактировать только свои сообщения.' });
+    db.prepare('UPDATE messages SET content = ?, edited_at = CURRENT_TIMESTAMP WHERE id = ? AND conversation_id = ?').run(content, messageId, conversationId);
+    const message = serializeMessage(selectMessageWithAuthor.get(messageId));
+    io.to(getConversationRoom(conversationId)).emit('message:update', { conversationId, message });
+    broadcastConversationUpdate(conversationId);
+    return res.json({ message });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось изменить сообщение.' });
+  }
 });
 
 app.post('/api/conversations/:id/read', ensureAuthenticated, (req, res) => {
