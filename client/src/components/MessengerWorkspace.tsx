@@ -19,6 +19,7 @@ import {
   ChevronUp,
   Maximize2,
   Minimize2,
+  MoreHorizontal,
   Mic,
   MicOff,
   Plus,
@@ -45,7 +46,7 @@ import type {
 } from '../types';
 import { apiFetch } from '../lib/api';
 import { Avatar } from './Avatar';
-import { Input, Textarea } from './ui';
+import { Input, Textarea, Slider, Switch, Select } from './ui';
 import { getSocket } from '../lib/socket';
 
 type WorkspaceMode = 'servers' | 'friends';
@@ -1840,6 +1841,10 @@ function CallOverlay({
   const overlayRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [remoteVolume, setRemoteVolume] = useState(1);
+  const [noiseSuppression, setNoiseSuppression] = useState(true);
+  const [tileSize, setTileSize] = useState<'compact' | 'comfortable' | 'large'>('comfortable');
   const [clock, setClock] = useState(Date.now());
   const peerName = peer?.display_name || peer?.username || 'Собеседник';
   const cameraTrack = state.localStream?.getVideoTracks()[0];
@@ -1861,6 +1866,10 @@ function CallOverlay({
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
+    state.localStream?.getAudioTracks().forEach((track) => { void track.applyConstraints({ noiseSuppression }).catch(() => {}); });
+  }, [state.localStream, noiseSuppression]);
+
+  useEffect(() => {
     if (localVideoRef.current && state.localStream) localVideoRef.current.srcObject = state.localStream;
   }, [state.localStream]);
   useEffect(() => {
@@ -1871,6 +1880,11 @@ function CallOverlay({
     const output = (remoteAudioRef.current || remoteVideoRef.current) as (HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> }) | null;
     if (output?.setSinkId && audioOutputId) void output.setSinkId(audioOutputId).catch((error) => console.warn('Audio output selection failed:', error));
   }, [audioOutputId, state.remoteStream]);
+
+  useEffect(() => {
+    if (remoteAudioRef.current) remoteAudioRef.current.volume = remoteVolume;
+    if (remoteVideoRef.current) remoteVideoRef.current.volume = remoteVolume;
+  }, [remoteVolume, state.remoteStream]);
 
   const total = Math.max(0, Math.floor((clock - state.startedAt) / 1000));
   const duration = `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`;
@@ -1891,7 +1905,7 @@ function CallOverlay({
         <div className={state.remoteStream ? 'call-banner-person connected' : 'call-banner-person pending'}><Avatar user={peer} size={64} showStatus /><small>{peerName}</small></div>
       </div>
       {state.remoteStream && !state.remoteStream.getVideoTracks().length && <audio ref={remoteAudioRef} className="call-audio-sink" autoPlay playsInline muted={deafened} />}
-      {(state.remoteStream?.getVideoTracks().length || cameraTrack) ? <div className="call-banner-media">
+      {(state.remoteStream?.getVideoTracks().length || cameraTrack) ? <div className={`call-banner-media ${tileSize}`}>
         {state.remoteStream?.getVideoTracks().length ? <video ref={remoteVideoRef} autoPlay playsInline muted={deafened} /> : null}
         {cameraTrack && <video ref={localVideoRef} className="call-local-preview" autoPlay playsInline muted />}
       </div> : null}
@@ -1907,6 +1921,14 @@ function CallOverlay({
         </div>
         <div className="call-control-group">
           <button type="button" className="call-control" onClick={onShareScreen} data-tooltip="Поделиться экраном" aria-label="Поделиться экраном"><Monitor size={17} /></button>
+          <div className="call-more-wrap">
+            <button type="button" className="call-control" onClick={() => setMoreOpen((value) => !value)} data-tooltip="Дополнительные настройки" aria-label="Дополнительные настройки"><MoreHorizontal size={17} /></button>
+            {moreOpen && <div className="call-more-popover">
+              <div><span>Шумоподавление</span><Switch checked={noiseSuppression} onChange={setNoiseSuppression} label="Шумоподавление" /></div>
+              <Slider label="Громкость собеседника" min={0} max={1} step={0.05} value={remoteVolume} valueLabel={`${Math.round(remoteVolume * 100)}%`} onChange={setRemoteVolume} />
+              <label><span>Размер плитки</span><Select value={tileSize} onChange={(event) => setTileSize(event.target.value as typeof tileSize)}><option value="compact">Компактный</option><option value="comfortable">Обычный</option><option value="large">Крупный</option></Select></label>
+            </div>}
+          </div>
           <button type="button" className="call-control" onClick={() => void toggleFullscreen()} title={fullscreen ? 'Свернуть звонок' : 'Развернуть звонок'} aria-label={fullscreen ? 'Свернуть звонок' : 'Развернуть звонок'}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
           <button type="button" className="call-control" onClick={() => setCollapsed(true)} title="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
         </div>
