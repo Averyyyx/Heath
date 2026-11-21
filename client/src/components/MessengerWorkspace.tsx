@@ -1228,6 +1228,12 @@ export function MessengerWorkspace({
                   <button type="button" className="link" onClick={() => { setEditingChannelMessageId(null); setChannelComposer(''); }}>Отмена</button>
                 </div>
               )}
+              {editingChannelMessageId !== null && (
+                <div className="composer-editing-banner">
+                  <span>Редактирование сообщения</span>
+                  <button type="button" className="link" onClick={() => { setEditingChannelMessageId(null); setChannelComposer(''); }}>Отмена</button>
+                </div>
+              )}
               <div className="composer">
                 <label className="file-pill">
                   <Paperclip size={16} />
