@@ -3171,3 +3171,32 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   font-size: 16px;
 }
 .message-context-reactions button:hover { background: var(--surface-hover); }
+
+
+/* Message replies */
+.message-reply-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: min(560px, 100%);
+  margin: 2px 0 7px;
+  padding: 5px 9px;
+  border: 0;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+.message-reply-preview:hover { background: var(--surface-hover); color: var(--text); }
+.message-reply-author { color: var(--text); font-size: 12px; font-weight: 600; }
+.message-reply-content {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-replying-banner { border-left: 2px solid var(--accent); }

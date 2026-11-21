@@ -34,6 +34,7 @@ import type {
   Conversation,
   Message,
   MessageReaction,
+  MessageReply,
   Server,
   User
 } from '../types';
@@ -132,6 +133,7 @@ export function MessengerWorkspace({
   const [composerText, setComposerText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingChannelMessageId, setEditingChannelMessageId] = useState<number | null>(null);
+  const [replyingTo, setReplyingTo] = useState<{ message: Message | ChannelMessage; kind: 'dm' | 'channel' } | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const [servers, setServers] = useState<Server[]>([]);
@@ -174,6 +176,7 @@ export function MessengerWorkspace({
   useEffect(() => {
     setEditingChannelMessageId(null);
     setChannelComposer('');
+    setReplyingTo(null);
   }, [activeChannelId]);
 
   const callWasActiveRef = useRef(false);
@@ -475,6 +478,10 @@ export function MessengerWorkspace({
   const activeMessages = activeConversationId ? messageStore[activeConversationId] || [] : [];
 
   useEffect(() => {
+    setReplyingTo(null);
+  }, [activeConversationId]);
+
+  useEffect(() => {
     if (editingMessageId === null) return;
     setEditingMessageId(null);
     setComposerText('');
@@ -695,9 +702,22 @@ export function MessengerWorkspace({
     });
   }
 
+  function beginReplyMessage(message: Message | ChannelMessage, kind: 'dm' | 'channel') {
+    setReplyingTo({ message, kind });
+    setMessageContext(null);
+    if (kind === 'dm') {
+      setEditingMessageId(null);
+      window.requestAnimationFrame(() => composerRef.current?.focus());
+    } else {
+      setEditingChannelMessageId(null);
+      window.requestAnimationFrame(() => channelComposerRef.current?.focus());
+    }
+  }
+
   function beginEditMessage(message: Message | ChannelMessage) {
     if (message.author.id !== user.id || !message.content) return;
     setMessageContext(null);
+    setReplyingTo(null);
     if ('channel_id' in message) {
       setEditingMessageId(null);
       setEditingChannelMessageId(message.id);
@@ -766,6 +786,7 @@ export function MessengerWorkspace({
 
     const formData = new FormData();
     formData.append('content', composerText);
+    if (replyingTo?.kind === 'dm') formData.append('replyToMessageId', String(replyingTo.message.id));
     if (uploadFile) {
       formData.append('attachment', uploadFile);
     }
@@ -787,6 +808,7 @@ export function MessengerWorkspace({
       playNexoSound('send');
       setComposerText('');
       setUploadFile(null);
+      setReplyingTo(null);
     } catch (error) {
       playNexoSound('error');
       console.error(error);
@@ -820,6 +842,7 @@ export function MessengerWorkspace({
 
     const formData = new FormData();
     formData.append('content', channelComposer);
+    if (replyingTo?.kind === 'channel') formData.append('replyToMessageId', String(replyingTo.message.id));
     if (channelUpload) {
       formData.append('attachment', channelUpload);
     }
@@ -844,6 +867,7 @@ export function MessengerWorkspace({
       playNexoSound('send');
       setChannelComposer('');
       setChannelUpload(null);
+      setReplyingTo(null);
     } catch (error) {
       playNexoSound('error');
       console.error(error);
@@ -1134,8 +1158,8 @@ export function MessengerWorkspace({
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                            {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
-                            {message.edited_at && <small className="message-edited-label">изменено</small>}
                             {message.edited_at && <small className="message-edited-label">изменено</small>}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'dm', emoji)} />
@@ -1150,6 +1174,12 @@ export function MessengerWorkspace({
               </div>
               {typingUser && <div className="typing-indicator">{typingUser.display_name || typingUser.username} печатает…</div>}
               {callError && <p className="status error call-error">{callError}</p>}
+              {replyingTo?.kind === 'dm' && (
+                <div className="composer-editing-banner composer-replying-banner">
+                  <span>Ответ для {replyingTo.message.author.display_name || replyingTo.message.author.username}: {replyingTo.message.content || 'Вложение'}</span>
+                  <button type="button" className="link" onClick={() => setReplyingTo(null)}>Отмена</button>
+                </div>
+              )}
               <div className={`composer ${editingMessageId !== null ? 'editing' : ''}`}>
                 {editingMessageId !== null && (
                   <div className="composer-editing-banner">
@@ -1262,6 +1292,7 @@ export function MessengerWorkspace({
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                            {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-channel-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'channel', emoji)} />
@@ -1271,10 +1302,10 @@ export function MessengerWorkspace({
                     );
                   })}
               </div>
-              {editingChannelMessageId !== null && (
-                <div className="composer-editing-banner">
-                  <span>Редактирование сообщения</span>
-                  <button type="button" className="link" onClick={() => { setEditingChannelMessageId(null); setChannelComposer(''); }}>Отмена</button>
+              {replyingTo?.kind === 'channel' && (
+                <div className="composer-editing-banner composer-replying-banner">
+                  <span>Ответ для {replyingTo.message.author.display_name || replyingTo.message.author.username}: {replyingTo.message.content || 'Вложение'}</span>
+                  <button type="button" className="link" onClick={() => setReplyingTo(null)}>Отмена</button>
                 </div>
               )}
               {editingChannelMessageId !== null && (
@@ -1283,6 +1314,7 @@ export function MessengerWorkspace({
                   <button type="button" className="link" onClick={() => { setEditingChannelMessageId(null); setChannelComposer(''); }}>Отмена</button>
                 </div>
               )}
+
               <div className="composer">
                 <label className="file-pill">
                   <Paperclip size={16} />
@@ -1370,6 +1402,9 @@ export function MessengerWorkspace({
                 <button key={emoji} type="button" title={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
               ))}
             </div>
+            <button type="button" onClick={() => beginReplyMessage(messageContext.message, messageContext.kind)}>
+              <MessageCircle size={14} /><span>Ответить</span>
+            </button>
             <button type="button" onClick={() => {
               const value = messageContext.message.content || messageContext.message.attachment?.name || '';
               void copyText(value);
@@ -1587,6 +1622,15 @@ function MessageReactions({ reactions, userId, onToggle }: {
         </button>
       ))}
     </div>
+  );
+}
+
+function MessageReplyPreview({ replyTo, onClick }: { replyTo: MessageReply; onClick: () => void }) {
+  return (
+    <button type="button" className="message-reply-preview" onClick={onClick} title="Перейти к исходному сообщению">
+      <span className="message-reply-author">{replyTo.author.display_name || replyTo.author.username}</span>
+      <span className="message-reply-content">{replyTo.content || 'Сообщение без текста'}</span>
+    </button>
   );
 }
 

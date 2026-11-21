@@ -402,6 +402,9 @@ db.prepare(`
 if (!db.prepare('PRAGMA table_info(messages)').all().some((column) => column.name === 'edited_at')) {
   db.prepare('ALTER TABLE messages ADD COLUMN edited_at DATETIME').run();
 }
+if (!db.prepare('PRAGMA table_info(messages)').all().some((column) => column.name === 'reply_to_message_id')) {
+  db.prepare('ALTER TABLE messages ADD COLUMN reply_to_message_id INTEGER').run();
+}
 
 db.prepare(`
   CREATE TABLE IF NOT EXISTS attachments (
@@ -493,6 +496,9 @@ db.prepare(`
 
 if (!db.prepare('PRAGMA table_info(server_messages)').all().some((column) => column.name === 'edited_at')) {
   db.prepare('ALTER TABLE server_messages ADD COLUMN edited_at DATETIME').run();
+}
+if (!db.prepare('PRAGMA table_info(server_messages)').all().some((column) => column.name === 'reply_to_message_id')) {
+  db.prepare('ALTER TABLE server_messages ADD COLUMN reply_to_message_id INTEGER').run();
 }
 
 db.prepare(`
@@ -713,7 +719,7 @@ const listConversationsForUser = db.prepare(`
   GROUP BY c.id
   ORDER BY datetime(COALESCE(last_activity, c.updated_at)) DESC
 `);
-const insertMessage = db.prepare('INSERT INTO messages (conversation_id, author_id, content, attachment) VALUES (?, ?, ?, ?)');
+const insertMessage = db.prepare('INSERT INTO messages (conversation_id, author_id, content, attachment, reply_to_message_id) VALUES (?, ?, ?, ?, ?)');
 const selectMessageById = db.prepare('SELECT * FROM messages WHERE id = ?');
 const selectMessageWithAuthor = db.prepare(`
   SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
@@ -774,7 +780,7 @@ const listServerMembersDetailed = db.prepare(`
 const insertChannel = db.prepare('INSERT INTO channels (server_id, type, name, topic, position) VALUES (?, ?, ?, ?, ?)');
 const selectChannelById = db.prepare('SELECT * FROM channels WHERE id = ?');
 const listChannelsForServer = db.prepare('SELECT * FROM channels WHERE server_id = ? ORDER BY position ASC, id ASC');
-const insertServerMessage = db.prepare('INSERT INTO server_messages (server_id, channel_id, author_id, content, attachment) VALUES (?, ?, ?, ?, ?)');
+const insertServerMessage = db.prepare('INSERT INTO server_messages (server_id, channel_id, author_id, content, attachment, reply_to_message_id) VALUES (?, ?, ?, ?, ?, ?)');
 const selectServerMessageById = db.prepare('SELECT * FROM server_messages WHERE id = ?');
 const selectServerMessageWithAuthor = db.prepare(`
   SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
@@ -1567,6 +1573,25 @@ function serializeAttachment(raw) {
   }
 }
 
+function getMessageReply(scope, replyToMessageId) {
+  if (!replyToMessageId) return null;
+  const row = scope === 'dm'
+    ? db.prepare(`
+        SELECT m.id, m.content, m.attachment, u.id AS author_id, u.username, u.display_name
+        FROM messages m JOIN users u ON u.id = m.author_id WHERE m.id = ?
+      `).get(replyToMessageId)
+    : db.prepare(`
+        SELECT sm.id, sm.content, sm.attachment, u.id AS author_id, u.username, u.display_name
+        FROM server_messages sm JOIN users u ON u.id = sm.author_id WHERE sm.id = ?
+      `).get(replyToMessageId);
+  if (!row) return null;
+  return {
+    id: row.id,
+    content: row.content || (row.attachment ? (serializeAttachment(row.attachment)?.name || 'Вложение') : ''),
+    author: { id: row.author_id, username: row.username, display_name: row.display_name }
+  };
+}
+
 function getMessageReactions(scope, messageId) {
   return listMessageReactions.all(scope, messageId).map((row) => ({
     emoji: row.emoji,
@@ -1592,7 +1617,8 @@ function serializeMessage(row) {
     attachment: serializeAttachment(row.attachment),
     created_at: row.created_at,
     edited_at: row.edited_at || null,
-    reactions: getMessageReactions('dm', row.id)
+    reactions: getMessageReactions('dm', row.id),
+    reply_to: getMessageReply('dm', row.reply_to_message_id)
   };
 }
 
@@ -1614,7 +1640,8 @@ function serializeServerMessage(row) {
     attachment: serializeAttachment(row.attachment),
     created_at: row.created_at,
     edited_at: row.edited_at || null,
-    reactions: getMessageReactions('channel', row.id)
+    reactions: getMessageReactions('channel', row.id),
+    reply_to: getMessageReply('channel', row.reply_to_message_id)
   };
 }
 
@@ -1968,8 +1995,14 @@ function emitChannelMessage(message) {
   });
 }
 
-function createMessage(conversationId, authorId, content, attachmentPayload = null) {
+function createMessage(conversationId, authorId, content, attachmentPayload = null, replyToMessageId = null) {
   const conversation = ensureConversationAccess(conversationId, authorId);
+  const replyId = replyToMessageId ? Number(replyToMessageId) : null;
+  if (replyId !== null && (!Number.isInteger(replyId) || !db.prepare('SELECT id FROM messages WHERE id = ? AND conversation_id = ?').get(replyId, conversationId))) {
+    const error = new Error('Сообщение для ответа не найдено в этом диалоге.');
+    error.statusCode = 400;
+    throw error;
+  }
   const trimmed = (content || '').trim();
   if (!trimmed && !attachmentPayload) {
     const error = new Error('Message must include text or attachment.');
@@ -1982,7 +2015,8 @@ function createMessage(conversationId, authorId, content, attachmentPayload = nu
     conversation.id,
     authorId,
     trimmed || null,
-    attachmentForClient ? JSON.stringify(attachmentForClient) : null
+    attachmentForClient ? JSON.stringify(attachmentForClient) : null,
+    replyId
   );
   const messageId = result.lastInsertRowid;
   if (attachmentPayload) {
@@ -2013,7 +2047,7 @@ function createMessage(conversationId, authorId, content, attachmentPayload = nu
   return message;
 }
 
-function createChannelMessage(serverId, channelId, authorId, content, attachmentPayload = null) {
+function createChannelMessage(serverId, channelId, authorId, content, attachmentPayload = null, replyToMessageId = null) {
   const { channel, permissions } = ensureChannelAccess(serverId, channelId, authorId);
   if (!hasPermission(permissions, PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.SEND_MESSAGES)) {
     const error = new Error('Missing permission to send messages in this channel.');
@@ -2022,6 +2056,13 @@ function createChannelMessage(serverId, channelId, authorId, content, attachment
   }
   if (channel.type !== 'text') {
     const error = new Error('Messages can only be sent to text channels.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const replyId = replyToMessageId ? Number(replyToMessageId) : null;
+  if (replyId !== null && (!Number.isInteger(replyId) || !db.prepare('SELECT id FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?').get(replyId, serverId, channelId))) {
+    const error = new Error('Сообщение для ответа не найдено в этом канале.');
     error.statusCode = 400;
     throw error;
   }
@@ -2037,7 +2078,8 @@ function createChannelMessage(serverId, channelId, authorId, content, attachment
     channel.id,
     authorId,
     trimmed || null,
-    attachmentForClient ? JSON.stringify(attachmentForClient) : null
+    attachmentForClient ? JSON.stringify(attachmentForClient) : null,
+    replyId
   );
   const messageId = result.lastInsertRowid;
   if (attachmentPayload) {
@@ -3016,7 +3058,8 @@ app.post(
         channelId,
         req.user.id,
         req.body.content,
-        attachmentPayload
+        attachmentPayload,
+        req.body.replyToMessageId
       );
       return res.status(201).json({ message });
     } catch (error) {
@@ -3484,7 +3527,7 @@ app.post(
     }
 
     try {
-      const message = createMessage(conversationId, req.user.id, req.body.content, attachmentPayload);
+      const message = createMessage(conversationId, req.user.id, req.body.content, attachmentPayload, req.body.replyToMessageId);
       res.status(201).json({ message });
     } catch (error) {
       if (attachmentPayload) {

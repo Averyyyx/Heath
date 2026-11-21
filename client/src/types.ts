@@ -93,6 +93,12 @@ export type MessageReaction = {
   user_ids: number[];
 };
 
+export type MessageReply = {
+  id: number;
+  content: string;
+  author: Pick<MessageAuthor, 'id' | 'username' | 'display_name'>;
+};
+
 export type Message = {
   id: number;
   conversation_id: number;
@@ -102,6 +108,7 @@ export type Message = {
   created_at: string;
   edited_at?: string | null;
   reactions?: MessageReaction[];
+  reply_to?: MessageReply | null;
 };
 
 export type Conversation = {
@@ -167,5 +174,6 @@ export type ChannelMessage = {
   created_at: string;
   edited_at?: string | null;
   reactions?: MessageReaction[];
+  reply_to?: MessageReply | null;
 };
 
