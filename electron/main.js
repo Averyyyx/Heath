@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog, nativeTheme } = require('electron');
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog, nativeTheme, Notification } = require('electron');
 const path = require('path');
 const { fork, spawn } = require('child_process');
 const http = require('http');
@@ -330,6 +330,18 @@ function setupIPCHandlers() {
     if (mainWindow) {
       mainWindow.close();
     }
+  });
+
+  ipcMain.handle('show-system-notification', (_event, payload = {}) => {
+    if (!Notification.isSupported()) return false;
+    const title = String(payload.title || 'Nexo').slice(0, 100);
+    const body = String(payload.body || '').slice(0, 240);
+    const notification = new Notification({ title, body, icon: getDesktopIconPath(), silent: true });
+    if (typeof payload.deepLink === 'string' && payload.deepLink.startsWith('nexo://')) {
+      notification.on('click', () => dispatchDeepLink(payload.deepLink));
+    }
+    notification.show();
+    return true;
   });
 
   ipcMain.handle('get-app-version', () => app.getVersion());
