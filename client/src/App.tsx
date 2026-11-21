@@ -1228,12 +1228,12 @@ export default function App() {
                     openFriends={openFriendsTab} openPalette={openPalette} openDm={openDmTab}
                     openChannel={(server, channelId) => openChannelTab(server, channelId)} />}
                   {tab.kind === 'friends' && <FriendsPanel user={user} onOpenConversation={(friend) => void handleOpenFriend(friend.username)} />}
-                  {tab.kind === 'dm' && <MessengerWorkspace key={tab.id} user={user} initialMode="friends" embedded
+                  {tab.kind === 'dm' && <MessengerWorkspace key={tab.id} user={user} initialMode="friends" embedded isActive={tab.id === activeTabId}
                     showConversationList={false} openConversationId={tab.targetId || null} openMessageId={tab.messageId || null}
                     pendingIncomingCall={pendingIncomingCall?.conversationId === tab.targetId ? pendingIncomingCall : null}
                     onIncomingCallHandled={() => setPendingIncomingCall(null)}
                     micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
-                  {tab.kind === 'channel' && <MessengerWorkspace key={tab.id} user={user} initialMode="servers" embedded
+                  {tab.kind === 'channel' && <MessengerWorkspace key={tab.id} user={user} initialMode="servers" embedded isActive={tab.id === activeTabId}
                     showChannelSidebar={false} openServerId={tab.serverId || null} openChannelId={tab.channelId || null} openMessageId={tab.messageId || null}
                     onEditChannel={() => {
                       const server = servers.find((item) => item.id === tab.serverId);
