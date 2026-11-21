@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Home, Users, MessageCircle, Settings, Plus, X, ChevronDown, ChevronRight,
   ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command,
-  Phone, Mic, MicOff, Headphones, HeadphoneOff, LogOut, Moon,
+  Phone, PhoneOff, Mic, MicOff, Headphones, HeadphoneOff, LogOut, Moon,
   Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus, RefreshCw, Keyboard,
   PanelLeftClose, PanelLeftOpen, Check, Volume2, Circle,
 } from 'lucide-react';
