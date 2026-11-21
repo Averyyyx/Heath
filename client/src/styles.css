@@ -3479,3 +3479,8 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .nexo-sidebar > .sidebar-scroll-area { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .nexo-sidebar > .sidebar-user-area { flex: 0 0 auto; margin-top: auto !important; overflow: visible; }
 .nexo-sidebar .nexo-user-dock { height: 52px; min-height: 52px; flex: 0 0 52px; }
+
+.call-overlay:fullscreen { width: 100vw; height: 100vh; max-height: none; min-height: 100vh; justify-content: center; gap: 28px; padding: 48px; border: 0; border-radius: 0; background: #161514; }
+.call-overlay:fullscreen .call-banner-participants { gap: 32px; }
+.call-overlay:fullscreen .call-banner-media { max-height: 65vh; }
+.call-overlay:fullscreen .call-banner-controls { margin-top: auto; }
