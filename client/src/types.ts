@@ -123,6 +123,7 @@ export type Conversation = {
   title: string | null;
   participants: User[];
   counterpart?: User | null;
+  last_message?: Message | null;
   updated_at: string;
 };
 
