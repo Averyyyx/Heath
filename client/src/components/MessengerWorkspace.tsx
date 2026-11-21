@@ -130,6 +130,7 @@ export function MessengerWorkspace({
   const [callError, setCallError] = useState('');
   const [composerText, setComposerText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingChannelMessageId, setEditingChannelMessageId] = useState<number | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const [servers, setServers] = useState<Server[]>([]);
@@ -644,10 +645,19 @@ export function MessengerWorkspace({
 
   function beginEditMessage(message: Message | ChannelMessage) {
     if (message.author.id !== user.id || !message.content) return;
+    setMessageContext(null);
+    if ('channel_id' in message) {
+      setEditingMessageId(null);
+      setEditingChannelMessageId(message.id);
+      setChannelUpload(null);
+      setChannelComposer(message.content);
+      window.requestAnimationFrame(() => channelComposerRef.current?.focus());
+      return;
+    }
+    setEditingChannelMessageId(null);
     setUploadFile(null);
     setEditingMessageId(message.id);
     setComposerText(message.content);
-    setMessageContext(null);
     window.requestAnimationFrame(() => composerRef.current?.focus());
   }
 
@@ -734,6 +744,27 @@ export function MessengerWorkspace({
   async function handleSendChannelMessage() {
     if (!activeServerId || !activeChannelId) return;
     if (!channelComposer.trim() && !channelUpload) return;
+
+    if (editingChannelMessageId !== null) {
+      try {
+        const response = await apiFetch(`/api/servers/${activeServerId}/channels/${activeChannelId}/messages/${editingChannelMessageId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: channelComposer })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.message || 'Не удалось изменить сообщение.');
+        setChannelMessages((prev) => ({
+          ...prev,
+          [activeChannelId]: (prev[activeChannelId] || []).map((item) => item.id === editingChannelMessageId ? payload.message : item)
+        }));
+        setChannelComposer('');
+        setEditingChannelMessageId(null);
+      } catch (error) {
+        window.alert((error as Error).message);
+      }
+      return;
+    }
 
     const formData = new FormData();
     formData.append('content', channelComposer);
@@ -1053,6 +1084,7 @@ export function MessengerWorkspace({
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.content && <MessageContent content={message.content} />}
                             {message.edited_at && <small className="message-edited-label">изменено</small>}
+                            {message.edited_at && <small className="message-edited-label">изменено</small>}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) &&
                               (activeConversation.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0) >= message.id &&
@@ -1185,6 +1217,12 @@ export function MessengerWorkspace({
                     );
                   })}
               </div>
+              {editingChannelMessageId !== null && (
+                <div className="composer-editing-banner">
+                  <span>Редактирование сообщения</span>
+                  <button type="button" className="link" onClick={() => { setEditingChannelMessageId(null); setChannelComposer(''); }}>Отмена</button>
+                </div>
+              )}
               <div className="composer">
                 <label className="file-pill">
                   <Paperclip size={16} />
@@ -1282,7 +1320,7 @@ export function MessengerWorkspace({
             }}><LinkIcon /><span>Копировать ссылку</span></button>
             {messageContext.message.author.id === user.id && (
               <>
-                {messageContext.kind === 'dm' && messageContext.message.content && (
+                {messageContext.message.content && (
                   <button type="button" onClick={() => beginEditMessage(messageContext.message)}>
                     <Pencil size={14} /><span>Редактировать</span>
                   </button>
