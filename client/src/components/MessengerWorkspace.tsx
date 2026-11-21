@@ -1158,8 +1158,8 @@ export function MessengerWorkspace({
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                            {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
-                            {message.edited_at && <small className="message-edited-label">изменено</small>}
                             {message.edited_at && <small className="message-edited-label">изменено</small>}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'dm', emoji)} />
@@ -1174,6 +1174,12 @@ export function MessengerWorkspace({
               </div>
               {typingUser && <div className="typing-indicator">{typingUser.display_name || typingUser.username} печатает…</div>}
               {callError && <p className="status error call-error">{callError}</p>}
+              {replyingTo?.kind === 'dm' && (
+                <div className="composer-editing-banner composer-replying-banner">
+                  <span>Ответ для {replyingTo.message.author.display_name || replyingTo.message.author.username}: {replyingTo.message.content || 'Вложение'}</span>
+                  <button type="button" className="link" onClick={() => setReplyingTo(null)}>Отмена</button>
+                </div>
+              )}
               <div className={`composer ${editingMessageId !== null ? 'editing' : ''}`}>
                 {editingMessageId !== null && (
                   <div className="composer-editing-banner">
@@ -1286,6 +1292,7 @@ export function MessengerWorkspace({
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                            {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-channel-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'channel', emoji)} />
@@ -1295,10 +1302,10 @@ export function MessengerWorkspace({
                     );
                   })}
               </div>
-              {editingChannelMessageId !== null && (
-                <div className="composer-editing-banner">
-                  <span>Редактирование сообщения</span>
-                  <button type="button" className="link" onClick={() => { setEditingChannelMessageId(null); setChannelComposer(''); }}>Отмена</button>
+              {replyingTo?.kind === 'channel' && (
+                <div className="composer-editing-banner composer-replying-banner">
+                  <span>Ответ для {replyingTo.message.author.display_name || replyingTo.message.author.username}: {replyingTo.message.content || 'Вложение'}</span>
+                  <button type="button" className="link" onClick={() => setReplyingTo(null)}>Отмена</button>
                 </div>
               )}
               {editingChannelMessageId !== null && (
@@ -1307,6 +1314,7 @@ export function MessengerWorkspace({
                   <button type="button" className="link" onClick={() => { setEditingChannelMessageId(null); setChannelComposer(''); }}>Отмена</button>
                 </div>
               )}
+
               <div className="composer">
                 <label className="file-pill">
                   <Paperclip size={16} />
@@ -1614,6 +1622,15 @@ function MessageReactions({ reactions, userId, onToggle }: {
         </button>
       ))}
     </div>
+  );
+}
+
+function MessageReplyPreview({ replyTo, onClick }: { replyTo: MessageReply; onClick: () => void }) {
+  return (
+    <button type="button" className="message-reply-preview" onClick={onClick} title="Перейти к исходному сообщению">
+      <span className="message-reply-author">{replyTo.author.display_name || replyTo.author.username}</span>
+      <span className="message-reply-content">{replyTo.content || 'Сообщение без текста'}</span>
+    </button>
   );
 }
 
