@@ -1476,8 +1476,6 @@ export default function App() {
             }}>Отклонить</button>
             <button type="button" className="primary" onClick={() => {
               const server = servers.find((item) => item.id === pendingVoiceInvite.serverId);
-              if (activeCallInfo && !window.confirm('Выйти из личного звонка и подключиться к голосовому каналу?')) return;
-              if (activeCallInfo) window.dispatchEvent(new CustomEvent('nexo-end-call'));
               if (server) openVoiceTab(server, pendingVoiceInvite.channelId);
               getSocket().emit('voice:invite-response', { to: pendingVoiceInvite.from, channelId: pendingVoiceInvite.channelId, accepted: true });
               setPendingVoiceInvite(null);
