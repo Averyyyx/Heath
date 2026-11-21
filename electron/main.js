@@ -704,7 +704,8 @@ function startServer() {
 
 function createSplashWindow() {
   console.log('Creating splash window...');
-  
+  const splashIconPath = getDesktopIconPath();
+
   splashWindow = new BrowserWindow({
     width: 520,
     height: 620,
@@ -718,8 +719,15 @@ function createSplashWindow() {
       preload: path.join(__dirname, 'splash-preload.js')
     },
     show: false,
-    backgroundColor: '#262624'
+    backgroundColor: '#262624',
+    icon: splashIconPath
   });
+
+  if (process.platform === 'win32') {
+    const splashIcon = nativeImage.createFromPath(splashIconPath);
+    if (!splashIcon.isEmpty()) splashWindow.setIcon(splashIcon);
+    else console.warn('Nexo splash icon could not be loaded:', splashIconPath);
+  }
 
   const splashPath = path.join(__dirname, 'splash.html');
   console.log('Loading splash from:', splashPath);
