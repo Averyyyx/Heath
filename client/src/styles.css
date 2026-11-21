@@ -3490,3 +3490,11 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 
 .sidebar-voice-member.speaking > :first-child { border-radius: 50%; box-shadow: 0 0 0 2px var(--accent); }
 .voice-room-controls button:disabled { opacity: .45; cursor: not-allowed; }
+
+.call-more-wrap { position: relative; }
+.call-more-popover { position: absolute; right: 0; bottom: calc(100% + 9px); z-index: 80; display: flex; width: 270px; flex-direction: column; gap: 13px; padding: 13px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; background: #211f1e; color: #f4f0e9; }
+.call-more-popover > div, .call-more-popover > label { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; }
+.call-more-popover .nexo-slider { color: #f4f0e9; }
+.call-more-popover .nexo-select { min-height: 32px; background: #302d2b; color: #f4f0e9; }
+.call-banner-media.compact { max-height: 100px; }
+.call-banner-media.large { max-height: 180px; }
