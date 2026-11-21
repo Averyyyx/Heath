@@ -1593,7 +1593,7 @@ function CommandPalette({ entries, query, activeIndex, setQuery, onKeyDown, onCl
   let index = -1;
   return <div className="command-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <motion.div className="command-palette" initial={{ opacity: 0, y: 12, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: .99 }}>
-      <div className="command-search"><Search size={18} /><input className="command-palette-input" value={query} onChange={(event) => setQuery(event.target.value)}
+      <div className="command-search"><Search size={18} /><Input className="command-palette-input" value={query} onChange={(event) => setQuery(event.target.value)}
         onKeyDown={onKeyDown} placeholder="Куда перейти или что выполнить?" /><kbd>ESC</kbd></div>
       <div className="command-results">
         {['Диалоги', 'Друзья', 'Каналы', 'Действия'].map((group) => {
