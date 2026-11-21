@@ -144,34 +144,36 @@ export function playNexoSound(kind: SoundKind): void {
   if (volume <= 0) return;
   const now = audio.currentTime;
   for (const note of patterns[kind]) {
-    if (activeVoices >= 2) break;
-    const oscillator = audio.createOscillator();
-    const filter = audio.createBiquadFilter();
-    const gain = audio.createGain();
-    const startAt = now + note.at;
-    const stopAt = startAt + note.duration + .035;
-    activeVoices += 1;
-    oscillator.type = note.wave || 'sine';
-    oscillator.frequency.setValueAtTime(note.frequency, startAt);
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1900, startAt);
-    filter.Q.setValueAtTime(.55, startAt);
-    gain.gain.setValueAtTime(.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(Math.max(.0002, volume * note.gain), startAt + .025);
-    gain.gain.exponentialRampToValueAtTime(.0001, startAt + note.duration);
-    oscillator.connect(filter);
-    filter.connect(gain);
-    gain.connect(audio.destination);
-    oscillator.onended = () => { activeVoices = Math.max(0, activeVoices - 1); };
-    oscillator.start(startAt);
-    oscillator.stop(stopAt);
+    window.setTimeout(() => {
+      if (activeVoices >= 2 || audio.state !== 'running') return;
+      const oscillator = audio.createOscillator();
+      const filter = audio.createBiquadFilter();
+      const gain = audio.createGain();
+      const startAt = audio.currentTime;
+      const stopAt = startAt + note.duration + .035;
+      activeVoices += 1;
+      oscillator.type = note.wave || 'sine';
+      oscillator.frequency.setValueAtTime(note.frequency, startAt);
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1900, startAt);
+      filter.Q.setValueAtTime(.55, startAt);
+      gain.gain.setValueAtTime(.0001, startAt);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0002, volume * note.gain), startAt + .025);
+      gain.gain.exponentialRampToValueAtTime(.0001, startAt + note.duration);
+      oscillator.connect(filter);
+      filter.connect(gain);
+      gain.connect(audio.destination);
+      oscillator.onended = () => { activeVoices = Math.max(0, activeVoices - 1); };
+      oscillator.start(startAt);
+      oscillator.stop(stopAt);
+    }, Math.round(note.at * 1000));
   }
 }
 
 export function startNexoRingtone(options: { allowInDnd?: boolean } = {}): () => void {
   const preferences = getNexoSoundPreferences();
   if (!preferences.enabled || !preferences.events.ring) return () => {};
-  if (options.allowInDnd !== true && typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true') return () => {};
+  if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true') return () => {};
   let stopped = false;
   const play = () => { if (!stopped) playNexoSound('ring'); };
   play();
