@@ -983,6 +983,10 @@ const PERMISSIONS = {
   PRIORITY_SPEAKER: 1 << 10
 };
 
+// Existing default community roles receive the baseline permissions needed for voice rooms.
+db.prepare('UPDATE server_roles SET permissions = permissions | ? WHERE is_default = 1')
+  .run((1 << 7) | (1 << 8) | (1 << 9));
+
 function computeBasePermissions(serverId, userId, cachedRoles = null) {
   const membership = selectServerMember.get(serverId, userId);
   if (!membership) return 0;
@@ -2876,7 +2880,7 @@ app.post('/api/servers', ensureAuthenticated, (req, res) => {
       'Community',
       '#a78bfa',
       0,
-      PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.SEND_MESSAGES,
+      PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.SEND_MESSAGES | PERMISSIONS.CONNECT_VOICE | PERMISSIONS.SPEAK_VOICE | PERMISSIONS.STREAM,
       1
     );
     insertChannel.run(result.lastInsertRowid, 'text', 'general', 'Welcome to your server', 0);
