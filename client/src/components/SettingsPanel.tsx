@@ -109,7 +109,7 @@ const PERMISSION_FLAGS = [
   { label: 'Транслировать экран', value: 1 << 9 }
 ];
 
-export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.7-alpha', onCheckUpdates, audioInputId = '', audioOutputId = '', onAudioInputChange, onAudioOutputChange }: SettingsPanelProps) {
+export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.8-alpha', onCheckUpdates, audioInputId = '', audioOutputId = '', onAudioInputChange, onAudioOutputChange }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [soundPreferences, setSoundPreferences] = useState<NexoSoundPreferences>(() => getNexoSoundPreferences());
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
