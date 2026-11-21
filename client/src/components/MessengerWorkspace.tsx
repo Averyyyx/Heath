@@ -170,6 +170,11 @@ export function MessengerWorkspace({
     callStateRef.current = callState;
   }, [callState]);
 
+  useEffect(() => {
+    setEditingChannelMessageId(null);
+    setChannelComposer('');
+  }, [activeChannelId]);
+
   const callWasActiveRef = useRef(false);
   useEffect(() => {
     if (callState) {
