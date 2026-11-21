@@ -3449,7 +3449,12 @@ app.get('/api/servers/:serverId/channels/:channelId/voice', ensureAuthenticated,
     if (!hasPermission(permissions, PERMISSIONS.VIEW_CHANNEL)) {
       return res.status(403).json({ message: 'Missing permission to view this voice channel.' });
     }
-    return res.json({ participants: listVoiceParticipants(channelId) });
+    return res.json({
+      participants: listVoiceParticipants(channelId),
+      canConnect: hasPermission(permissions, PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.CONNECT_VOICE),
+      canSpeak: hasPermission(permissions, PERMISSIONS.SPEAK_VOICE),
+      canStream: hasPermission(permissions, PERMISSIONS.STREAM)
+    });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ message: error.message });
   }
