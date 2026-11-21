@@ -1277,11 +1277,11 @@ export function MessengerWorkspace({
                     return (
                       <Fragment key={message.id}>
                         {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
-                        <article id={`nexo-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`dm:${message.id}`) ? 'message-arrived' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
+                        <article id={`nexo-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`dm:${message.id}`) ? 'message-arrived' : ''}`}
                           onContextMenu={(event) => openMessageMenu(event, message, 'dm')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
-                            {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                            {!grouped && <header><strong>{authorName}</strong><time className="message-time" data-tooltip={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.edited_at && <small className="message-edited-label">изменено</small>}
@@ -1420,7 +1420,7 @@ export function MessengerWorkspace({
                     return (
                       <Fragment key={message.id}>
                         {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
-                        <article id={`nexo-channel-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
+                        <article id={`nexo-channel-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`}
                           onContextMenu={(event) => openMessageMenu(event, message, 'channel')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
@@ -1591,9 +1591,9 @@ export function MessengerWorkspace({
               {ringtoneMuted ? 'Включить звук звонка' : 'Отключить звук звонка'}
             </button>
             <div className="incoming-call-actions">
-              <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" title="Отклонить"><PhoneOff size={20} /></button>
-              {incomingCall.mediaType === 'video' && <button type="button" className="call-accept call-accept-audio" onClick={() => void acceptIncomingCall('audio')} aria-label="Принять без видео" title="Принять без видео"><Phone size={18} /><small>Без видео</small></button>}
-              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title={callState ? 'Принять и завершить текущий' : 'Принять'}><Phone size={20} /></button>
+              <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" title="Отклонить"><PhoneOff size={18} /><span>Отклонить</span></button>
+              {incomingCall.mediaType === 'video' && <button type="button" className="call-accept call-accept-audio" onClick={() => void acceptIncomingCall('audio')} aria-label="Принять без видео" title="Принять без видео"><Phone size={18} /><span>Без видео</span></button>}
+              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title={callState ? 'Принять и завершить текущий' : 'Принять'}><Phone size={18} /><span>Принять</span></button>
             </div>
           </motion.section>
         </motion.div>
