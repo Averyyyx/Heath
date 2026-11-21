@@ -134,14 +134,7 @@ const patterns: Record<SoundKind, SoundNote[]> = {
   error: [{ frequency: C, at: 0, duration: .2, gain: .13 }]
 };
 
-export function playNexoSound(kind: SoundKind): void {
-  const preferences = getNexoSoundPreferences();
-  if (!preferences.enabled || !preferences.events[kind]) return;
-  const audio = getAudioContext();
-  if (!audio || audio.state !== 'running') return;
-  const volume = kind === 'ring' || kind === 'outgoing-ring'
-    ? preferences.ringtoneVolume : preferences.volume;
-  if (volume <= 0) return;
+function scheduleSoundPattern(audio: AudioContext, kind: SoundKind, volume: number): void {
   for (const note of patterns[kind]) {
     window.setTimeout(() => {
       if (activeVoices >= 2 || audio.state !== 'running') return;
@@ -167,6 +160,21 @@ export function playNexoSound(kind: SoundKind): void {
       oscillator.stop(stopAt);
     }, Math.round(note.at * 1000));
   }
+}
+
+export function playNexoSound(kind: SoundKind): void {
+  const preferences = getNexoSoundPreferences();
+  if (!preferences.enabled || !preferences.events[kind]) return;
+  const audio = getAudioContext();
+  if (!audio) return;
+  const volume = kind === 'ring' || kind === 'outgoing-ring'
+    ? preferences.ringtoneVolume : preferences.volume;
+  if (volume <= 0) return;
+  if (audio.state === 'suspended') {
+    void audio.resume().then(() => scheduleSoundPattern(audio, kind, volume)).catch(() => {});
+    return;
+  }
+  if (audio.state === 'running') scheduleSoundPattern(audio, kind, volume);
 }
 
 export function startNexoRingtone(): () => void {
