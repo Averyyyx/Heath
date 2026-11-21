@@ -34,6 +34,7 @@ import type {
   Conversation,
   Message,
   MessageReaction,
+  MessageReply,
   Server,
   User
 } from '../types';
@@ -132,6 +133,7 @@ export function MessengerWorkspace({
   const [composerText, setComposerText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingChannelMessageId, setEditingChannelMessageId] = useState<number | null>(null);
+  const [replyingTo, setReplyingTo] = useState<{ message: Message | ChannelMessage; kind: 'dm' | 'channel' } | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const [servers, setServers] = useState<Server[]>([]);
@@ -174,6 +176,7 @@ export function MessengerWorkspace({
   useEffect(() => {
     setEditingChannelMessageId(null);
     setChannelComposer('');
+    setReplyingTo(null);
   }, [activeChannelId]);
 
   const callWasActiveRef = useRef(false);
@@ -475,6 +478,10 @@ export function MessengerWorkspace({
   const activeMessages = activeConversationId ? messageStore[activeConversationId] || [] : [];
 
   useEffect(() => {
+    setReplyingTo(null);
+  }, [activeConversationId]);
+
+  useEffect(() => {
     if (editingMessageId === null) return;
     setEditingMessageId(null);
     setComposerText('');
@@ -695,9 +702,22 @@ export function MessengerWorkspace({
     });
   }
 
+  function beginReplyMessage(message: Message | ChannelMessage, kind: 'dm' | 'channel') {
+    setReplyingTo({ message, kind });
+    setMessageContext(null);
+    if (kind === 'dm') {
+      setEditingMessageId(null);
+      window.requestAnimationFrame(() => composerRef.current?.focus());
+    } else {
+      setEditingChannelMessageId(null);
+      window.requestAnimationFrame(() => channelComposerRef.current?.focus());
+    }
+  }
+
   function beginEditMessage(message: Message | ChannelMessage) {
     if (message.author.id !== user.id || !message.content) return;
     setMessageContext(null);
+    setReplyingTo(null);
     if ('channel_id' in message) {
       setEditingMessageId(null);
       setEditingChannelMessageId(message.id);
@@ -766,6 +786,7 @@ export function MessengerWorkspace({
 
     const formData = new FormData();
     formData.append('content', composerText);
+    if (replyingTo?.kind === 'dm') formData.append('replyToMessageId', String(replyingTo.message.id));
     if (uploadFile) {
       formData.append('attachment', uploadFile);
     }
@@ -787,6 +808,7 @@ export function MessengerWorkspace({
       playNexoSound('send');
       setComposerText('');
       setUploadFile(null);
+      setReplyingTo(null);
     } catch (error) {
       playNexoSound('error');
       console.error(error);
@@ -820,6 +842,7 @@ export function MessengerWorkspace({
 
     const formData = new FormData();
     formData.append('content', channelComposer);
+    if (replyingTo?.kind === 'channel') formData.append('replyToMessageId', String(replyingTo.message.id));
     if (channelUpload) {
       formData.append('attachment', channelUpload);
     }
@@ -844,6 +867,7 @@ export function MessengerWorkspace({
       playNexoSound('send');
       setChannelComposer('');
       setChannelUpload(null);
+      setReplyingTo(null);
     } catch (error) {
       playNexoSound('error');
       console.error(error);
@@ -1370,6 +1394,9 @@ export function MessengerWorkspace({
                 <button key={emoji} type="button" title={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
               ))}
             </div>
+            <button type="button" onClick={() => beginReplyMessage(messageContext.message, messageContext.kind)}>
+              <MessageCircle size={14} /><span>Ответить</span>
+            </button>
             <button type="button" onClick={() => {
               const value = messageContext.message.content || messageContext.message.attachment?.name || '';
               void copyText(value);
