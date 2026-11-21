@@ -37,6 +37,8 @@ type SettingsPanelProps = {
   onCheckUpdates?: () => Promise<{ status: string; version?: string; message: string; releaseNotes?: string }>;
   audioInputId?: string;
   audioOutputId?: string;
+  videoInputId?: string;
+  onVideoInputChange?: (id: string) => void;
   onAudioInputChange?: (id: string) => void;
   onAudioOutputChange?: (id: string) => void;
 };
@@ -110,11 +112,12 @@ const PERMISSION_FLAGS = [
   { label: 'Транслировать экран', value: 1 << 9 }
 ];
 
-export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.8-alpha', onCheckUpdates, audioInputId = '', audioOutputId = '', onAudioInputChange, onAudioOutputChange }: SettingsPanelProps) {
+export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.8-alpha', onCheckUpdates, audioInputId = '', audioOutputId = '', videoInputId = '', onVideoInputChange, onAudioInputChange, onAudioOutputChange }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [soundPreferences, setSoundPreferences] = useState<NexoSoundPreferences>(() => getNexoSoundPreferences());
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
+  const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
   const [accountName, setAccountName] = useState(user.display_name || '');
   const [accountHandle, setAccountHandle] = useState(user.username || '');
   const [profileBio, setProfileBio] = useState(user.bio || '');
@@ -163,6 +166,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       void navigator.mediaDevices?.enumerateDevices?.().then((devices) => {
         setAudioInputs(devices.filter((device) => device.kind === 'audioinput'));
         setAudioOutputs(devices.filter((device) => device.kind === 'audiooutput'));
+        setVideoInputs(devices.filter((device) => device.kind === 'videoinput'));
       }).catch(() => {});
     };
     refreshDevices();
@@ -1345,6 +1349,9 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           </div>
           <div className="settings-device-row"><span><strong>Устройство вывода</strong><small>Наушники или колонки для звонков</small></span>
             <Select value={audioOutputId} onChange={(event) => onAudioOutputChange?.(event.target.value)}><option value="">Системное устройство по умолчанию</option>{audioOutputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Устройство вывода ${index + 1}`}</option>)}</Select>
+          </div>
+          <div className="settings-device-row"><span><strong>Камера</strong><small>Устройство для видеозвонков и голосовых каналов</small></span>
+            <Select value={videoInputId} onChange={(event) => onVideoInputChange?.(event.target.value)}><option value="">Системная камера по умолчанию</option>{videoInputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Камера ${index + 1}`}</option>)}</Select>
           </div>
         </div>
         <p className="muted">Названия устройств могут появиться только после предоставления разрешения на доступ к микрофону.</p>
