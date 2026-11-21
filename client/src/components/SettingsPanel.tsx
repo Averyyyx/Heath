@@ -189,6 +189,15 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
     return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
   }, []);
 
+  useEffect(() => {
+    const syncSoundPreferences = (event: Event) => {
+      const next = (event as CustomEvent<NexoSoundPreferences>).detail;
+      if (next) setSoundPreferences(next);
+    };
+    window.addEventListener('nexo-sound-preferences-updated', syncSoundPreferences);
+    return () => window.removeEventListener('nexo-sound-preferences-updated', syncSoundPreferences);
+  }, []);
+
   function changeSoundPreference<K extends keyof NexoSoundPreferences>(key: K, value: NexoSoundPreferences[K]) {
     setSoundPreferences((current) => {
       const next = { ...current, [key]: value };
