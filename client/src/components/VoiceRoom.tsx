@@ -84,6 +84,10 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
   }, [channel.id, closePeer]);
 
   useEffect(() => {
+    window.dispatchEvent(new CustomEvent('nexo-voice-participants', { detail: { channelId: channel.id, participants } }));
+  }, [channel.id, participants]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
@@ -276,6 +280,18 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       }, { once: true });
     } catch (reason) { setError((reason as Error).message || 'Не удалось включить камеру.'); }
   }
+
+  useEffect(() => {
+    const onAction = (event: Event) => {
+      const detail = (event as CustomEvent<{ channelId: number; action: string }>).detail;
+      if (detail?.channelId !== channel.id) return;
+      if (detail.action === 'camera') void toggleCamera();
+      if (detail.action === 'screen') void toggleScreenShare();
+      if (detail.action === 'leave') onLeave();
+    };
+    window.addEventListener('nexo-voice-action', onAction);
+    return () => window.removeEventListener('nexo-voice-action', onAction);
+  });
 
   const elapsed = joinedAt ? Math.max(0, Math.floor((clock - joinedAt) / 1000)) : 0;
   const duration = `${Math.floor(elapsed / 60).toString().padStart(2, '0')}:${(elapsed % 60).toString().padStart(2, '0')}`;
