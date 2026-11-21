@@ -41,6 +41,7 @@ const NodeClam = require('clamscan');
 const multer = require('multer');
 const { Server } = require('socket.io');
 const { randomUUID, randomBytes } = require('crypto');
+const { isValidEmail } = require('./electron/email-validation');
 require('dotenv').config();
 
 const app = express();
@@ -2124,7 +2125,7 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(400).json({ message: 'Email не должен превышать 254 символа, пароль — 128 символов.' });
   }
   const normalizedEmail = email.trim().toLowerCase();
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizedEmail)) {
+  if (!isValidEmail(normalizedEmail)) {
     return res.status(400).json({ message: 'Введите корректный адрес электронной почты.' });
   }
 
