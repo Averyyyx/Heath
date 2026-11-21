@@ -1,15 +1,14 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 
 type FieldProps = { label: string; hint?: string; error?: string; children: ReactNode; className?: string };
 export function Field({ label, hint, error, children, className = '' }: FieldProps) {
-  const id = useId();
-  return <div className={`nexo-field ${className}`}>
-    <label htmlFor={id}>{label}</label>
+  return <label className={`nexo-field ${className}`}>
+    <span>{label}</span>
     <div className="nexo-field-control">{children}</div>
     {(error || hint) && <small className={error ? 'nexo-field-error' : 'nexo-field-hint'}>{error || hint}</small>}
-  </div>;
+  </label>;
 }
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
