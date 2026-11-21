@@ -1477,7 +1477,10 @@ io.on('connection', (socket) => {
 
   socket.on('channel:join', ({ serverId, channelId }) => {
     try {
-      const { channel } = ensureChannelAccess(Number(serverId), Number(channelId), socket.user.id);
+      const { channel, permissions } = ensureChannelAccess(Number(serverId), Number(channelId), socket.user.id);
+      if (channel.type === 'voice' && !hasPermission(permissions, PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.CONNECT_VOICE)) {
+        throw new Error('Недостаточно прав для подключения к голосовому каналу.');
+      }
       socket.join(getChannelRoom(channelId));
       if (channel.type === 'voice') {
         const session = db.prepare('SELECT id FROM voice_sessions WHERE channel_id = ? AND user_id = ?').get(Number(channelId), socket.user.id);
