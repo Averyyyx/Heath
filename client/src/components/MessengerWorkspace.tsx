@@ -247,7 +247,7 @@ export function MessengerWorkspace({
         const current = callStateRef.current;
         const videoTrack = current.localStream?.getVideoTracks()[0];
         if (videoTrack) {
-          current.peer.removeTrack(videoTrack, current.localStream!);
+          current.peer?.removeTrack(videoTrack, current.localStream!);
           current.localStream?.removeTrack(videoTrack);
           videoTrack.stop();
           setCallState({ ...current });
