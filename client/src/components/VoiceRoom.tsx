@@ -25,12 +25,13 @@ type VoiceRoomProps = {
   deafened: boolean;
   audioInputId?: string;
   audioOutputId?: string;
+  videoInputId?: string;
   onToggleMic: () => void;
   onToggleDeafen: () => void;
   onLeave: () => void;
 };
 
-export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInputId = '', audioOutputId = '', onToggleMic, onToggleDeafen, onLeave }: VoiceRoomProps) {
+export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInputId = '', audioOutputId = '', videoInputId = '', onToggleMic, onToggleDeafen, onLeave }: VoiceRoomProps) {
   const [participants, setParticipants] = useState<VoiceMember[]>([]);
   const [remoteStreams, setRemoteStreams] = useState<Record<number, MediaStream>>({});
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -338,7 +339,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
         setCameraStream(null);
         return;
       }
-      const camera = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const camera = await navigator.mediaDevices.getUserMedia({ video: videoInputId ? { deviceId: { exact: videoInputId } } : true, audio: false });
       cameraRef.current = camera;
       setCameraStream(camera);
       peers.current.forEach((peer) => camera.getVideoTracks().forEach((track) => peer.addTrack(track, camera)));
