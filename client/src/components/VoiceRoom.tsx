@@ -42,6 +42,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
   const [speaking, setSpeaking] = useState(false);
+  const [remoteSpeakingIds, setRemoteSpeakingIds] = useState<number[]>([]);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [serverMembers, setServerMembers] = useState<Array<{ id: number; user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string } }>>([]);
   const [inviteStatus, setInviteStatus] = useState('');
@@ -143,6 +144,43 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       if (audioOutputId && sink.setSinkId) void sink.setSinkId(audioOutputId).catch(() => {});
     });
   }, [remoteStreams, deafened, audioOutputId, remoteVolume]);
+
+  useEffect(() => {
+    const entries = Object.entries(remoteStreams).filter(([, stream]) => stream.getAudioTracks().length);
+    if (!entries.length) { setRemoteSpeakingIds([]); return; }
+    const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) return;
+    const context = new AudioContextCtor();
+    const analysers = new Map<number, AnalyserNode>();
+    entries.forEach(([id, stream]) => {
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      context.createMediaStreamSource(stream).connect(analyser);
+      analysers.set(Number(id), analyser);
+    });
+    const buffers = new Map(Array.from(analysers.keys()).map((id) => [id, new Uint8Array(analysers.get(id)!.frequencyBinCount)]));
+    let active = true;
+    let frame = 0;
+    const sample = () => {
+      if (!active) return;
+      const speakingIds: number[] = [];
+      analysers.forEach((analyser, id) => {
+        const values = buffers.get(id)!;
+        analyser.getByteFrequencyData(values);
+        const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+        if (average > 17) speakingIds.push(id);
+      });
+      setRemoteSpeakingIds(speakingIds);
+      frame = window.requestAnimationFrame(sample);
+    };
+    sample();
+    return () => {
+      active = false;
+      window.cancelAnimationFrame(frame);
+      void context.close();
+      setRemoteSpeakingIds([]);
+    };
+  }, [remoteStreams]);
 
   useEffect(() => {
     if (!localStream) return;
@@ -379,6 +417,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
         </div>
       </header>
       {error && <p className="voice-room-error">{error}</p>}
+      {!localCanSpeak && <p className="voice-room-limit-note">У вас нет права говорить в этом канале. Микрофон отключён.</p>}
       {busy && <p className="voice-room-loading">Подключаемся к голосовому каналу…</p>}
       <div className={`voice-room-grid ${tileSize} ${screenStream || cameraStream || Object.values(remoteStreams).some((stream) => stream.getVideoTracks().length) ? 'has-video' : ''}`}>
         {visibleMembers.map((member) => {
@@ -387,7 +426,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
           const videoStream = isLocal ? (screenStream || cameraStream) : remote;
           const hasVideo = Boolean(videoStream?.getVideoTracks().length);
           return (
-            <article key={member.user.id} className={`voice-member-tile ${(isLocal && speaking) ? 'speaking' : ''} ${member.muted || !member.canSpeak ? 'muted' : ''}`}>
+            <article key={member.user.id} className={`voice-member-tile ${((isLocal && speaking) || remoteSpeakingIds.includes(member.user.id)) ? 'speaking' : ''} ${member.muted || !member.canSpeak ? 'muted' : ''}`}>
               {hasVideo ? <video autoPlay playsInline muted={true} ref={(element) => { if (element && videoStream) element.srcObject = videoStream; }} /> : <Avatar user={member.user} size={76} />}
               <div className="voice-member-label"><strong>{isLocal ? 'Вы' : member.user.display_name || member.user.username}</strong>{(member.muted || !member.canSpeak) && <MicOff size={13} />}{member.deafened && <VolumeX size={13} />}</div>
             </article>
