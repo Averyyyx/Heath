@@ -509,6 +509,19 @@ db.prepare(`
   )
 `).run();
 
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS channel_read_states (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    last_read_message_id INTEGER NOT NULL DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(channel_id, user_id),
+    FOREIGN KEY(channel_id) REFERENCES channels(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  )
+`).run();
+
 if (!db.prepare('PRAGMA table_info(server_messages)').all().some((column) => column.name === 'edited_at')) {
   db.prepare('ALTER TABLE server_messages ADD COLUMN edited_at DATETIME').run();
 }
@@ -791,6 +804,19 @@ const listServersForUser = db.prepare(`
 const insertServerMember = db.prepare('INSERT INTO server_members (server_id, user_id, role, nickname) VALUES (?, ?, ?, ?)');
 const selectServerMember = db.prepare('SELECT * FROM server_members WHERE server_id = ? AND user_id = ?');
 const listServerMembers = db.prepare('SELECT * FROM server_members WHERE server_id = ?');
+const selectChannelReadState = db.prepare('SELECT last_read_message_id FROM channel_read_states WHERE channel_id = ? AND user_id = ?');
+const upsertChannelReadState = db.prepare(`
+  INSERT INTO channel_read_states (channel_id, user_id, last_read_message_id) VALUES (?, ?, ?)
+  ON CONFLICT(channel_id, user_id) DO UPDATE SET
+    last_read_message_id = MAX(channel_read_states.last_read_message_id, excluded.last_read_message_id),
+    updated_at = CURRENT_TIMESTAMP
+`);
+const selectChannelMessageReadReceipt = db.prepare(`
+  SELECT
+    (SELECT COUNT(*) FROM channel_read_states cr JOIN server_members sm ON sm.user_id = cr.user_id AND sm.server_id = ?
+      WHERE cr.channel_id = ? AND cr.last_read_message_id >= ? AND cr.user_id != ?) AS read_count,
+    (SELECT COUNT(*) FROM server_members WHERE server_id = ? AND user_id != ?) AS member_count
+`);
 const listServerMembersDetailed = db.prepare(`
   SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
   FROM server_members sm
@@ -1649,6 +1675,12 @@ function serializeMessage(row) {
   };
 }
 
+function getChannelMessageReadReceipt(row) {
+  if (!row?.channel_id || !row?.server_id || !row?.id || !row?.author_id) return null;
+  const result = selectChannelMessageReadReceipt.get(row.server_id, row.channel_id, row.id, row.author_id, row.server_id, row.author_id);
+  return { read_count: Number(result?.read_count || 0), member_count: Number(result?.member_count || 0) };
+}
+
 function serializeServerMessage(row) {
   if (!row) return null;
   return {
@@ -1669,7 +1701,8 @@ function serializeServerMessage(row) {
     edited_at: row.edited_at || null,
     reactions: getMessageReactions('channel', row.id),
     reply_to: getMessageReply('channel', row.reply_to_message_id),
-    pin: getMessagePin('channel', row.id)
+    pin: getMessagePin('channel', row.id),
+    read_receipt: getChannelMessageReadReceipt(row)
   };
 }
 
@@ -2908,6 +2941,7 @@ app.delete('/api/servers/:serverId/channels/:channelId', ensureAuthenticated, fr
       db.prepare("DELETE FROM message_pins WHERE scope = 'channel' AND channel_id = ?").run(channelId);
       db.prepare('DELETE FROM server_attachments WHERE channel_id = ?').run(channelId);
       db.prepare('DELETE FROM server_messages WHERE channel_id = ?').run(channelId);
+      db.prepare('DELETE FROM channel_read_states WHERE channel_id = ?').run(channelId);
       db.prepare('DELETE FROM voice_sessions WHERE channel_id = ?').run(channelId);
       db.prepare('DELETE FROM channel_permission_overrides WHERE channel_id = ?').run(channelId);
       db.prepare('DELETE FROM channels WHERE id = ? AND server_id = ?').run(channelId, serverId);
@@ -3003,6 +3037,34 @@ app.get('/api/servers/:serverId/channels/:channelId/messages', ensureAuthenticat
     return res.json({ messages });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ message: error.message });
+  }
+});
+
+app.post('/api/servers/:serverId/channels/:channelId/read', ensureAuthenticated, messageLimiter, (req, res) => {
+  const serverId = Number(req.params.serverId);
+  const channelId = Number(req.params.channelId);
+  const messageId = Number(req.body?.messageId);
+  if (![serverId, channelId, messageId].every(Number.isInteger) || messageId < 0) {
+    return res.status(400).json({ message: 'Некорректная отметка прочтения.' });
+  }
+  try {
+    const { permissions } = ensureChannelAccess(serverId, channelId, req.user.id);
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_CHANNEL)) return res.status(403).json({ message: 'Нет доступа к этому каналу.' });
+    if (messageId > 0) {
+      const message = db.prepare('SELECT id FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?').get(messageId, serverId, channelId);
+      if (!message) return res.status(404).json({ message: 'Сообщение не найдено в этом канале.' });
+    }
+    const previousReadMessageId = Number(selectChannelReadState.get(channelId, req.user.id)?.last_read_message_id || 0);
+    const lastReadMessageId = Math.max(previousReadMessageId, messageId);
+    if (lastReadMessageId > previousReadMessageId) {
+      upsertChannelReadState.run(channelId, req.user.id, lastReadMessageId);
+      io.to(getChannelRoom(channelId)).emit('channel:read:update', {
+        serverId, channelId, userId: req.user.id, previousReadMessageId, lastReadMessageId
+      });
+    }
+    return res.json({ serverId, channelId, userId: req.user.id, previousReadMessageId, lastReadMessageId });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось отметить сообщения прочитанными.' });
   }
 });
 
