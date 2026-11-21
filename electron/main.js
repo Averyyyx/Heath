@@ -747,6 +747,11 @@ function createWindow() {
     icon: getDesktopIconPath()
   });
 
+  if (process.platform === 'win32') {
+    const desktopIcon = nativeImage.createFromPath(getDesktopIconPath());
+    if (!desktopIcon.isEmpty()) mainWindow.setIcon(desktopIcon);
+  }
+
   // Добавляем обработчики ошибок загрузки
   mainWindow.webContents.on('did-finish-load', () => { if (pendingUpdateNotice) mainWindow.webContents.send('update-status', pendingUpdateNotice); });
 
