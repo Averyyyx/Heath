@@ -461,7 +461,7 @@ export default function App() {
             title: mentions > 0 ? `Упоминание · ${title}` : title,
             body: message.content || (message.attachment ? 'Отправлено вложение' : 'Новое сообщение'),
             deepLink: `nexo://dm/${conversationId}/message/${message.id}`
-          }).catch(() => {});
+          })?.catch(() => {});
         }
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
@@ -487,7 +487,7 @@ export default function App() {
             title: mentions > 0 ? `Упоминание · ${title}` : title,
             body: message.content || (message.attachment ? 'Отправлено вложение' : 'Новое сообщение'),
             deepLink: `nexo://channel/${message.server_id}/${channelId}/message/${message.id}`
-          }).catch(() => {});
+          })?.catch(() => {});
         }
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
