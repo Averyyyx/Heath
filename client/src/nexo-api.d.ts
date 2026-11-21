@@ -6,6 +6,7 @@ declare global {
   interface Window {
     nexoAPI?: {
       setNotificationCount: (count: number) => void;
+      showNotification: (payload: { title: string; body: string; deepLink: string }) => Promise<boolean>;
       minimizeWindow: () => void;
       maximizeWindow: () => void;
       closeWindow: () => void;
