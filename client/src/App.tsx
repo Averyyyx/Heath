@@ -40,7 +40,7 @@ type PaletteEntry = { id: string; title: string; subtitle?: string; group: strin
 type ContextState = { x: number; y: number; tabId?: string; target?: SidebarPin; server?: Server } | null;
 type StatusChoice = { value: UserStatus; label: string };
 type IncomingCallInfo = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video'; groupTitle?: string };
-type DeepLinkPayload = { type: 'dm'; conversationId: number; messageId: number } | { type: 'channel'; serverId: number; channelId: number; messageId: number };
+type DeepLinkPayload = { type: 'dm'; conversationId: number; messageId?: number } | { type: 'channel'; serverId: number; channelId: number; messageId?: number };
 type ActiveCallInfo = { conversationId: number; title: string; startedAt: number };
 
 
@@ -398,10 +398,12 @@ export default function App() {
       if (server) openChannelTab(server, payload.channelId, false, payload.messageId);
       else { setPendingDeepLink(null); return; }
     }
-    const messageElementId = payload.type === 'dm'
-      ? `nexo-message-dm-${payload.conversationId}-${payload.messageId}`
-      : `nexo-message-channel-${payload.serverId}-${payload.channelId}-${payload.messageId}`;
-    window.setTimeout(() => document.getElementById(messageElementId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 320);
+    if (payload.messageId) {
+      const messageElementId = payload.type === 'dm'
+        ? `nexo-message-${payload.messageId}`
+        : `nexo-channel-message-${payload.messageId}`;
+      window.setTimeout(() => document.getElementById(messageElementId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 420);
+    }
     setPendingDeepLink(null);
   }, [pendingDeepLink, user, workspaceRestored, conversations, servers]);
 
@@ -417,10 +419,17 @@ export default function App() {
       };
       setPendingIncomingCall(nextPayload);
       if (conversation) openDmTab(conversation);
+      if (user.status !== 'dnd' && (!document.hasFocus() || document.visibilityState !== 'visible')) {
+        void desktopApi?.showNotification?.({
+          title: nextPayload.user.display_name || nextPayload.user.username,
+          body: payload.mediaType === 'video' ? 'Входящий видеозвонок' : 'Входящий голосовой звонок',
+          deepLink: `nexo://dm/${payload.conversationId}`
+        })?.catch(() => {});
+      }
     };
     socket.on('call:ring', onCallInvite);
     return () => { socket.off('call:ring', onCallInvite); };
-  }, [user?.id, conversations]);
+  }, [user?.id, user?.status, conversations, desktopApi]);
 
   useEffect(() => {
     const onCallState = (event: Event) => {
