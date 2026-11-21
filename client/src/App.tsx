@@ -42,6 +42,7 @@ type PaletteEntry = { id: string; title: string; subtitle?: string; group: strin
 type ContextState = { x: number; y: number; tabId?: string; target?: SidebarPin; server?: Server } | null;
 type StatusChoice = { value: UserStatus; label: string };
 type IncomingCallInfo = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video'; groupTitle?: string };
+type VoiceInviteInfo = { serverId: number; channelId: number; serverName: string; channelName: string; from: number; user: User };
 type DeepLinkPayload = { type: 'dm'; conversationId: number; messageId?: number } | { type: 'channel'; serverId: number; channelId: number; messageId?: number };
 type ActiveCallInfo = { conversationId: number; title: string; startedAt: number };
 
@@ -145,6 +146,7 @@ export default function App() {
   const [customStatusDraft, setCustomStatusDraft] = useState('');
   const [notificationUpdate, setNotificationUpdate] = useState<{ version: string; message: string } | null>(null);
   const [pendingIncomingCall, setPendingIncomingCall] = useState<IncomingCallInfo | null>(null);
+  const [pendingVoiceInvite, setPendingVoiceInvite] = useState<VoiceInviteInfo | null>(null);
   const [pendingDeepLink, setPendingDeepLink] = useState<DeepLinkPayload | null>(null);
   const [activeCallInfo, setActiveCallInfo] = useState<ActiveCallInfo | null>(null);
   const [callClock, setCallClock] = useState(Date.now());
@@ -464,8 +466,13 @@ export default function App() {
         })?.catch(() => {});
       }
     };
+    const onVoiceInvite = (payload: VoiceInviteInfo) => {
+      if (!payload || payload.user?.id === user.id) return;
+      setPendingVoiceInvite(payload);
+    };
     socket.on('call:ring', onCallInvite);
-    return () => { socket.off('call:ring', onCallInvite); };
+    socket.on('voice:invite', onVoiceInvite);
+    return () => { socket.off('call:ring', onCallInvite); socket.off('voice:invite', onVoiceInvite); };
   }, [user?.id, user?.status, conversations, desktopApi]);
 
   useEffect(() => {
@@ -1446,6 +1453,30 @@ export default function App() {
         <button className="primary" type="submit">Сохранить</button>
       </motion.form></div>}
 
+      {pendingVoiceInvite && <div className="modal-backdrop">
+        <motion.section className="modal-panel voice-incoming-invite" role="dialog" aria-modal="true" aria-label="Приглашение в голосовой канал"
+          initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }}>
+          <header><h2>Приглашение в голосовой канал</h2><button type="button" className="ghost-icon" aria-label="Закрыть" onClick={() => {
+            getSocket().emit('voice:invite-response', { to: pendingVoiceInvite.from, channelId: pendingVoiceInvite.channelId, accepted: false });
+            setPendingVoiceInvite(null);
+          }}><X size={16} /></button></header>
+          <div className="voice-invite-from"><Avatar user={pendingVoiceInvite.user} size={44} /><span><strong>{pendingVoiceInvite.user.display_name || pendingVoiceInvite.user.username}</strong><small>{pendingVoiceInvite.serverName} · {pendingVoiceInvite.channelName}</small></span></div>
+          <div className="voice-invite-actions">
+            <button type="button" className="ghost danger" onClick={() => {
+              getSocket().emit('voice:invite-response', { to: pendingVoiceInvite.from, channelId: pendingVoiceInvite.channelId, accepted: false });
+              setPendingVoiceInvite(null);
+            }}>Отклонить</button>
+            <button type="button" className="primary" onClick={() => {
+              const server = servers.find((item) => item.id === pendingVoiceInvite.serverId);
+              if (activeCallInfo && !window.confirm('Выйти из личного звонка и подключиться к голосовому каналу?')) return;
+              if (activeCallInfo) window.dispatchEvent(new CustomEvent('nexo-end-call'));
+              if (server) openVoiceTab(server, pendingVoiceInvite.channelId);
+              getSocket().emit('voice:invite-response', { to: pendingVoiceInvite.from, channelId: pendingVoiceInvite.channelId, accepted: true });
+              setPendingVoiceInvite(null);
+            }}>Принять</button>
+          </div>
+        </motion.section>
+      </div>}
       {notificationUpdate && <div className="update-toast"><span>{notificationUpdate.message}</span>
         <button className="primary tiny" onClick={() => openSettingsTab('updates')}>Обновить</button>
         <button className="ghost-icon" aria-label="Позже" onClick={() => setNotificationUpdate(null)}><X size={14} /></button>
