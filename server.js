@@ -696,7 +696,7 @@ const selectMessageWithAuthor = db.prepare(`
   WHERE m.id = ?
 `);
 const listMessages = db.prepare(`
-  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color
+  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
   FROM messages m
   JOIN users u ON u.id = m.author_id
   WHERE m.conversation_id = ?
@@ -743,7 +743,7 @@ const listChannelsForServer = db.prepare('SELECT * FROM channels WHERE server_id
 const insertServerMessage = db.prepare('INSERT INTO server_messages (server_id, channel_id, author_id, content, attachment) VALUES (?, ?, ?, ?, ?)');
 const selectServerMessageById = db.prepare('SELECT * FROM server_messages WHERE id = ?');
 const selectServerMessageWithAuthor = db.prepare(`
-  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color
+  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
   FROM server_messages sm
   JOIN users u ON u.id = sm.author_id
   WHERE sm.id = ?
@@ -1563,7 +1563,8 @@ function serializeServerMessage(row) {
       username: row.username,
       display_name: row.display_name,
       avatar_url: row.avatar_url,
-      avatar_color: row.avatar_color || '#D97757'
+      avatar_color: row.avatar_color || '#D97757',
+      avatar_preset: Number.isInteger(row.avatar_preset) ? row.avatar_preset : 0
     },
     content: row.content,
     attachment: serializeAttachment(row.attachment),
