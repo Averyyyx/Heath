@@ -53,6 +53,8 @@ export type VoiceState = {
   self_mute: boolean;
   self_video: boolean;
   suppress: boolean;
+  canSpeak?: boolean;
+  speaking?: boolean;
   request_to_speak_timestamp: string | null;
 };
 
