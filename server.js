@@ -3247,8 +3247,11 @@ app.post('/api/conversations/:id/read', ensureAuthenticated, (req, res) => {
   }
   try {
     ensureConversationAccess(conversationId, req.user.id);
-    const latest = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM messages WHERE conversation_id = ?').get(conversationId);
-    const lastReadMessageId = Math.min(requestedMessageId, latest.id);
+    const readMessage = requestedMessageId === 0
+      ? { id: 0 }
+      : db.prepare('SELECT id FROM messages WHERE id = ? AND conversation_id = ?').get(requestedMessageId, conversationId);
+    if (!readMessage) return res.status(404).json({ message: 'Сообщение не найдено в этом диалоге.' });
+    const lastReadMessageId = readMessage.id;
     updateConversationRead.run(lastReadMessageId, conversationId, req.user.id);
     broadcastConversationUpdate(conversationId);
     return res.json({ conversationId, userId: req.user.id, lastReadMessageId });
