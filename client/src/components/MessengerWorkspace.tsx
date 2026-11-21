@@ -32,7 +32,6 @@ import { playNexoSound, startNexoOutgoingTone, startNexoRingtone } from '../lib/
 import type {
   Channel,
   ChannelMessage,
-  ChannelMessageReadReceipt,
   Conversation,
   Message,
   MessageReaction,
