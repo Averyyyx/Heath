@@ -127,7 +127,7 @@ export default function App() {
   const [pendingDeepLink, setPendingDeepLink] = useState<DeepLinkPayload | null>(null);
   const [activeCallInfo, setActiveCallInfo] = useState<ActiveCallInfo | null>(null);
   const [callClock, setCallClock] = useState(Date.now());
-  const [appVersion, setAppVersion] = useState('0.0.5-alpha');
+  const [appVersion, setAppVersion] = useState('0.0.7-alpha');
 
   const desktopApi = typeof window !== 'undefined' ? window.nexoAPI : undefined;
   const tabStripRef = useRef<HTMLDivElement>(null);
