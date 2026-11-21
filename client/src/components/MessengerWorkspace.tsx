@@ -133,6 +133,7 @@ export function MessengerWorkspace({
   const [serverModalStatus, setServerModalStatus] = useState<Status>({ type: 'idle' });
 
   const socketRef = useRef<Socket | null>(null);
+  const incomingCallBackdropRef = useRef<HTMLDivElement>(null);
   const [callState, setCallState] = useState<CallState | null>(null);
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [ringtoneMuted, setRingtoneMuted] = useState(false);
@@ -247,6 +248,16 @@ export function MessengerWorkspace({
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
     };
+    const onCallTimeout = ({ conversationId }: { conversationId: number }) => {
+      if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
+      if (callStateRef.current?.conversationId === conversationId) endCall(false);
+      if (incomingCall?.conversationId === conversationId) {
+        setIncomingCall(null);
+        pendingIncomingSignalRef.current = null;
+        onIncomingCallHandled?.();
+      }
+      playNexoSound('call-ended');
+    };
     const onCallEnd = ({ conversationId }: { conversationId: number }) => {
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
       if (incomingCall?.conversationId === conversationId) { setIncomingCall(null); onIncomingCallHandled?.(); }
@@ -281,6 +292,7 @@ export function MessengerWorkspace({
     socket.on('call:signal', onCallSignal);
     socket.on('call:accept', onCallAccept);
     socket.on('call:reject', onCallReject);
+    socket.on('call:timeout', onCallTimeout);
     socket.on('call:end', onCallEnd);
     socket.on('server:upsert', onServerUpsert);
     socket.on('channel:message:new', onChannelMessage);
@@ -297,6 +309,7 @@ export function MessengerWorkspace({
       socket.off('call:signal', onCallSignal);
       socket.off('call:accept', onCallAccept);
       socket.off('call:reject', onCallReject);
+      socket.off('call:timeout', onCallTimeout);
       socket.off('call:end', onCallEnd);
       socket.off('server:upsert', onServerUpsert);
       socket.off('channel:message:new', onChannelMessage);
@@ -306,6 +319,32 @@ export function MessengerWorkspace({
       socketRef.current = null;
     };
   }, [user, activeConversationId, incomingCall, onIncomingCallHandled]);
+
+  useEffect(() => {
+    if (!incomingCall) return;
+    const conversationId = incomingCall.conversationId;
+    const timeout = window.setTimeout(() => {
+      socketRef.current?.emit('call:timeout', { conversationId });
+      pendingIncomingSignalRef.current = null;
+      setIncomingCall((current) => current?.conversationId === conversationId ? null : current);
+      playNexoSound('call-ended');
+      onIncomingCallHandled?.();
+    }, 45000);
+    return () => window.clearTimeout(timeout);
+  }, [incomingCall?.conversationId]);
+
+  useEffect(() => {
+    if (!callState?.initiator || callState.remoteStream) return;
+    const conversationId = callState.conversationId;
+    const timeout = window.setTimeout(() => {
+      const current = callStateRef.current;
+      if (!current || current.conversationId !== conversationId || current.remoteStream) return;
+      socketRef.current?.emit('call:timeout', { conversationId });
+      setCallError('Нет ответа');
+      endCall(false);
+    }, 45000);
+    return () => window.clearTimeout(timeout);
+  }, [callState?.conversationId, callState?.initiator, Boolean(callState?.remoteStream)]);
 
   useEffect(() => {
     if (!incomingCall || ringtoneMuted) return;
@@ -711,12 +750,12 @@ export function MessengerWorkspace({
     current.peer?.signal(payload);
   }
 
-  async function acceptIncomingCall() {
+  async function acceptIncomingCall(acceptedMediaType?: 'audio' | 'video') {
     if (!incomingCall) return;
     const call = incomingCall;
     pendingIncomingSignalRef.current = null;
     setIncomingCall(null);
-    const started = await startCall(call.conversationId, { initiator: false }, call.mediaType);
+    const started = await startCall(call.conversationId, { initiator: false }, acceptedMediaType || call.mediaType);
     if (!started) {
       socketRef.current?.emit('call:reject', { conversationId: call.conversationId });
       onIncomingCallHandled?.();
@@ -1093,23 +1132,26 @@ export function MessengerWorkspace({
         </div>
       )}
       {incomingCall && (
-        <motion.div className="incoming-call-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <motion.div ref={incomingCallBackdropRef} className="incoming-call-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           <motion.section className="incoming-call-card" role="dialog" aria-modal="true" aria-label="Входящий звонок"
+            drag dragMomentum={false} dragElastic={0.04} dragConstraints={incomingCallBackdropRef}
             initial={{ opacity: 0, y: 18, scale: .92 }} animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: .96 }} transition={{ type: 'spring', stiffness: 360, damping: 28 }}>
             <div className="incoming-call-avatar">
               <span className="incoming-call-pulse" />
-              <Avatar user={incomingCall.user} size={64} showStatus />
+              <Avatar user={incomingCall.user} size={88} showStatus />
             </div>
             <div className="incoming-call-copy">
               <strong>{incomingCall.user.display_name || incomingCall.user.username}</strong>
-              <p>{incomingCall.groupTitle ? `Групповой звонок · ${incomingCall.groupTitle}` : incomingCall.mediaType === 'video' ? 'Входящий видеозвонок' : 'Входящий голосовой звонок'}</p>
+              <p>{incomingCall.groupTitle ? `${incomingCall.user.display_name || incomingCall.user.username} приглашает в звонок` : incomingCall.mediaType === 'video' ? 'Входящий видеозвонок' : 'Входящий голосовой звонок'}</p>
             </div>
+            {incomingCall.mediaType === 'video' && <span className="incoming-call-video-label"><Monitor size={14} /> Видеозвонок</span>}
             <button type="button" className="ringtone-toggle" onClick={() => setRingtoneMuted((value) => !value)}>
               {ringtoneMuted ? 'Включить звук звонка' : 'Отключить звук звонка'}
             </button>
             <div className="incoming-call-actions">
               <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" title="Отклонить"><PhoneOff size={20} /></button>
+              {incomingCall.mediaType === 'video' && <button type="button" className="call-accept call-accept-audio" onClick={() => void acceptIncomingCall('audio')} aria-label="Принять без видео" title="Принять без видео"><Phone size={18} /><small>Без видео</small></button>}
               <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title="Принять"><Phone size={20} /></button>
             </div>
           </motion.section>
