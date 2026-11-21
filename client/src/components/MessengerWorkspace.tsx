@@ -60,7 +60,6 @@ type MessengerWorkspaceProps = {
   onEditChannel?: () => void;
   onFindFriends?: () => void;
   initialMode?: WorkspaceMode;
-  hideNavigation?: boolean;
   showServersRail?: boolean;
 };
 
@@ -115,7 +114,6 @@ export function MessengerWorkspace({
   onEditChannel,
   onFindFriends,
   initialMode = 'servers',
-  hideNavigation = false,
   showServersRail = true
 }: MessengerWorkspaceProps) {
   const [mode, setMode] = useState<WorkspaceMode>(initialMode);
