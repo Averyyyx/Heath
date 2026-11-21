@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 
@@ -11,13 +11,13 @@ export function Field({ label, hint, error, children, className = '' }: FieldPro
   </label>;
 }
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`nexo-input ${props.className || ''}`} />;
-}
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(props, ref) {
+  return <input {...props} ref={ref} className={`nexo-input ${props.className || ''}`} />;
+});
 
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} className={`nexo-textarea ${props.className || ''}`} />;
-}
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea(props, ref) {
+  return <textarea {...props} ref={ref} className={`nexo-textarea ${props.className || ''}`} />;
+});
 
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <span className="nexo-select-wrap"><select {...props} className={`nexo-select ${props.className || ''}`} /> <ChevronDown size={15} aria-hidden="true" /></span>;
