@@ -1487,6 +1487,38 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('voice:invite', ({ serverId, channelId, to }) => {
+    const safeServerId = Number(serverId);
+    const safeChannelId = Number(channelId);
+    const recipientId = Number(to);
+    if (![safeServerId, safeChannelId, recipientId].every(Number.isInteger) || recipientId === socket.user.id) return;
+    try {
+      const { channel, server, permissions } = ensureChannelAccess(safeServerId, safeChannelId, socket.user.id);
+      if (channel.type !== 'voice' || !hasPermission(permissions, PERMISSIONS.CONNECT_VOICE)) {
+        return socket.emit('error', { message: 'Недостаточно прав для приглашения в голосовой канал.' });
+      }
+      const activeSession = db.prepare('SELECT id FROM voice_sessions WHERE channel_id = ? AND user_id = ?').get(safeChannelId, socket.user.id);
+      if (!activeSession) return socket.emit('error', { message: 'Сначала подключитесь к голосовому каналу.' });
+      const recipient = selectServerMember.get(safeServerId, recipientId);
+      if (!recipient) return socket.emit('error', { message: 'Пригласить можно только участника этого пространства.' });
+      try { ensureChannelAccess(safeServerId, safeChannelId, recipientId); }
+      catch { return socket.emit('error', { message: 'У участника нет доступа к этому каналу.' }); }
+      io.to(getUserRoom(recipientId)).emit('voice:invite', {
+        serverId: safeServerId, channelId: safeChannelId, serverName: server.name,
+        channelName: channel.name, from: socket.user.id, user: sanitizeUser(socket.user)
+      });
+    } catch (error) { socket.emit('error', { message: error.message }); }
+  });
+
+  socket.on('voice:invite-response', ({ to, channelId, accepted }) => {
+    const recipientId = Number(to);
+    const safeChannelId = Number(channelId);
+    if (!Number.isInteger(recipientId) || !Number.isInteger(safeChannelId)) return;
+    io.to(getUserRoom(recipientId)).emit('voice:invite-response', {
+      channelId: safeChannelId, from: socket.user.id, accepted: Boolean(accepted)
+    });
+  });
+
   socket.on('voice:signal', ({ channelId, to, payload }) => {
     const safeChannelId = Number(channelId);
     const recipientId = Number(to);
