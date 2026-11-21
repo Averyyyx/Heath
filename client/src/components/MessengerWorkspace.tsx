@@ -263,6 +263,11 @@ export function MessengerWorkspace({
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
     };
+    const onCallError = ({ conversationId, message }: { conversationId: number; message: string }) => {
+      if (callStateRef.current?.conversationId === conversationId) endCall(false);
+      setCallError(message || 'Не удалось начать звонок.');
+      playNexoSound('error');
+    };
     const onCallTimeout = ({ conversationId }: { conversationId: number }) => {
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
@@ -308,6 +313,7 @@ export function MessengerWorkspace({
     socket.on('call:accept', onCallAccept);
     socket.on('call:decline', onCallReject);
     socket.on('call:timeout', onCallTimeout);
+    socket.on('call:error', onCallError);
     socket.on('call:end', onCallEnd);
     socket.on('server:upsert', onServerUpsert);
     socket.on('channel:message:new', onChannelMessage);
@@ -325,6 +331,7 @@ export function MessengerWorkspace({
       socket.off('call:accept', onCallAccept);
       socket.off('call:decline', onCallReject);
       socket.off('call:timeout', onCallTimeout);
+      socket.off('call:error', onCallError);
       socket.off('call:end', onCallEnd);
       socket.off('server:upsert', onServerUpsert);
       socket.off('channel:message:new', onChannelMessage);
