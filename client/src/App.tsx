@@ -1333,7 +1333,7 @@ export default function App() {
               </div>}
         </div>
       </motion.form></div>}
-      {statusMenuOpen && <ContextMenu x={12} y={Math.max(12, window.innerHeight - 430)} onClose={() => setStatusMenuOpen(false)}>
+      {statusMenuOpen && user && <ContextMenu x={12} y={Math.max(12, window.innerHeight - 580)} onClose={() => setStatusMenuOpen(false)}>
         <div className="dock-account-menu" role="menu">
           <div className="dock-menu-profile">
             <Avatar user={user} size={38} showStatus />
