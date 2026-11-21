@@ -1371,7 +1371,7 @@ export default function App() {
                         title: tab.title, targetId: tab.channelId, serverId: server.id, channelId: tab.channelId
                       });
                     }}
-                    micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
+                    micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} videoInputId={videoInputId} />}
                   {tab.kind === 'settings' && <SettingsPanel key={tab.id} user={user} onUserUpdate={(nextUser) => setUser(nextUser)}
                     initialSection={tab.initialSection || 'account'} appVersion={appVersion} onCheckUpdates={handleCheckUpdates}
                     audioInputId={audioInputId} audioOutputId={audioOutputId} videoInputId={videoInputId}
