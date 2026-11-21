@@ -1259,8 +1259,8 @@ io.on('connection', (socket) => {
     try {
       ensureConversationAccess(Number(conversationId), socket.user.id);
       const participants = getConversationParticipants(Number(conversationId));
-      if (participants.length > 4) {
-        socket.emit('call:error', { conversationId: Number(conversationId), message: 'Групповой звонок Nexo поддерживает не более четырёх участников.' });
+      if (participants.length > 2) {
+        socket.emit('call:error', { conversationId: Number(conversationId), message: 'Групповые звонки до четырёх участников ещё проходят разработку. Пока доступны личные звонки.' });
         return;
       }
       const invitation = {
