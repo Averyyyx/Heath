@@ -120,7 +120,7 @@ installUnlockListeners();
 type SoundNote = { frequency: number; at: number; duration: number; gain: number; wave?: OscillatorType };
 
 // All pitches belong to the C-major pentatonic family: C, D, E, G and A.
-const C = 261.63, D = 293.66, E = 329.63, G = 392, A = 440, C5 = 523.25, D5 = 587.33, E5 = 659.25;
+const C = 261.63, D = 293.66, E = 329.63, G = 392, A = 440, C5 = 523.25, D5 = 587.33, E5 = 659.25, G5 = 783.99;
 const patterns: Record<SoundKind, SoundNote[]> = {
   message: [{ frequency: E5, at: 0, duration: .13, gain: .16 }, { frequency: C5, at: .15, duration: .16, gain: .13 }],
   send: [{ frequency: G, at: 0, duration: .075, gain: .075 }],
