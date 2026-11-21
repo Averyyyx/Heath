@@ -1532,11 +1532,11 @@ io.on('connection', (socket) => {
     const recipientId = Number(to);
     if (!Number.isInteger(safeChannelId) || !Number.isInteger(recipientId) || !payload) return;
     try {
-      const { server } = ensureChannelAccess(
-        Number(db.prepare('SELECT server_id FROM channels WHERE id = ?').get(safeChannelId)?.server_id),
-        safeChannelId,
-        socket.user.id
-      );
+      const serverId = Number(db.prepare('SELECT server_id FROM channels WHERE id = ?').get(safeChannelId)?.server_id);
+      const access = ensureChannelAccess(serverId, safeChannelId, socket.user.id);
+      if (typeof payload.sdp === 'string' && payload.sdp.includes('m=video') && !hasPermission(access.permissions, PERMISSIONS.STREAM)) {
+        return socket.emit('error', { message: 'У вас нет права передавать видео или экран в этом канале.' });
+      }
       const sender = db.prepare('SELECT id FROM voice_sessions WHERE channel_id = ? AND user_id = ?').get(safeChannelId, socket.user.id);
       const recipient = db.prepare('SELECT id FROM voice_sessions WHERE channel_id = ? AND user_id = ?').get(safeChannelId, recipientId);
       if (!sender || !recipient) return socket.emit('error', { message: 'Участник больше не находится в голосовом канале.' });
@@ -2066,9 +2066,11 @@ function updateServerSettingsRecord(serverId, payload) {
 function listVoiceParticipants(channelId) {
   return selectVoiceSessionsByChannel.all(channelId).map((session) => {
     let canSpeak = false;
+    let canStream = false;
     try {
       const access = ensureChannelAccess(session.server_id, channelId, session.user_id);
       canSpeak = hasPermission(access.permissions, PERMISSIONS.SPEAK_VOICE);
+      canStream = hasPermission(access.permissions, PERMISSIONS.STREAM);
     } catch {}
     return {
       user: {
@@ -2081,6 +2083,7 @@ function listVoiceParticipants(channelId) {
       muted: Boolean(session.muted),
       deafened: Boolean(session.deafened),
       canSpeak,
+      canStream,
       joined_at: session.joined_at
     };
   });
