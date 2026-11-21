@@ -387,7 +387,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
           const hasVideo = Boolean(videoStream?.getVideoTracks().length);
           return (
             <article key={member.user.id} className={`voice-member-tile ${(isLocal && speaking) ? 'speaking' : ''} ${member.muted || !member.canSpeak ? 'muted' : ''}`}>
-              {hasVideo ? <video autoPlay playsInline muted={isLocal} ref={(element) => { if (element && videoStream) element.srcObject = videoStream; }} /> : <Avatar user={member.user} size={76} />}
+              {hasVideo ? <video autoPlay playsInline muted={true} ref={(element) => { if (element && videoStream) element.srcObject = videoStream; }} /> : <Avatar user={member.user} size={76} />}
               <div className="voice-member-label"><strong>{isLocal ? 'Вы' : member.user.display_name || member.user.username}</strong>{(member.muted || !member.canSpeak) && <MicOff size={13} />}{member.deafened && <VolumeX size={13} />}</div>
             </article>
           );
