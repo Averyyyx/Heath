@@ -1884,6 +1884,13 @@ function emitChannelMessage(message) {
     channelId: message.channel_id,
     message
   });
+  listServerMembers.all(message.server_id).forEach((member) => {
+    io.to(getUserRoom(member.user_id)).emit('channel:message:notify', {
+      serverId: message.server_id,
+      channelId: message.channel_id,
+      message
+    });
+  });
 }
 
 function createMessage(conversationId, authorId, content, attachmentPayload = null) {
@@ -1921,6 +1928,12 @@ function createMessage(conversationId, authorId, content, attachmentPayload = nu
   io.to(getConversationRoom(conversation.id)).emit('message:new', {
     conversationId: conversation.id,
     message
+  });
+  getConversationParticipants(conversation.id).forEach((participant) => {
+    io.to(getUserRoom(participant.id)).emit('message:notify', {
+      conversationId: conversation.id,
+      message
+    });
   });
   return message;
 }
