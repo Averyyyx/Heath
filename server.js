@@ -1534,6 +1534,7 @@ io.on('connection', (socket) => {
     try {
       const serverId = Number(db.prepare('SELECT server_id FROM channels WHERE id = ?').get(safeChannelId)?.server_id);
       const access = ensureChannelAccess(serverId, safeChannelId, socket.user.id);
+      if (!hasPermission(access.permissions, PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.CONNECT_VOICE)) return socket.emit('error', { message: 'Недостаточно прав для голосового канала.' });
       if (typeof payload.sdp === 'string' && payload.sdp.includes('m=video') && !hasPermission(access.permissions, PERMISSIONS.STREAM)) {
         return socket.emit('error', { message: 'У вас нет права передавать видео или экран в этом канале.' });
       }
