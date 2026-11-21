@@ -1825,6 +1825,7 @@ function CallOverlay({
 }) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [clock, setClock] = useState(Date.now());
   const peerName = peer?.display_name || peer?.username || 'Собеседник';
@@ -1840,10 +1841,11 @@ function CallOverlay({
   }, [state.localStream]);
   useEffect(() => {
     if (remoteVideoRef.current && state.remoteStream) remoteVideoRef.current.srcObject = state.remoteStream;
+    if (remoteAudioRef.current && state.remoteStream) remoteAudioRef.current.srcObject = state.remoteStream;
   }, [state.remoteStream]);
   useEffect(() => {
-    const video = remoteVideoRef.current as (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }) | null;
-    if (video?.setSinkId && audioOutputId) void video.setSinkId(audioOutputId).catch((error) => console.warn('Audio output selection failed:', error));
+    const output = (remoteAudioRef.current || remoteVideoRef.current) as (HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> }) | null;
+    if (output?.setSinkId && audioOutputId) void output.setSinkId(audioOutputId).catch((error) => console.warn('Audio output selection failed:', error));
   }, [audioOutputId, state.remoteStream]);
 
   const total = Math.max(0, Math.floor((clock - state.startedAt) / 1000));
@@ -1864,22 +1866,26 @@ function CallOverlay({
         <div className="call-banner-person connected"><Avatar user={currentUser} size={64} showStatus /><small>Вы</small></div>
         <div className={state.remoteStream ? 'call-banner-person connected' : 'call-banner-person pending'}><Avatar user={peer} size={64} showStatus /><small>{peerName}</small></div>
       </div>
-      <div className="call-banner-media">
-        {state.remoteStream && <video ref={remoteVideoRef} className={state.remoteStream.getVideoTracks().length ? '' : 'call-audio-sink'} autoPlay playsInline muted={deafened} />}
-        {!state.remoteStream?.getVideoTracks().length && <span>{state.remoteStream ? 'На связи' : 'Подключаемся…'}</span>}
+      {state.remoteStream && !state.remoteStream.getVideoTracks().length && <audio ref={remoteAudioRef} className="call-audio-sink" autoPlay playsInline muted={deafened} />}
+      {(state.remoteStream?.getVideoTracks().length || cameraTrack) ? <div className="call-banner-media">
+        {state.remoteStream?.getVideoTracks().length ? <video ref={remoteVideoRef} autoPlay playsInline muted={deafened} /> : null}
         {cameraTrack && <video ref={localVideoRef} className="call-local-preview" autoPlay playsInline muted />}
-      </div>
+      </div> : null}
       <div className="call-banner-controls">
-        <button type="button" className={micMuted ? 'call-control danger' : 'call-control'} onClick={onToggleMic} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
-          {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
-        </button>
-        <button type="button" className={cameraEnabled ? 'call-control' : 'call-control danger'} onClick={onToggleCamera}
-          disabled={!cameraTrack || state.isScreenSharing} title={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'} aria-label={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'}>
-          {cameraEnabled ? <Camera size={17} /> : <CameraOff size={17} />}
-        </button>
-        <button type="button" className="call-control" onClick={onShareScreen} title="Поделиться экраном" aria-label="Поделиться экраном"><Monitor size={17} /></button>
+        <div className="call-control-group">
+          <button type="button" className={micMuted ? 'call-control danger' : 'call-control'} onClick={onToggleMic} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
+            {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
+          </button>
+          <button type="button" className={cameraEnabled ? 'call-control' : 'call-control danger'} onClick={onToggleCamera}
+            disabled={!cameraTrack || state.isScreenSharing} title={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'} aria-label={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'}>
+            {cameraEnabled ? <Camera size={17} /> : <CameraOff size={17} />}
+          </button>
+        </div>
+        <div className="call-control-group">
+          <button type="button" className="call-control" onClick={onShareScreen} title="Поделиться экраном" aria-label="Поделиться экраном"><Monitor size={17} /></button>
+          <button type="button" className="call-control" onClick={() => setCollapsed(true)} title="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
+        </div>
         <button type="button" className="call-control call-hangup" onClick={() => onHangUp(true)} title="Завершить звонок" aria-label="Завершить звонок"><PhoneOff size={17} /></button>
-        <button type="button" className="call-control" onClick={() => setCollapsed(true)} title="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
       </div>
       <span className="call-banner-duration">{duration}</span>
     </motion.section>
