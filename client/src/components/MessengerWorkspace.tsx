@@ -1419,8 +1419,8 @@ function CallOverlay({
     <motion.section className="call-overlay"
       initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
       <div className="call-banner-participants">
-        <div className="call-banner-person"><Avatar user={currentUser} size={54} showStatus /><small>Вы</small></div>
-        <div className="call-banner-person"><Avatar user={peer} size={54} showStatus /><small>{peerName}</small></div>
+        <div className="call-banner-person connected"><Avatar user={currentUser} size={64} showStatus /><small>Вы</small></div>
+        <div className={state.remoteStream ? 'call-banner-person connected' : 'call-banner-person pending'}><Avatar user={peer} size={64} showStatus /><small>{peerName}</small></div>
       </div>
       <div className="call-banner-media">
         {state.remoteStream && <video ref={remoteVideoRef} className={state.remoteStream.getVideoTracks().length ? '' : 'call-audio-sink'} autoPlay playsInline muted={deafened} />}
