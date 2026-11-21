@@ -16,6 +16,8 @@ test('Windows AppUserModelId is assigned before Electron becomes ready', () => {
 });
 
 test('both startup splash and main windows receive the Nexo icon', () => {
+  assert.match(mainSource, /if \(!ico\.isEmpty\(\)\) return iconPath/);
+  assert.match(mainSource, /if \(!png\.isEmpty\(\)\) return pngPath/);
   assert.match(mainSource, /icon:\s*splashIconPath/);
   assert.match(mainSource, /icon:\s*getDesktopIconPath\(\)/);
   assert.match(mainSource, /splashWindow\.setIcon\(splashIcon\)/);
