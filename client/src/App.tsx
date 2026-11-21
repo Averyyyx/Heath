@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Home, Users, MessageCircle, Settings, Plus, X, ChevronDown, ChevronRight,
   ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command,
-  Phone, PhoneOff, Mic, MicOff, Headphones, HeadphoneOff, Camera, MonitorUp, LogOut, Moon,
+  Phone, PhoneOff, Mic, MicOff, Headphones, HeadphoneOff, Camera, MonitorUp, Lock, LogOut, Moon,
   Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus, RefreshCw, Keyboard,
   PanelLeftClose, PanelLeftOpen, Check, Volume2, Circle,
 } from 'lucide-react';
@@ -1248,11 +1248,13 @@ export default function App() {
                           if (channel.type === 'voice') {
                             const members = voiceParticipantsByChannel[channel.id] || [];
                             const currentVoiceTab = activeTabId === `voice:${channel.id}`;
-                            return <div key={channel.id} className="sidebar-voice-channel">
-                              <button type="button" className={`sidebar-row voice-channel-row ${currentVoiceTab ? 'active' : ''}`}
-                                onClick={() => openVoiceTab(server, channel.id)} title={`Войти в голосовой канал ${channel.name}`}>
-                                <Volume2 size={14} /><span className="sidebar-row-text"><strong>{channel.name}</strong></span>
-                                <small>{members.length}/{channel.user_limit || 8}</small>
+                            const canConnect = channel.canConnect !== false;
+                            return <div key={channel.id} className={`sidebar-voice-channel ${canConnect ? '' : 'locked'}`}>
+                              <button type="button" disabled={!canConnect} className={`sidebar-row voice-channel-row ${currentVoiceTab ? 'active' : ''}`}
+                                onClick={() => openVoiceTab(server, channel.id)} data-tooltip={canConnect ? `Войти в голосовой канал ${channel.name}` : 'Нет права подключаться к этому каналу'}>
+                                {canConnect ? <Volume2 size={14} /> : <Lock size={14} />}
+                                <span className="sidebar-row-text"><strong>{channel.name}</strong></span>
+                                <small>{canConnect ? `${members.length}/${channel.user_limit || 8}` : 'Нет доступа'}</small>
                               </button>
                               {members.map((member) => <div key={member.user.id} className="sidebar-voice-member">
                                 <Avatar user={member.user} size={24} />
