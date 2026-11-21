@@ -18,7 +18,7 @@ import { DefaultAvatar } from './components/DefaultAvatar';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
-import { playNexoSound } from './lib/sounds';
+import { getNexoSoundPreferences, playNexoSound, saveNexoSoundPreferences } from './lib/sounds';
 import { getSocket } from './lib/socket';
 import type { ChannelMessage, Conversation, FriendPayload, Message, Server, User, UserStatus } from './types';
 
@@ -138,6 +138,7 @@ export default function App() {
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
   const [audioInputId, setAudioInputId] = useState('');
   const [audioOutputId, setAudioOutputId] = useState('');
+  const [dockSoundVolume, setDockSoundVolume] = useState(() => getNexoSoundPreferences().volume);
   const [customStatusOpen, setCustomStatusOpen] = useState(false);
   const [customStatusDraft, setCustomStatusDraft] = useState('');
   const [notificationUpdate, setNotificationUpdate] = useState<{ version: string; message: string } | null>(null);
@@ -1368,6 +1369,14 @@ export default function App() {
           </label>
           {!audioInputs.length && <p className="dock-menu-hint">Микрофоны появятся после разрешения доступа к аудио.</p>}
           {!audioOutputs.length && <p className="dock-menu-hint">Устройства вывода не обнаружены.</p>}
+          <label className="dock-menu-select"><span>Громкость звуков · {Math.round(dockSoundVolume * 100)}%</span>
+            <input type="range" min="0" max="1" step="0.02" value={dockSoundVolume}
+              onChange={(event) => {
+                const volume = Number(event.target.value);
+                setDockSoundVolume(volume);
+                saveNexoSoundPreferences({ ...getNexoSoundPreferences(), volume });
+              }} />
+          </label>
           <div className="dock-menu-divider" />
           <MenuAction icon={<UserRoundPlus size={14} />} label="Профиль" onClick={() => { setStatusMenuOpen(false); openSettingsTab('profile'); }} />
           <MenuAction icon={<Settings size={14} />} label="Настройки" onClick={() => { setStatusMenuOpen(false); openSettingsTab('account'); }} />
