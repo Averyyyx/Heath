@@ -3469,3 +3469,13 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 }
 [data-tooltip]:not(.dock-icon):not(.message-time):hover::after,
 [data-tooltip]:not(.dock-icon):not(.message-time):focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+
+
+/* Pin the account/voice area to the bottom; only the navigation list may scroll. */
+.nexo-sidebar {
+  display: flex; height: 100%; min-height: 0; flex-direction: column;
+  overflow: hidden;
+}
+.nexo-sidebar > .sidebar-scroll-area { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.nexo-sidebar > .sidebar-user-area { flex: 0 0 auto; margin-top: auto !important; overflow: visible; }
+.nexo-sidebar .nexo-user-dock { height: 52px; min-height: 52px; flex: 0 0 52px; }
