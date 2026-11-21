@@ -1377,6 +1377,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         ['Новое окно перехода / поиск диалога', 'Ctrl', 'T'],
         ['Закрыть текущую вкладку', 'Ctrl', 'W'],
         ['Восстановить закрытую вкладку', 'Ctrl + Shift', 'T'],
+        ['Поиск по сообщениям', 'Ctrl', 'F'],
         ['Показать или скрыть боковую панель', 'Ctrl', 'B']
       ]},
       { title: 'ПЕРЕКЛЮЧЕНИЕ', items: [
