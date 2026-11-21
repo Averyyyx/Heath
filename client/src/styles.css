@@ -3384,3 +3384,24 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .nexo-ui-modal-content { min-height: 0; overflow: auto; padding: 12px 22px 22px; }
 .nexo-ui-modal > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 22px 18px; border-top: 1px solid var(--border); }
 @keyframes nexo-modal-in { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: scale(1); } }
+
+
+/* Incoming call buttons now have clear text labels; message times use Nexo tooltips. */
+.message-body header .message-time { position: relative; opacity: 0; transition: opacity 120ms ease; }
+.message-row:hover .message-body header .message-time,
+.message-row:focus-within .message-body header .message-time { opacity: 1; }
+.message-body header .message-time::after {
+  position: absolute; left: 50%; bottom: calc(100% + 7px); z-index: 50;
+  padding: 6px 8px; border-radius: 8px; background: var(--text); color: var(--bg);
+  content: attr(data-tooltip); font-size: 12px; font-weight: 400; line-height: 1.2;
+  white-space: nowrap; opacity: 0; pointer-events: none; transform: translate(-50%, 3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.message-body header .message-time:hover::after { opacity: 1; transform: translate(-50%, 0); }
+.incoming-call-actions { gap: 10px; }
+.incoming-call-actions button {
+  display: inline-flex; width: auto; min-width: 94px; height: 44px; align-items: center; justify-content: center; gap: 8px;
+  padding: 0 13px; border-radius: 12px; box-shadow: none; font-size: 12px; font-weight: 650;
+}
+.incoming-call-actions .call-accept-audio { min-width: 112px; background: #5b7771; }
+.incoming-call-actions button span { white-space: nowrap; }
