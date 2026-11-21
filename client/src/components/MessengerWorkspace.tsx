@@ -1171,6 +1171,7 @@ export function MessengerWorkspace({
                 </div>
                 <div className="chat-actions">
                   <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
+                  <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('dm')} title="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
                   <button type="button" className="ghost" onClick={() => startCall(activeConversation.id, { initiator: true }, 'audio')}>
                     <Phone size={16} />Голос
                   </button>
@@ -1179,6 +1180,12 @@ export function MessengerWorkspace({
                   </button>
                 </div>
               </header>
+              {pinnedPanelOpen && <div className="pinned-messages-panel">
+                <strong>Закреплённые сообщения</strong>
+                {pinnedMessages.length ? pinnedMessages.map((pin) => <button key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                  <span>{pin.author.display_name || pin.author.username}</span><small>{pin.content || 'Вложение'}</small>
+                </button>) : <p>Пока ничего не закреплено.</p>}
+              </div>}
               {callState?.conversationId === activeConversation.id && <CallOverlay
                 state={callState}
                 peer={activeConversation.counterpart || activeConversation.participants.find((participant) => participant.id !== user.id) || null}
@@ -1228,6 +1235,7 @@ export function MessengerWorkspace({
                             {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.edited_at && <small className="message-edited-label">изменено</small>}
+                            {message.pin && <small className="message-pinned-label"><Pin size={11} />Закреплено</small>}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'dm', emoji)} />
                             {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) &&
@@ -1336,12 +1344,19 @@ export function MessengerWorkspace({
                 </div>
                 <div className="chat-actions">
                   <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
+                  <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('channel')} title="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
                   <button type="button" className={showMembersPanel ? 'ghost active' : 'ghost'} onClick={() => setShowMembersPanel((value) => !value)} title="Показать участников" aria-label="Показать участников">
                     <Users size={16} />Участники
                   </button>
                   {onEditChannel && <button type="button" className="ghost" onClick={onEditChannel} title="Настройки канала" aria-label="Настройки канала"><Settings size={16} />Канал</button>}
                 </div>
               </header>
+              {pinnedPanelOpen && <div className="pinned-messages-panel">
+                <strong>Закреплённые сообщения</strong>
+                {pinnedMessages.length ? pinnedMessages.map((pin) => <button key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-channel-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                  <span>{pin.author.display_name || pin.author.username}</span><small>{pin.content || 'Вложение'}</small>
+                </button>) : <p>Пока ничего не закреплено.</p>}
+              </div>}
               <div className="message-stream">
                 {loadingChannelMessages && <p className="muted">Загружаем…</p>}
                 {!loadingChannelMessages &&
@@ -1361,6 +1376,7 @@ export function MessengerWorkspace({
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-channel-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
+                            {message.pin && <small className="message-pinned-label"><Pin size={11} />Закреплено</small>}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'channel', emoji)} />
                           </div>
@@ -1469,6 +1485,9 @@ export function MessengerWorkspace({
                 <button key={emoji} type="button" title={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
               ))}
             </div>
+            <button type="button" onClick={() => void toggleMessagePin(messageContext.message, messageContext.kind)}>
+              <Pin size={14} /><span>{messageContext.message.pin ? 'Открепить' : 'Закрепить'}</span>
+            </button>
             <button type="button" onClick={() => beginReplyMessage(messageContext.message, messageContext.kind)}>
               <MessageCircle size={14} /><span>Ответить</span>
             </button>
