@@ -452,6 +452,14 @@ export function MessengerWorkspace({
   const activeMessages = activeConversationId ? messageStore[activeConversationId] || [] : [];
 
   useEffect(() => {
+    if (editingMessageId === null) return;
+    setEditingMessageId(null);
+    setComposerText('');
+    setUploadFile(null);
+  }, [activeConversationId]);
+
+
+  useEffect(() => {
     const latestMessage = activeMessages[activeMessages.length - 1];
     if (!activeConversationId || !isActive || !latestMessage) return;
     const previousReadId = lastReadSentRef.current[activeConversationId] || 0;
@@ -636,6 +644,7 @@ export function MessengerWorkspace({
 
   function beginEditMessage(message: Message | ChannelMessage) {
     if (message.author.id !== user.id || !message.content) return;
+    setUploadFile(null);
     setEditingMessageId(message.id);
     setComposerText(message.content);
     setMessageContext(null);
@@ -1056,7 +1065,7 @@ export function MessengerWorkspace({
               </div>
               {typingUser && <div className="typing-indicator">{typingUser.display_name || typingUser.username} печатает…</div>}
               {callError && <p className="status error call-error">{callError}</p>}
-              <div className="composer">
+              <div className={`composer ${editingMessageId !== null ? 'editing' : ''}`}>
                 {editingMessageId !== null && (
                   <div className="composer-editing-banner">
                     <span>Редактирование сообщения</span>
@@ -1256,7 +1265,7 @@ export function MessengerWorkspace({
         <div className="message-context-backdrop" onPointerDown={() => setMessageContext(null)}>
           <div className="nexo-context-menu" style={{
             left: Math.min(messageContext.x, window.innerWidth - 220),
-            top: Math.min(messageContext.y, window.innerHeight - 110)
+            top: Math.min(messageContext.y, window.innerHeight - 150)
           }} onPointerDown={(event) => event.stopPropagation()}>
             <button type="button" onClick={() => {
               const value = messageContext.message.content || messageContext.message.attachment?.name || '';
