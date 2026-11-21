@@ -17,6 +17,8 @@ import {
   Camera,
   CameraOff,
   ChevronUp,
+  Maximize2,
+  Minimize2,
   Mic,
   MicOff,
   Plus,
@@ -1832,11 +1834,24 @@ function CallOverlay({
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [clock, setClock] = useState(Date.now());
   const peerName = peer?.display_name || peer?.username || 'Собеседник';
   const cameraTrack = state.localStream?.getVideoTracks()[0];
   const cameraEnabled = Boolean(cameraTrack?.enabled && !state.isScreenSharing);
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await overlayRef.current?.requestFullscreen?.();
+    } catch (error) { console.warn('Fullscreen call view is unavailable:', error); }
+  }
+  useEffect(() => {
+    const sync = () => setFullscreen(document.fullscreenElement === overlayRef.current);
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
@@ -1889,6 +1904,7 @@ function CallOverlay({
         </div>
         <div className="call-control-group">
           <button type="button" className="call-control" onClick={onShareScreen} data-tooltip="Поделиться экраном" aria-label="Поделиться экраном"><Monitor size={17} /></button>
+          <button type="button" className="call-control" onClick={() => void toggleFullscreen()} title={fullscreen ? 'Свернуть звонок' : 'Развернуть звонок'} aria-label={fullscreen ? 'Свернуть звонок' : 'Развернуть звонок'}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
           <button type="button" className="call-control" onClick={() => setCollapsed(true)} title="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
         </div>
         <button type="button" className="call-control call-hangup" onClick={() => onHangUp(true)} title="Завершить звонок" aria-label="Завершить звонок"><PhoneOff size={17} /></button>
