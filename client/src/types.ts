@@ -16,6 +16,7 @@ export type User = {
   display_name: string;
   avatar_url: string;
   avatar_color?: string;
+  avatar_preset?: number | null;
   bio?: string;
   discriminator?: string;
   twofa_enabled?: number;
@@ -82,6 +83,7 @@ export type MessageAuthor = {
   display_name: string;
   avatar_url: string;
   avatar_color?: string;
+  avatar_preset?: number | null;
 };
 
 export type Message = {

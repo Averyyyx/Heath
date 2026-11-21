@@ -41,6 +41,7 @@ const NodeClam = require('clamscan');
 const multer = require('multer');
 const { Server } = require('socket.io');
 const { randomUUID, randomBytes } = require('crypto');
+const { isValidEmail } = require('./electron/email-validation');
 require('dotenv').config();
 
 const app = express();
@@ -325,6 +326,19 @@ ensureUserColumn('discriminator', `discriminator TEXT DEFAULT '0001'`);
 ensureUserColumn('profile_complete', `profile_complete INTEGER DEFAULT 0`);
 ensureUserColumn('bio', `bio TEXT DEFAULT ''`);
 ensureUserColumn('avatar_color', `avatar_color TEXT DEFAULT '#D97757'`);
+const hadAvatarPresetColumn = db.prepare('PRAGMA table_info(users)').all().some((column) => column.name === 'avatar_preset');
+ensureUserColumn('avatar_preset', 'avatar_preset INTEGER');
+if (!hadAvatarPresetColumn) {
+  db.prepare('UPDATE users SET avatar_preset = ((id * 7 + 3) % 12)').run();
+}
+db.prepare(`
+  CREATE TRIGGER IF NOT EXISTS users_assign_avatar_preset
+  AFTER INSERT ON users
+  WHEN NEW.avatar_preset IS NULL
+  BEGIN
+    UPDATE users SET avatar_preset = ((NEW.id * 7 + 3) % 12) WHERE id = NEW.id;
+  END
+`).run();
 ensureUserColumn('username_changed_at', 'username_changed_at DATETIME');
 ensureUserColumn('display_name_changed_at', 'display_name_changed_at DATETIME');
 ensureUserColumn('status', "status TEXT DEFAULT 'online'");
@@ -634,7 +648,9 @@ const updateTwoFactor = db.prepare('UPDATE users SET twofa_secret = ?, twofa_ena
 const updatePasswordHash = db.prepare('UPDATE users SET password_hash = ? WHERE id = ?');
 const markProfile = db.prepare(`
   UPDATE users
-  SET display_name = ?, username = ?, discriminator = ?, bio = ?, avatar_color = ?, profile_complete = 1,
+  SET display_name = ?, username = ?, discriminator = ?, bio = ?, avatar_color = ?,
+      avatar_url = CASE WHEN avatar_preset != ? THEN '' ELSE avatar_url END,
+      avatar_preset = ?, profile_complete = 1,
       display_name_changed_at = CASE WHEN display_name != ? THEN CURRENT_TIMESTAMP ELSE display_name_changed_at END,
       username_changed_at = CASE WHEN username != ? THEN CURRENT_TIMESTAMP ELSE username_changed_at END
   WHERE id = ?
@@ -674,13 +690,13 @@ const listConversationsForUser = db.prepare(`
 const insertMessage = db.prepare('INSERT INTO messages (conversation_id, author_id, content, attachment) VALUES (?, ?, ?, ?)');
 const selectMessageById = db.prepare('SELECT * FROM messages WHERE id = ?');
 const selectMessageWithAuthor = db.prepare(`
-  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color
+  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
   FROM messages m
   JOIN users u ON u.id = m.author_id
   WHERE m.id = ?
 `);
 const listMessages = db.prepare(`
-  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color
+  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
   FROM messages m
   JOIN users u ON u.id = m.author_id
   WHERE m.conversation_id = ?
@@ -715,7 +731,7 @@ const insertServerMember = db.prepare('INSERT INTO server_members (server_id, us
 const selectServerMember = db.prepare('SELECT * FROM server_members WHERE server_id = ? AND user_id = ?');
 const listServerMembers = db.prepare('SELECT * FROM server_members WHERE server_id = ?');
 const listServerMembersDetailed = db.prepare(`
-  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color
+  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
   FROM server_members sm
   JOIN users u ON u.id = sm.user_id
   WHERE sm.server_id = ?
@@ -727,7 +743,7 @@ const listChannelsForServer = db.prepare('SELECT * FROM channels WHERE server_id
 const insertServerMessage = db.prepare('INSERT INTO server_messages (server_id, channel_id, author_id, content, attachment) VALUES (?, ?, ?, ?, ?)');
 const selectServerMessageById = db.prepare('SELECT * FROM server_messages WHERE id = ?');
 const selectServerMessageWithAuthor = db.prepare(`
-  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color
+  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
   FROM server_messages sm
   JOIN users u ON u.id = sm.author_id
   WHERE sm.id = ?
@@ -1239,25 +1255,35 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('call:invite', ({ conversationId, mediaType = 'audio' }) => {
+  const handleCallRing = ({ conversationId, mediaType = 'audio' }) => {
     try {
-      ensureConversationAccess(conversationId, socket.user.id);
+      ensureConversationAccess(Number(conversationId), socket.user.id);
+      const participants = getConversationParticipants(Number(conversationId));
+      if (participants.length > 2) {
+        socket.emit('call:error', { conversationId: Number(conversationId), message: 'Групповые звонки до четырёх участников ещё проходят разработку. Пока доступны личные звонки.' });
+        return;
+      }
       const invitation = {
-        conversationId, from: socket.user.id, user: socket.user,
-        mediaType: mediaType === 'video' ? 'video' : 'audio'
+        conversationId: Number(conversationId), from: socket.user.id, user: sanitizeUser(socket.user),
+        mediaType: mediaType === 'video' ? 'video' : 'audio',
+        participants
       };
-      getConversationParticipants(conversationId)
-        .filter((participant) => participant.id !== socket.user.id)
-        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:invite', invitation));
+      participants.filter((participant) => participant.id !== socket.user.id).forEach((participant) => {
+        io.to(getUserRoom(participant.id)).emit('call:ring', invitation);
+        io.to(getUserRoom(participant.id)).emit('call:invite', invitation);
+      });
     } catch (error) { socket.emit('error', { message: error.message }); }
-  });
+  };
+  socket.on('call:ring', handleCallRing);
+  socket.on('call:invite', handleCallRing);
 
-  socket.on('call:accept', ({ conversationId }) => {
+  socket.on('call:accept', ({ conversationId, mediaType = 'audio' }) => {
     try {
       ensureConversationAccess(conversationId, socket.user.id);
       const accepted = {
         conversationId,
-        from: socket.user.id
+        from: socket.user.id,
+        mediaType: mediaType === 'video' ? 'video' : 'audio'
       };
       getConversationParticipants(conversationId)
         .filter((participant) => participant.id !== socket.user.id)
@@ -1267,10 +1293,27 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('call:reject', ({ conversationId }) => {
+  const handleCallDecline = ({ conversationId }) => {
     try {
-      ensureConversationAccess(conversationId, socket.user.id);
-      socket.to(getConversationRoom(conversationId)).emit('call:reject', { conversationId, from: socket.user.id });
+      ensureConversationAccess(Number(conversationId), socket.user.id);
+      getConversationParticipants(Number(conversationId)).filter((participant) => participant.id !== socket.user.id).forEach((participant) => {
+        const payload = { conversationId: Number(conversationId), from: socket.user.id };
+        io.to(getUserRoom(participant.id)).emit('call:decline', payload);
+        io.to(getUserRoom(participant.id)).emit('call:reject', payload);
+      });
+    } catch (error) { socket.emit('error', { message: error.message }); }
+  };
+  socket.on('call:decline', handleCallDecline);
+  socket.on('call:reject', handleCallDecline);
+
+  socket.on('call:timeout', ({ conversationId }) => {
+    try {
+      ensureConversationAccess(Number(conversationId), socket.user.id);
+      getConversationParticipants(Number(conversationId))
+        .filter((participant) => participant.id !== socket.user.id)
+        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:timeout', {
+          conversationId: Number(conversationId), from: socket.user.id
+        }));
     } catch (error) { socket.emit('error', { message: error.message }); }
   });
 
@@ -1289,11 +1332,12 @@ io.on('connection', (socket) => {
 
   socket.on('call:end', ({ conversationId }) => {
     try {
-      ensureConversationAccess(conversationId, socket.user.id);
-      socket.to(getConversationRoom(conversationId)).emit('call:end', {
-        conversationId,
-        from: socket.user.id
-      });
+      ensureConversationAccess(Number(conversationId), socket.user.id);
+      getConversationParticipants(Number(conversationId))
+        .filter((participant) => participant.id !== socket.user.id)
+        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:end', {
+          conversationId: Number(conversationId), from: socket.user.id
+        }));
     } catch (error) {
       socket.emit('error', { message: error.message });
     }
@@ -1499,7 +1543,8 @@ function serializeMessage(row) {
       username: row.username,
       display_name: row.display_name,
       avatar_url: row.avatar_url,
-      avatar_color: row.avatar_color || '#D97757'
+      avatar_color: row.avatar_color || '#D97757',
+      avatar_preset: Number.isInteger(row.avatar_preset) ? row.avatar_preset : 0
     },
     content: row.content,
     attachment: serializeAttachment(row.attachment),
@@ -1518,7 +1563,8 @@ function serializeServerMessage(row) {
       username: row.username,
       display_name: row.display_name,
       avatar_url: row.avatar_url,
-      avatar_color: row.avatar_color || '#D97757'
+      avatar_color: row.avatar_color || '#D97757',
+      avatar_preset: Number.isInteger(row.avatar_preset) ? row.avatar_preset : 0
     },
     content: row.content,
     attachment: serializeAttachment(row.attachment),
@@ -1867,6 +1913,13 @@ function emitChannelMessage(message) {
     channelId: message.channel_id,
     message
   });
+  listServerMembers.all(message.server_id).forEach((member) => {
+    io.to(getUserRoom(member.user_id)).emit('channel:message:notify', {
+      serverId: message.server_id,
+      channelId: message.channel_id,
+      message
+    });
+  });
 }
 
 function createMessage(conversationId, authorId, content, attachmentPayload = null) {
@@ -1904,6 +1957,12 @@ function createMessage(conversationId, authorId, content, attachmentPayload = nu
   io.to(getConversationRoom(conversation.id)).emit('message:new', {
     conversationId: conversation.id,
     message
+  });
+  getConversationParticipants(conversation.id).forEach((participant) => {
+    io.to(getUserRoom(participant.id)).emit('message:notify', {
+      conversationId: conversation.id,
+      message
+    });
   });
   return message;
 }
@@ -2124,7 +2183,7 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(400).json({ message: 'Email не должен превышать 254 символа, пароль — 128 символов.' });
   }
   const normalizedEmail = email.trim().toLowerCase();
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizedEmail)) {
+  if (!isValidEmail(normalizedEmail)) {
     return res.status(400).json({ message: 'Введите корректный адрес электронной почты.' });
   }
 
@@ -2330,7 +2389,10 @@ app.post('/api/profile', ensureAuthenticated, friendActionLimiter, (req, res) =>
 
   try {
     const stableDiscriminator = req.user.discriminator || randomDiscriminator();
-    markProfile.run(rawName, rawHandle, stableDiscriminator, safeBio, safeAvatarColor, rawName, rawHandle, req.user.id);
+    const requestedPreset = Number(req.body?.avatarPreset);
+    const safeAvatarPreset = Number.isInteger(requestedPreset) && requestedPreset >= 0 && requestedPreset <= 11
+      ? requestedPreset : Number(req.user.avatar_preset) || 0;
+    markProfile.run(rawName, rawHandle, stableDiscriminator, safeBio, safeAvatarColor, safeAvatarPreset, safeAvatarPreset, rawName, rawHandle, req.user.id);
     const updated = sanitizeUser(selectUserById.get(req.user.id));
     req.user = updated;
     broadcastUserUpdate(updated);

@@ -4,6 +4,7 @@ ipcRenderer.on('deep-link', (_event, payload) => { pendingDeepLink = payload; })
 
 contextBridge.exposeInMainWorld('nexoAPI', {
   setNotificationCount: (count) => ipcRenderer.send('set-notification-count', count),
+  showNotification: (payload) => ipcRenderer.invoke('show-system-notification', payload),
   minimizeWindow: () => ipcRenderer.send('minimize-window'),
   maximizeWindow: () => ipcRenderer.send('maximize-window'),
   closeWindow: () => ipcRenderer.send('close-window'),

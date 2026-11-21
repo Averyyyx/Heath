@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog, nativeTheme } = require('electron');
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog, nativeTheme, Notification } = require('electron');
 const path = require('path');
 const { fork, spawn } = require('child_process');
 const http = require('http');
@@ -7,6 +7,12 @@ const { Readable, Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const crypto = require('crypto');
 const { compareReleaseVersions } = require('./version');
+const { parseNexoDeepLink } = require('./deeplink');
+
+// Windows связывает иконку окна и ярлык с этим ID. Задаём до app.whenReady(),
+// иначе Windows может закрепить процесс под общим значком Electron.
+if (process.platform === 'win32') app.setAppUserModelId('com.nexo.app');
+app.setName('Nexo');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -133,7 +139,19 @@ function getIconsDir() {
 
 function getDesktopIconPath() {
   const iconPath = path.join(getIconsDir(), 'Nexo-Desctop-ico.ico');
-  return fs.existsSync(iconPath) ? iconPath : getIconPath('Nexo-Desctop-ico', 256);
+  if (fs.existsSync(iconPath)) {
+    const ico = nativeImage.createFromPath(iconPath);
+    if (!ico.isEmpty()) return iconPath;
+    console.warn('Nexo ICO is unreadable; falling back to the PNG app icon:', iconPath);
+  }
+
+  const pngPath = getIconPath('Nexo-Desctop-ico', 256);
+  if (fs.existsSync(pngPath)) {
+    const png = nativeImage.createFromPath(pngPath);
+    if (!png.isEmpty()) return pngPath;
+  }
+  console.error('No readable Nexo application icon was found.');
+  return iconPath;
 }
 
 // Файлы иконок лежат с суффиксом размера (Nexo-Desctop-ico-256.png), поэтому ищем
@@ -162,9 +180,9 @@ function getIconPath(iconName, size = 256) {
 function ensureDesktopShortcut() {
   if (process.platform !== 'win32' || !app.isPackaged) return;
   const shortcutPath = path.join(app.getPath('desktop'), 'Nexo.lnk');
-  if (fs.existsSync(shortcutPath)) return;
   try {
-    const created = shell.writeShortcutLink(shortcutPath, 'create', {
+    const shortcutAction = fs.existsSync(shortcutPath) ? 'update' : 'create';
+    const created = shell.writeShortcutLink(shortcutPath, shortcutAction, {
       target: process.execPath,
       args: [],
       cwd: path.dirname(process.execPath),
@@ -331,6 +349,18 @@ function setupIPCHandlers() {
     }
   });
 
+  ipcMain.handle('show-system-notification', (_event, payload = {}) => {
+    if (!Notification.isSupported()) return false;
+    const title = String(payload.title || 'Nexo').slice(0, 100);
+    const body = String(payload.body || '').slice(0, 240);
+    const notification = new Notification({ title, body, icon: getDesktopIconPath(), silent: true });
+    if (typeof payload.deepLink === 'string' && payload.deepLink.startsWith('nexo://')) {
+      notification.on('click', () => dispatchDeepLink(payload.deepLink));
+    }
+    notification.show();
+    return true;
+  });
+
   ipcMain.handle('get-app-version', () => app.getVersion());
   ipcMain.handle('check-for-updates', () => checkForUpdates({ interactive: true }));
   ipcMain.handle('get-update-preferences', () => getUpdatePreferences());
@@ -368,17 +398,9 @@ function setNotificationCount(count) {
 }
 
 function dispatchDeepLink(rawUrl) {
+  const payload = parseNexoDeepLink(rawUrl);
+  if (!payload) return false;
   try {
-    const url = new URL(rawUrl);
-    if (url.protocol !== 'nexo:') return false;
-    const parts = url.pathname.split('/').filter(Boolean);
-    let payload = null;
-    if (url.hostname === 'dm' && /^\\d+$/.test(parts[0] || '') && parts[1] === 'message' && /^\\d+$/.test(parts[2] || '')) {
-      payload = { type: 'dm', conversationId: Number(parts[0]), messageId: Number(parts[2]) };
-    } else if (url.hostname === 'channel' && /^\\d+$/.test(parts[0] || '') && /^\\d+$/.test(parts[1] || '') && parts[2] === 'message' && /^\\d+$/.test(parts[3] || '')) {
-      payload = { type: 'channel', serverId: Number(parts[0]), channelId: Number(parts[1]), messageId: Number(parts[3]) };
-    }
-    if (!payload) return false;
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.getURL().startsWith(SERVER_URL)) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -387,7 +409,7 @@ function dispatchDeepLink(rawUrl) {
     } else queuedDeepLink = payload;
     return true;
   } catch (error) {
-    console.warn('Rejected invalid Nexo deep link:', error.message);
+    console.warn('Failed to dispatch Nexo deep link:', error.message);
     return false;
   }
 }
@@ -694,7 +716,8 @@ function startServer() {
 
 function createSplashWindow() {
   console.log('Creating splash window...');
-  
+  const splashIconPath = getDesktopIconPath();
+
   splashWindow = new BrowserWindow({
     width: 520,
     height: 620,
@@ -708,8 +731,15 @@ function createSplashWindow() {
       preload: path.join(__dirname, 'splash-preload.js')
     },
     show: false,
-    backgroundColor: '#262624'
+    backgroundColor: '#262624',
+    icon: splashIconPath
   });
+
+  if (process.platform === 'win32') {
+    const splashIcon = nativeImage.createFromPath(splashIconPath);
+    if (!splashIcon.isEmpty()) splashWindow.setIcon(splashIcon);
+    else console.warn('Nexo splash icon could not be loaded:', splashIconPath);
+  }
 
   const splashPath = path.join(__dirname, 'splash.html');
   console.log('Loading splash from:', splashPath);
@@ -753,6 +783,11 @@ function createWindow() {
     backgroundColor: '#0D0A1A',
     icon: getDesktopIconPath()
   });
+
+  if (process.platform === 'win32') {
+    const desktopIcon = nativeImage.createFromPath(getDesktopIconPath());
+    if (!desktopIcon.isEmpty()) mainWindow.setIcon(desktopIcon);
+  }
 
   // Добавляем обработчики ошибок загрузки
   mainWindow.webContents.on('did-finish-load', () => { if (pendingUpdateNotice) mainWindow.webContents.send('update-status', pendingUpdateNotice); });
@@ -867,9 +902,6 @@ app.whenReady().then(async () => {
 
   const startupDeepLink = process.argv.find((argument) => argument.startsWith('nexo://'));
   if (startupDeepLink) dispatchDeepLink(startupDeepLink);
-
-  // Стабильный AppUserModelId нужен Windows для правильного значка панели задач.
-  if (process.platform === 'win32') app.setAppUserModelId('com.nexo.app');
 
   // Инициализируем логирование после того, как app готов
   setupLogging();

@@ -17,7 +17,7 @@ import {
   Keyboard
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
-import { getNexoSoundPreferences, playNexoSound, saveNexoSoundPreferences, type NexoSoundPreferences } from '../lib/sounds';
+import { getNexoSoundPreferences, NEXO_SOUND_EVENTS, playNexoSound, saveNexoSoundPreferences, type NexoSoundPreferences } from '../lib/sounds';
 import { Avatar } from './Avatar';
 import type { User } from '../types';
 import { applyTheme, isThemeChoice } from '../lib/theme';
@@ -109,7 +109,7 @@ const PERMISSION_FLAGS = [
   { label: 'Транслировать экран', value: 1 << 9 }
 ];
 
-export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.5-alpha', onCheckUpdates, audioInputId = '', audioOutputId = '', onAudioInputChange, onAudioOutputChange }: SettingsPanelProps) {
+export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.7-alpha', onCheckUpdates, audioInputId = '', audioOutputId = '', onAudioInputChange, onAudioOutputChange }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [soundPreferences, setSoundPreferences] = useState<NexoSoundPreferences>(() => getNexoSoundPreferences());
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
@@ -118,6 +118,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   const [accountHandle, setAccountHandle] = useState(user.username || '');
   const [profileBio, setProfileBio] = useState(user.bio || '');
   const [profileColor, setProfileColor] = useState(user.avatar_color || '#D97757');
+  const [profileAvatarPreset, setProfileAvatarPreset] = useState(user.avatar_preset ?? 0);
   const [handleState, setHandleState] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [handleHint, setHandleHint] = useState('Логин можно менять раз в 14 дней.');
   const [profileBusy, setProfileBusy] = useState(false);
@@ -188,6 +189,15 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
     return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
   }, []);
 
+  useEffect(() => {
+    const syncSoundPreferences = (event: Event) => {
+      const next = (event as CustomEvent<NexoSoundPreferences>).detail;
+      if (next) setSoundPreferences(next);
+    };
+    window.addEventListener('nexo-sound-preferences-updated', syncSoundPreferences);
+    return () => window.removeEventListener('nexo-sound-preferences-updated', syncSoundPreferences);
+  }, []);
+
   function changeSoundPreference<K extends keyof NexoSoundPreferences>(key: K, value: NexoSoundPreferences[K]) {
     setSoundPreferences((current) => {
       const next = { ...current, [key]: value };
@@ -207,6 +217,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
     setAccountHandle(user.username || '');
     setProfileBio(user.bio || '');
     setProfileColor(user.avatar_color || '#D97757');
+    setProfileAvatarPreset(user.avatar_preset ?? 0);
   }, [user]);
 
   useEffect(() => {
@@ -1077,7 +1088,8 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           displayName: accountName.trim(),
           username: accountHandle.trim().toLowerCase(),
           bio: profileBio.trim().slice(0, 200),
-          avatarColor: profileColor
+          avatarColor: profileColor,
+          avatarPreset: profileAvatarPreset
         })
       });
       const payload = await response.json().catch(() => ({}));
@@ -1235,7 +1247,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         <p className="eyebrow">ПУБЛИЧНЫЙ ПРОФИЛЬ</p>
         <h2>Профиль</h2>
         <div className="profile-card-preview">
-          <Avatar user={{ ...user, display_name: accountName, username: accountHandle, avatar_color: profileColor }} size={58} />
+          <Avatar user={{ ...user, display_name: accountName, username: accountHandle, avatar_color: profileColor, avatar_preset: profileAvatarPreset, avatar_url: avatarPreview || (profileAvatarPreset !== (user.avatar_preset ?? 0) ? '' : user.avatar_url) }} size={58} />
           <div><strong>{accountName || 'Ваше имя'}</strong><small>@{accountHandle || 'username'} · #{user.discriminator || '0001'}</small>
             <p>{profileBio || 'Описание профиля пока пустое.'}</p></div>
         </div>
@@ -1266,6 +1278,18 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           <div className="avatar-color-options">{profilePalette.map((color) => <button key={color} type="button"
             className={profileColor === color ? 'selected' : ''} style={{ backgroundColor: color }}
             aria-label={`Цвет ${color}`} aria-pressed={profileColor === color} onClick={() => setProfileColor(color)} />)}</div>
+        </div>
+        <div className="settings-group">
+          <h3>Аватары Nexo</h3>
+          <p className="muted">Выберите одну из 12 геометрических эмблем. Загруженное изображение имеет приоритет.</p>
+          <div className="avatar-preset-grid">
+            {Array.from({ length: 12 }, (_, preset) => <button key={preset} type="button"
+              className={profileAvatarPreset === preset ? 'selected' : ''}
+              aria-label={`Аватар Nexo ${preset + 1}`} aria-pressed={profileAvatarPreset === preset}
+              onClick={() => setProfileAvatarPreset(preset)}>
+              <Avatar user={{ ...user, avatar_url: '', avatar_preset: preset }} size={42} />
+            </button>)}
+          </div>
         </div>
         <button type="button" className="primary" onClick={() => void saveProfile()} disabled={profileBusy || handleState === 'checking'}>
           {profileBusy ? 'Сохраняем…' : 'Сохранить профиль'}
@@ -1305,27 +1329,37 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       <div className="settings-section discord-settings-page">
         <p className="eyebrow">НАСТРОЙКИ ПРИЛОЖЕНИЯ</p>
         <h2>Уведомления и звуки</h2>
-        <p className="muted">Звуки Nexo используют одну музыкальную тему, но каждый тип события имеет собственный короткий сигнал.</p>
+        <p className="muted">Единая звуковая палитра Nexo. Каждый сигнал можно отдельно отключить и прослушать.</p>
         <div className="settings-group sound-settings-list">
           <label className="settings-toggle-row"><span><strong>Все звуки</strong><small>Главный переключатель звуков Nexo</small></span>
             <input type="checkbox" checked={soundPreferences.enabled} onChange={(event) => changeSoundPreference('enabled', event.target.checked)} /></label>
-          <label className="settings-toggle-row"><span><strong>Новые сообщения</strong><small>Сигнал при входящем сообщении</small></span>
-            <input type="checkbox" checked={soundPreferences.messages} onChange={(event) => changeSoundPreference('messages', event.target.checked)} disabled={!soundPreferences.enabled} /></label>
-          <label className="settings-toggle-row"><span><strong>Входящие звонки</strong><small>Мелодия до принятия или отклонения вызова</small></span>
-            <input type="checkbox" checked={soundPreferences.calls} onChange={(event) => changeSoundPreference('calls', event.target.checked)} disabled={!soundPreferences.enabled} /></label>
-          <label className="settings-toggle-row"><span><strong>Микрофон и наушники</strong><small>Сигналы включения и выключения устройств</small></span>
-            <input type="checkbox" checked={soundPreferences.devices} onChange={(event) => changeSoundPreference('devices', event.target.checked)} disabled={!soundPreferences.enabled} /></label>
+          <label className="settings-toggle-row"><span><strong>Разрешать звонки в режиме «Не беспокоить»</strong><small>Входящая мелодия будет звучать, если эта опция включена</small></span>
+            <input type="checkbox" checked={soundPreferences.allowCallsInDnd} onChange={(event) => changeSoundPreference('allowCallsInDnd', event.target.checked)} disabled={!soundPreferences.enabled} /></label>
         </div>
-        <div className="settings-group">
+        <div className="settings-group sound-volume-list">
           <label className="sound-volume"><span><strong>Громкость звуков</strong><small>{Math.round(soundPreferences.volume * 100)}%</small></span>
-            <input type="range" min="0" max="1" step="0.05" value={soundPreferences.volume}
+            <input type="range" min="0" max="1" step="0.02" value={soundPreferences.volume}
               onChange={(event) => changeSoundPreference('volume', Number(event.target.value))} disabled={!soundPreferences.enabled} /></label>
+          <label className="sound-volume"><span><strong>Громкость мелодии звонка</strong><small>{Math.round(soundPreferences.ringtoneVolume * 100)}%</small></span>
+            <input type="range" min="0" max="1" step="0.02" value={soundPreferences.ringtoneVolume}
+              onChange={(event) => changeSoundPreference('ringtoneVolume', Number(event.target.value))} disabled={!soundPreferences.enabled} /></label>
         </div>
-        <div className="settings-group sound-preview-grid">
-          <button type="button" className="ghost" onClick={() => playNexoSound('message')}>Проверить уведомление</button>
-          <button type="button" className="ghost" onClick={() => playNexoSound('mic-on')}>Проверить сигнал устройства</button>
-          <button type="button" className="ghost" onClick={() => playNexoSound('ring')}>Проверить мелодию звонка</button>
+        <div className="settings-group sound-event-list">
+          {NEXO_SOUND_EVENTS.map((event) => (
+            <div className="sound-event-row" key={event.key}>
+              <span><strong>{event.label}</strong><small>{event.description}</small></span>
+              <label className="sound-event-toggle" aria-label={`Включить звук: ${event.label}`}>
+                <input type="checkbox" checked={soundPreferences.events[event.key]}
+                  onChange={(change) => changeSoundPreference('events', { ...soundPreferences.events, [event.key]: change.target.checked })}
+                  disabled={!soundPreferences.enabled} />
+              </label>
+              <button type="button" className="ghost tiny" onClick={() => playNexoSound(event.key)} disabled={!soundPreferences.enabled || !soundPreferences.events[event.key]}>
+                Прослушать
+              </button>
+            </div>
+          ))}
         </div>
+        <p className="muted">Первый сигнал может появиться после первого нажатия в приложении — это ограничение безопасности браузерного аудио.</p>
       </div>
     );
   }
@@ -1352,6 +1386,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         ['Новое окно перехода / поиск диалога', 'Ctrl', 'T'],
         ['Закрыть текущую вкладку', 'Ctrl', 'W'],
         ['Восстановить закрытую вкладку', 'Ctrl + Shift', 'T'],
+        ['Поиск по сообщениям', 'Ctrl', 'F'],
         ['Показать или скрыть боковую панель', 'Ctrl', 'B']
       ]},
       { title: 'ПЕРЕКЛЮЧЕНИЕ', items: [

@@ -1,115 +1,212 @@
+export type SoundKind =
+  | 'message' | 'send' | 'outgoing-ring' | 'ring'
+  | 'call-accepted' | 'call-ended'
+  | 'mic-on' | 'mic-off' | 'headphones-on' | 'headphones-off'
+  | 'notification' | 'error';
+
 export type NexoSoundPreferences = {
   enabled: boolean;
-  messages: boolean;
-  calls: boolean;
-  devices: boolean;
   volume: number;
+  ringtoneVolume: number;
+  allowCallsInDnd: boolean;
+  events: Record<SoundKind, boolean>;
 };
 
-const STORAGE_KEY = 'nexo.sound-preferences.v1';
+export const NEXO_SOUND_EVENTS: Array<{ key: SoundKind; label: string; description: string }> = [
+  { key: 'message', label: 'Новое сообщение', description: 'Мягкая нисходящая пара нот' },
+  { key: 'send', label: 'Отправка сообщения', description: 'Тихий короткий тон подтверждения' },
+  { key: 'outgoing-ring', label: 'Исходящий вызов', description: 'Спокойный двойной сигнал во время вызова' },
+  { key: 'ring', label: 'Входящий звонок', description: 'Оригинальная мелодия Nexo из пяти нот' },
+  { key: 'call-accepted', label: 'Звонок принят', description: 'Короткая восходящая пара нот' },
+  { key: 'call-ended', label: 'Звонок завершён', description: 'Мягкая нисходящая пара нот' },
+  { key: 'mic-on', label: 'Микрофон включён', description: 'Сигнал включения микрофона' },
+  { key: 'mic-off', label: 'Микрофон выключен', description: 'Сигнал выключения микрофона' },
+  { key: 'headphones-on', label: 'Звук включён', description: 'Низкий сигнал включения вывода' },
+  { key: 'headphones-off', label: 'Звук выключен', description: 'Низкий сигнал отключения вывода' },
+  { key: 'notification', label: 'Уведомление и упоминание', description: 'Две ноты вверх' },
+  { key: 'error', label: 'Ошибка', description: 'Один спокойный низкий тон' }
+];
+
+const STORAGE_KEY = 'nexo.sound-preferences.v2';
+const LEGACY_STORAGE_KEY = 'nexo.sound-preferences.v1';
+const DEFAULT_EVENTS: Record<SoundKind, boolean> = {
+  message: true, send: true, 'outgoing-ring': true, ring: true,
+  'call-accepted': true, 'call-ended': true,
+  'mic-on': true, 'mic-off': true, 'headphones-on': true, 'headphones-off': true,
+  notification: true, error: true
+};
 const DEFAULTS: NexoSoundPreferences = {
   enabled: true,
-  messages: true,
-  calls: true,
-  devices: true,
-  volume: 0.28
+  volume: 0.22,
+  ringtoneVolume: 0.25,
+  allowCallsInDnd: false,
+  events: DEFAULT_EVENTS
 };
 
 let audioContext: AudioContext | null = null;
+let activeVoices = 0;
+let unlockListenersInstalled = false;
+
+function clampVolume(value: unknown, fallback: number): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : fallback;
+}
 
 export function getNexoSoundPreferences(): NexoSoundPreferences {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY) || '{}';
+    const saved = JSON.parse(raw) as Record<string, unknown>;
+    const legacyEvents: Record<SoundKind, boolean> = {
+      ...DEFAULT_EVENTS,
+      message: saved.messages !== false,
+      ring: saved.calls !== false,
+      'mic-on': saved.devices !== false,
+      'mic-off': saved.devices !== false,
+      'headphones-on': saved.devices !== false,
+      'headphones-off': saved.devices !== false
+    };
+    const savedEvents = (saved.events && typeof saved.events === 'object')
+      ? saved.events as Partial<Record<SoundKind, boolean>>
+      : legacyEvents;
     return {
       enabled: saved.enabled !== false,
-      messages: saved.messages !== false,
-      calls: saved.calls !== false,
-      devices: saved.devices !== false,
-      volume: Math.max(0, Math.min(1, Number.isFinite(Number(saved.volume)) ? Number(saved.volume) : DEFAULTS.volume))
+      volume: clampVolume(saved.volume, DEFAULTS.volume),
+      ringtoneVolume: clampVolume(saved.ringtoneVolume, clampVolume(saved.volume, DEFAULTS.ringtoneVolume)),
+      allowCallsInDnd: saved.allowCallsInDnd === true,
+      events: Object.fromEntries(Object.keys(DEFAULT_EVENTS).map((key) => [
+        key, savedEvents[key as SoundKind] !== false
+      ])) as Record<SoundKind, boolean>
     };
   } catch {
-    return { ...DEFAULTS };
+    return { ...DEFAULTS, events: { ...DEFAULT_EVENTS } };
   }
 }
 
 export function saveNexoSoundPreferences(next: NexoSoundPreferences): void {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* Storage may be unavailable */ }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nexo-sound-preferences-updated', { detail: next }));
+  } catch { /* Storage may be unavailable */ }
 }
 
-function context(): AudioContext | null {
+function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
-  const AudioContextConstructor = window.AudioContext;
-  if (!AudioContextConstructor) return null;
-  if (!audioContext || audioContext.state === 'closed') audioContext = new AudioContextConstructor();
+  const Constructor = window.AudioContext;
+  if (!Constructor) return null;
+  if (!audioContext || audioContext.state === 'closed') audioContext = new Constructor();
   if (audioContext.state === 'suspended') void audioContext.resume().catch(() => {});
   return audioContext;
 }
 
-type SoundKind = 'message' | 'mic-on' | 'mic-off' | 'headphones-on' | 'headphones-off' | 'ring';
+function unlockAudio(): void {
+  const audio = getAudioContext();
+  if (audio?.state === 'suspended') void audio.resume().catch(() => {});
+}
+
+function installUnlockListeners(): void {
+  if (typeof window === 'undefined' || unlockListenersInstalled) return;
+  unlockListenersInstalled = true;
+  window.addEventListener('pointerdown', unlockAudio, { once: true, passive: true });
+  window.addEventListener('keydown', unlockAudio, { once: true });
+}
+
+installUnlockListeners();
+
 type SoundNote = { frequency: number; at: number; duration: number; gain: number; wave?: OscillatorType };
 
+// All pitches belong to the C-major pentatonic family: C, D, E, G and A.
+const C = 261.63, D = 293.66, E = 329.63, G = 392, A = 440, C5 = 523.25, D5 = 587.33, E5 = 659.25;
 const patterns: Record<SoundKind, SoundNote[]> = {
-  message: [
-    { frequency: 740, at: 0, duration: 0.12, gain: 0.38 },
-    { frequency: 880, at: 0.11, duration: 0.17, gain: 0.3 }
-  ],
-  'mic-on': [
-    { frequency: 523, at: 0, duration: 0.1, gain: 0.35 },
-    { frequency: 659, at: 0.09, duration: 0.13, gain: 0.38 }
-  ],
-  'mic-off': [
-    { frequency: 659, at: 0, duration: 0.1, gain: 0.32 },
-    { frequency: 523, at: 0.09, duration: 0.13, gain: 0.34 }
-  ],
-  'headphones-on': [
-    { frequency: 587, at: 0, duration: 0.11, gain: 0.34 },
-    { frequency: 784, at: 0.1, duration: 0.16, gain: 0.36 }
-  ],
-  'headphones-off': [
-    { frequency: 784, at: 0, duration: 0.11, gain: 0.3 },
-    { frequency: 587, at: 0.1, duration: 0.16, gain: 0.32 }
-  ],
-  // Original Nexo ringtone: a soft, repeating major-key chime rather than three harsh test beeps.
+  message: [{ frequency: E5, at: 0, duration: .13, gain: .16 }, { frequency: C5, at: .15, duration: .16, gain: .13 }],
+  send: [{ frequency: G, at: 0, duration: .075, gain: .075 }],
+  'outgoing-ring': [{ frequency: C, at: 0, duration: .22, gain: .13 }, { frequency: E, at: .26, duration: .22, gain: .12 }],
   ring: [
-    { frequency: 523.25, at: 0, duration: 0.28, gain: 0.25, wave: 'triangle' },
-    { frequency: 659.25, at: 0.17, duration: 0.28, gain: 0.24, wave: 'triangle' },
-    { frequency: 783.99, at: 0.34, duration: 0.36, gain: 0.23, wave: 'triangle' },
-    { frequency: 659.25, at: 0.62, duration: 0.3, gain: 0.22, wave: 'triangle' },
-    { frequency: 587.33, at: 1.08, duration: 0.28, gain: 0.22, wave: 'triangle' },
-    { frequency: 698.46, at: 1.25, duration: 0.28, gain: 0.23, wave: 'triangle' },
-    { frequency: 880, at: 1.42, duration: 0.38, gain: 0.22, wave: 'triangle' },
-    { frequency: 698.46, at: 1.72, duration: 0.3, gain: 0.2, wave: 'triangle' }
-  ]
+    { frequency: C5, at: 0, duration: .28, gain: .2, wave: 'triangle' },
+    { frequency: E5, at: .42, duration: .28, gain: .19, wave: 'triangle' },
+    { frequency: G, at: .84, duration: .3, gain: .18, wave: 'triangle' },
+    { frequency: E5, at: 1.26, duration: .28, gain: .18, wave: 'triangle' },
+    { frequency: D5, at: 1.68, duration: .34, gain: .17, wave: 'triangle' }
+  ],
+  'call-accepted': [{ frequency: E, at: 0, duration: .12, gain: .14 }, { frequency: G, at: .15, duration: .16, gain: .14 }],
+  'call-ended': [{ frequency: G, at: 0, duration: .13, gain: .13 }, { frequency: C, at: .16, duration: .18, gain: .12 }],
+  'mic-on': [{ frequency: D, at: 0, duration: .1, gain: .12 }, { frequency: G, at: .12, duration: .12, gain: .13 }],
+  'mic-off': [{ frequency: G, at: 0, duration: .1, gain: .12 }, { frequency: D, at: .12, duration: .12, gain: .12 }],
+  'headphones-on': [{ frequency: C, at: 0, duration: .11, gain: .12 }, { frequency: E, at: .13, duration: .14, gain: .12 }],
+  'headphones-off': [{ frequency: E, at: 0, duration: .11, gain: .11 }, { frequency: C, at: .13, duration: .14, gain: .11 }],
+  notification: [{ frequency: G, at: 0, duration: .12, gain: .14 }, { frequency: C5, at: .15, duration: .16, gain: .15 }],
+  error: [{ frequency: C, at: 0, duration: .2, gain: .13 }]
 };
+
+function scheduleSoundPattern(audio: AudioContext, kind: SoundKind, volume: number): void {
+  for (const note of patterns[kind]) {
+    window.setTimeout(() => {
+      if (activeVoices >= 2 || audio.state !== 'running') return;
+      const oscillator = audio.createOscillator();
+      const filter = audio.createBiquadFilter();
+      const gain = audio.createGain();
+      const startAt = audio.currentTime;
+      const stopAt = startAt + note.duration + .035;
+      activeVoices += 1;
+      oscillator.type = note.wave || 'sine';
+      oscillator.frequency.setValueAtTime(note.frequency, startAt);
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1900, startAt);
+      filter.Q.setValueAtTime(.55, startAt);
+      gain.gain.setValueAtTime(.0001, startAt);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0002, volume * note.gain), startAt + .025);
+      gain.gain.exponentialRampToValueAtTime(.0001, startAt + note.duration);
+      oscillator.connect(filter);
+      filter.connect(gain);
+      gain.connect(audio.destination);
+      oscillator.onended = () => { activeVoices = Math.max(0, activeVoices - 1); };
+      oscillator.start(startAt);
+      oscillator.stop(stopAt);
+    }, Math.round(note.at * 1000));
+  }
+}
 
 export function playNexoSound(kind: SoundKind): void {
   const preferences = getNexoSoundPreferences();
-  if (!preferences.enabled || preferences.volume <= 0) return;
-  if (kind === 'message' && !preferences.messages) return;
-  if (kind === 'ring' && !preferences.calls) return;
-  if (kind !== 'message' && kind !== 'ring' && !preferences.devices) return;
-  const audio = context();
+  if (!preferences.enabled || !preferences.events[kind]) return;
+  const isCallSound = kind === 'ring' || kind === 'outgoing-ring' || kind === 'call-accepted' || kind === 'call-ended';
+  if (typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true' && !(isCallSound && preferences.allowCallsInDnd)) return;
+  const audio = getAudioContext();
   if (!audio) return;
-  const now = audio.currentTime;
-  for (const note of patterns[kind]) {
-    const oscillator = audio.createOscillator();
-    const gain = audio.createGain();
-    oscillator.type = note.wave || 'sine';
-    oscillator.frequency.setValueAtTime(note.frequency, now + note.at);
-    gain.gain.setValueAtTime(0.0001, now + note.at);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, preferences.volume * note.gain), now + note.at + 0.025);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + note.at + note.duration);
-    oscillator.connect(gain);
-    gain.connect(audio.destination);
-    oscillator.start(now + note.at);
-    oscillator.stop(now + note.at + note.duration + 0.03);
+  const volume = kind === 'ring' || kind === 'outgoing-ring'
+    ? preferences.ringtoneVolume : preferences.volume;
+  if (volume <= 0) return;
+  if (audio.state === 'suspended') {
+    void audio.resume().then(() => scheduleSoundPattern(audio, kind, volume)).catch(() => {});
+    return;
   }
+  if (audio.state === 'running') scheduleSoundPattern(audio, kind, volume);
 }
 
 export function startNexoRingtone(): () => void {
   const preferences = getNexoSoundPreferences();
-  if (!preferences.enabled || !preferences.calls) return () => {};
-  playNexoSound('ring');
-  const timer = window.setInterval(() => playNexoSound('ring'), 3000);
-  return () => window.clearInterval(timer);
+  if (!preferences.enabled || !preferences.events.ring) return () => {};
+  if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true') return () => {};
+  let stopped = false;
+  const play = () => { if (!stopped) playNexoSound('ring'); };
+  play();
+  const interval = window.setInterval(play, 4000);
+  const timeout = window.setTimeout(stop, 45000);
+  function stop() {
+    if (stopped) return;
+    stopped = true;
+    window.clearInterval(interval);
+    window.clearTimeout(timeout);
+  }
+  return stop;
+}
+
+export function startNexoOutgoingTone(): () => void {
+  const preferences = getNexoSoundPreferences();
+  if (!preferences.enabled || !preferences.events['outgoing-ring']) return () => {};
+  if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true') return () => {};
+  let stopped = false;
+  const play = () => { if (!stopped) playNexoSound('outgoing-ring'); };
+  play();
+  const interval = window.setInterval(play, 3000);
+  return () => { stopped = true; window.clearInterval(interval); };
 }

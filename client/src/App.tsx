@@ -5,7 +5,7 @@ import {
   Home, Users, MessageCircle, Settings, Plus, X, ChevronDown, ChevronRight,
   ChevronLeft, ChevronRight as ChevronRightIcon, Pin, Search, Command,
   Phone, Mic, MicOff, Headphones, HeadphoneOff, LogOut, Moon,
-  Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus,
+  Sun, Monitor, MoreHorizontal, CornerDownLeft, UserRoundPlus, FolderPlus, RefreshCw, Keyboard,
   PanelLeftClose, PanelLeftOpen, Check, Volume2, Circle,
 } from 'lucide-react';
 import { LoginPanel } from './components/LoginPanel';
@@ -14,12 +14,13 @@ import { MessengerWorkspace } from './components/MessengerWorkspace';
 import { FriendsPanel } from './components/FriendsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Avatar } from './components/Avatar';
+import { DefaultAvatar } from './components/DefaultAvatar';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
-import { playNexoSound } from './lib/sounds';
+import { getNexoSoundPreferences, playNexoSound, saveNexoSoundPreferences } from './lib/sounds';
 import { getSocket } from './lib/socket';
-import type { Conversation, FriendPayload, Server, User, UserStatus } from './types';
+import type { ChannelMessage, Conversation, FriendPayload, Message, Server, User, UserStatus } from './types';
 
 type TabKind = 'home' | 'friends' | 'dm' | 'channel' | 'settings';
 type WorkspaceTab = {
@@ -39,7 +40,7 @@ type PaletteEntry = { id: string; title: string; subtitle?: string; group: strin
 type ContextState = { x: number; y: number; tabId?: string; target?: SidebarPin; server?: Server } | null;
 type StatusChoice = { value: UserStatus; label: string };
 type IncomingCallInfo = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video'; groupTitle?: string };
-type DeepLinkPayload = { type: 'dm'; conversationId: number; messageId: number } | { type: 'channel'; serverId: number; channelId: number; messageId: number };
+type DeepLinkPayload = { type: 'dm'; conversationId: number; messageId?: number } | { type: 'channel'; serverId: number; channelId: number; messageId?: number };
 type ActiveCallInfo = { conversationId: number; title: string; startedAt: number };
 
 
@@ -55,6 +56,22 @@ function tabStorageKey(userId: number) { return `nexo.tabs.v1.${userId}`; }
 function pinStorageKey(userId: number) { return `nexo.pins.v1.${userId}`; }
 function sidebarStorageKey(userId: number) { return `nexo.sidebar-width.v1.${userId}`; }
 function unreadStorageKey(userId: number) { return `nexo.unreads.v1.${userId}`; }
+
+function countUserMentions(content: string, username: string): number {
+  const needle = `@${username.trim().toLocaleLowerCase('en-US')}`;
+  if (!content || needle === '@') return 0;
+  const source = content.toLocaleLowerCase('en-US');
+  const isWord = (character: string) => /[a-z0-9_]/i.test(character);
+  let count = 0;
+  let cursor = 0;
+  while ((cursor = source.indexOf(needle, cursor)) !== -1) {
+    const before = cursor > 0 ? source[cursor - 1] : '';
+    const after = source[cursor + needle.length] || '';
+    if (!isWord(before) && !isWord(after)) count += 1;
+    cursor += needle.length;
+  }
+  return count;
+}
 
 function fuzzyMatch(text: string, query: string) {
   const source = text.toLocaleLowerCase('ru-RU');
@@ -86,6 +103,8 @@ export default function App() {
   const [servers, setServers] = useState<Server[]>([]);
   const [unreadDmCounts, setUnreadDmCounts] = useState<Record<number, number>>({});
   const [unreadChannelCounts, setUnreadChannelCounts] = useState<Record<number, number>>({});
+  const [unreadDmMentionCounts, setUnreadDmMentionCounts] = useState<Record<number, number>>({});
+  const [unreadChannelMentionCounts, setUnreadChannelMentionCounts] = useState<Record<number, number>>({});
   const [expandedServers, setExpandedServers] = useState<number[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<string[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(264);
@@ -115,11 +134,11 @@ export default function App() {
   const [deafened, setDeafened] = useState(false);
   const [savedMicMuted, setSavedMicMuted] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  const [deviceMenu, setDeviceMenu] = useState<'input' | 'output' | null>(null);
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
   const [audioInputId, setAudioInputId] = useState('');
   const [audioOutputId, setAudioOutputId] = useState('');
+  const [dockSoundVolume, setDockSoundVolume] = useState(() => getNexoSoundPreferences().volume);
   const [customStatusOpen, setCustomStatusOpen] = useState(false);
   const [customStatusDraft, setCustomStatusDraft] = useState('');
   const [notificationUpdate, setNotificationUpdate] = useState<{ version: string; message: string } | null>(null);
@@ -127,7 +146,7 @@ export default function App() {
   const [pendingDeepLink, setPendingDeepLink] = useState<DeepLinkPayload | null>(null);
   const [activeCallInfo, setActiveCallInfo] = useState<ActiveCallInfo | null>(null);
   const [callClock, setCallClock] = useState(Date.now());
-  const [appVersion, setAppVersion] = useState('0.0.5-alpha');
+  const [appVersion, setAppVersion] = useState('0.0.7-alpha');
 
   const desktopApi = typeof window !== 'undefined' ? window.nexoAPI : undefined;
   const tabStripRef = useRef<HTMLDivElement>(null);
@@ -159,6 +178,18 @@ export default function App() {
     applyTheme(theme);
     desktopApi?.setWindowTheme?.(theme);
   }, [theme, desktopApi]);
+
+  useEffect(() => {
+    const syncSoundVolume = () => setDockSoundVolume(getNexoSoundPreferences().volume);
+    window.addEventListener('nexo-sound-preferences-updated', syncSoundVolume);
+    return () => window.removeEventListener('nexo-sound-preferences-updated', syncSoundVolume);
+  }, []);
+
+  useEffect(() => {
+    if (user?.status === 'dnd') document.documentElement.dataset.nexoDnd = 'true';
+    else delete document.documentElement.dataset.nexoDnd;
+    return () => { delete document.documentElement.dataset.nexoDnd; };
+  }, [user?.status]);
 
   useEffect(() => {
     if (!loading) return;
@@ -293,24 +324,26 @@ export default function App() {
   useEffect(() => {
     if (!user || !workspaceRestored) return;
     try {
-      const saved = JSON.parse(localStorage.getItem(unreadStorageKey(user.id)) || '{}') as { dm?: Record<string, number>; channels?: Record<string, number> };
+      const saved = JSON.parse(localStorage.getItem(unreadStorageKey(user.id)) || '{}') as { dm?: Record<string, number>; channels?: Record<string, number>; dmMentions?: Record<string, number>; channelMentions?: Record<string, number> };
       const normalize = (value?: Record<string, number>): Record<number, number> => {
         const entries: Array<[string, number]> = Object.entries(value || {}).map(([key, count]) => [
-          key, Math.max(0, Math.min(9, Math.floor(Number(count) || 0)))
+          key, Math.max(0, Math.min(99, Math.floor(Number(count) || 0)))
         ]);
         return Object.fromEntries(entries.filter(([, count]) => count > 0)) as Record<number, number>;
       };
       setUnreadDmCounts(normalize(saved.dm));
       setUnreadChannelCounts(normalize(saved.channels));
+      setUnreadDmMentionCounts(normalize(saved.dmMentions));
+      setUnreadChannelMentionCounts(normalize(saved.channelMentions));
     } catch { /* Ignore a damaged local unread cache */ }
   }, [user?.id, workspaceRestored]);
 
   useEffect(() => {
     if (!user || !workspaceRestored) return;
     try {
-      localStorage.setItem(unreadStorageKey(user.id), JSON.stringify({ dm: unreadDmCounts, channels: unreadChannelCounts }));
+      localStorage.setItem(unreadStorageKey(user.id), JSON.stringify({ dm: unreadDmCounts, channels: unreadChannelCounts, dmMentions: unreadDmMentionCounts, channelMentions: unreadChannelMentionCounts }));
     } catch { /* Storage may be unavailable */ }
-  }, [user?.id, workspaceRestored, unreadDmCounts, unreadChannelCounts]);
+  }, [user?.id, workspaceRestored, unreadDmCounts, unreadChannelCounts, unreadDmMentionCounts, unreadChannelMentionCounts]);
 
   useEffect(() => {
     if (!user) return;
@@ -372,10 +405,12 @@ export default function App() {
       if (server) openChannelTab(server, payload.channelId, false, payload.messageId);
       else { setPendingDeepLink(null); return; }
     }
-    const messageElementId = payload.type === 'dm'
-      ? `nexo-message-dm-${payload.conversationId}-${payload.messageId}`
-      : `nexo-message-channel-${payload.serverId}-${payload.channelId}-${payload.messageId}`;
-    window.setTimeout(() => document.getElementById(messageElementId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 320);
+    if (payload.messageId) {
+      const messageElementId = payload.type === 'dm'
+        ? `nexo-message-${payload.messageId}`
+        : `nexo-channel-message-${payload.messageId}`;
+      window.setTimeout(() => document.getElementById(messageElementId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 420);
+    }
     setPendingDeepLink(null);
   }, [pendingDeepLink, user, workspaceRestored, conversations, servers]);
 
@@ -391,10 +426,17 @@ export default function App() {
       };
       setPendingIncomingCall(nextPayload);
       if (conversation) openDmTab(conversation);
+      if (user.status !== 'dnd' && (!document.hasFocus() || document.visibilityState !== 'visible')) {
+        void desktopApi?.showNotification?.({
+          title: nextPayload.user.display_name || nextPayload.user.username,
+          body: payload.mediaType === 'video' ? 'Входящий видеозвонок' : 'Входящий голосовой звонок',
+          deepLink: `nexo://dm/${payload.conversationId}`
+        })?.catch(() => {});
+      }
     };
-    socket.on('call:invite', onCallInvite);
-    return () => { socket.off('call:invite', onCallInvite); };
-  }, [user?.id, conversations]);
+    socket.on('call:ring', onCallInvite);
+    return () => { socket.off('call:ring', onCallInvite); };
+  }, [user?.id, user?.status, conversations, desktopApi]);
 
   useEffect(() => {
     const onCallState = (event: Event) => {
@@ -419,12 +461,24 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const socket = getSocket();
-    const onMessage = ({ conversationId }: { conversationId: number }) => {
+    const onMessage = ({ conversationId, message }: { conversationId: number; message?: Message }) => {
+      if (message?.author?.id === user.id) return;
       const id = `dm:${conversationId}`;
       const isVisibleConversation = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
       if (!isVisibleConversation) {
-        setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(9, (current[conversationId] || 0) + 1) }));
-        playNexoSound('message');
+        setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + 1) }));
+        const mentions = countUserMentions(message?.content || '', user.username);
+        if (mentions > 0) setUnreadDmMentionCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + mentions) }));
+        playNexoSound(mentions > 0 ? 'notification' : 'message');
+        if (user.status !== 'dnd' && message && (!document.hasFocus() || document.visibilityState !== 'visible')) {
+          const conversation = conversations.find((item) => item.id === conversationId);
+          const title = conversation?.counterpart?.display_name || conversation?.counterpart?.username || 'Новое сообщение';
+          void desktopApi?.showNotification?.({
+            title: mentions > 0 ? `Упоминание · ${title}` : title,
+            body: message.content || (message.attachment ? 'Отправлено вложение' : 'Новое сообщение'),
+            deepLink: `nexo://dm/${conversationId}/message/${message.id}`
+          })?.catch(() => {});
+        }
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
         ? { ...tab, unread: (tab.unread || 0) + 1 }
@@ -432,12 +486,25 @@ export default function App() {
       const existing = conversations.find((conversation) => conversation.id === conversationId);
       if (existing) setConversations((current) => [existing, ...current.filter((item) => item.id !== conversationId)]);
     };
-    const onChannelMessage = ({ channelId }: { channelId: number }) => {
+    const onChannelMessage = ({ channelId, message }: { channelId: number; message?: ChannelMessage }) => {
+      if (message?.author?.id === user.id) return;
       const id = `channel:${channelId}`;
       const isVisibleChannel = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
       if (!isVisibleChannel) {
-        setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(9, (current[channelId] || 0) + 1) }));
-        playNexoSound('message');
+        setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + 1) }));
+        const mentions = countUserMentions(message?.content || '', user.username);
+        if (mentions > 0) setUnreadChannelMentionCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + mentions) }));
+        playNexoSound(mentions > 0 ? 'notification' : 'message');
+        if (user.status !== 'dnd' && message) {
+          const server = servers.find((item) => item.id === message.server_id);
+          const channel = server?.channels.find((item) => item.id === channelId);
+          const title = server && channel ? `${server.name} · #${channel.name}` : 'Новое сообщение в пространстве';
+          void desktopApi?.showNotification?.({
+            title: mentions > 0 ? `Упоминание · ${title}` : title,
+            body: message.content || (message.attachment ? 'Отправлено вложение' : 'Новое сообщение'),
+            deepLink: `nexo://channel/${message.server_id}/${channelId}/message/${message.id}`
+          })?.catch(() => {});
+        }
       }
       setTabs((current) => current.map((tab) => tab.id === id && tab.id !== activeTabId
         ? { ...tab, unread: (tab.unread || 0) + 1 }
@@ -465,25 +532,27 @@ export default function App() {
         return tab?.serverId === serverId ? 'home' : current;
       });
     };
-    socket.on('message:new', onMessage);
-    socket.on('channel:message:new', onChannelMessage);
+    socket.on('message:notify', onMessage);
+    socket.on('channel:message:notify', onChannelMessage);
     socket.on('server:upsert', onServerUpsert);
     socket.on('channel:deleted', onChannelDeleted);
     socket.on('server:leave', onServerLeave);
     return () => {
-      socket.off('message:new', onMessage);
-      socket.off('channel:message:new', onChannelMessage);
+      socket.off('message:notify', onMessage);
+      socket.off('channel:message:notify', onChannelMessage);
       socket.off('server:upsert', onServerUpsert);
       socket.off('channel:deleted', onChannelDeleted);
       socket.off('server:leave', onServerLeave);
     };
-  }, [user, activeTabId, conversations, tabs]);
+  }, [user, activeTabId, conversations, tabs, servers, desktopApi]);
 
   useEffect(() => {
     if (!activeTabId) return;
     setTabs((current) => current.map((tab) => tab.id === activeTabId && tab.unread ? { ...tab, unread: 0 } : tab));
     if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
+    if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmMentionCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
     if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
+    if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelMentionCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
     tabNodeRefs.current[activeTabId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }, [activeTabId, activeTab.kind, activeTab.targetId, activeTab.channelId]);
 
@@ -491,7 +560,9 @@ export default function App() {
     const clearVisibleUnread = () => {
       if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
       if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
+    if (activeTab.kind === 'dm' && activeTab.targetId) setUnreadDmMentionCounts((current) => current[activeTab.targetId!] ? { ...current, [activeTab.targetId!]: 0 } : current);
       if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
+    if (activeTab.kind === 'channel' && activeTab.channelId) setUnreadChannelMentionCounts((current) => current[activeTab.channelId!] ? { ...current, [activeTab.channelId!]: 0 } : current);
       setTabs((current) => current.map((tab) => tab.id === activeTabId && tab.unread ? { ...tab, unread: 0 } : tab));
     };
     window.addEventListener('focus', clearVisibleUnread);
@@ -970,27 +1041,6 @@ export default function App() {
     window.addEventListener('mouseup', onUp);
   }
 
-  async function loadAudioDevices() {
-    if (!navigator.mediaDevices?.enumerateDevices) {
-      setDeviceMenu(null);
-      alert('Браузер не поддерживает список аудиоустройств.');
-      return;
-    }
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const inputs = devices.filter((device) => device.kind === 'audioinput');
-      const outputs = devices.filter((device) => device.kind === 'audiooutput');
-      setAudioInputs(inputs);
-      setAudioOutputs(outputs);
-      if (deviceMenu === 'input' && !inputs.length) alert('Микрофоны не найдены. Разрешите доступ к микрофону и повторите попытку.');
-      if (deviceMenu === 'output' && !outputs.length) alert('Устройства вывода не найдены.');
-    } catch { alert('Не удалось получить список устройств. Проверьте разрешения Windows.'); }
-  }
-
-  useEffect(() => {
-    if (!deviceMenu) return;
-    void loadAudioDevices();
-  }, [deviceMenu]);
 
   function setMic(next: boolean) {
     if (micMuted !== next) playNexoSound(next ? 'mic-off' : 'mic-on');
@@ -1126,13 +1176,14 @@ export default function App() {
                     {conversations.map((conversation) => {
                       const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
                       const item: SidebarPin = { id: `dm:${conversation.id}`, kind: 'dm', title: person?.display_name || person?.username || 'Диалог', targetId: conversation.id };
-                      return <button type="button" key={conversation.id} className={`sidebar-row ${activeTabId === item.id ? 'active' : ''}`}
+                      return <button type="button" key={conversation.id} className={`sidebar-row ${activeTabId === item.id ? 'active' : ''} ${unreadDmCounts[conversation.id] ? 'has-unread' : ''} ${unreadDmMentionCounts[conversation.id] ? 'has-mention' : ''}`}
                         onClick={(event) => openDmTab(conversation, event.ctrlKey || event.metaKey)}
                         onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openDmTab(conversation, true); } }}
                         onContextMenu={(event) => contextTargetClick(event, item)}>
                         <Avatar user={person} size={27} showStatus />
                         <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Откройте, чтобы продолжить разговор</small></span>
-                        {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge">{Math.min(9, unreadDmCounts[conversation.id])}</span>}
+                        {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge" title={`${unreadDmCounts[conversation.id]} новых сообщений`}>{unreadDmCounts[conversation.id] > 99 ? '99+' : unreadDmCounts[conversation.id]}</span>}
+                        {unreadDmMentionCounts[conversation.id] > 0 && <span className="sidebar-mention-badge" title={`${unreadDmMentionCounts[conversation.id]} упоминаний`}>@{unreadDmMentionCounts[conversation.id] > 99 ? '99+' : unreadDmMentionCounts[conversation.id]}</span>}
                       </button>;
                     })}
                     {conversations.length === 0 && <button type="button" className="sidebar-empty-action" onClick={() => openFriendsTab()}>Диалогов пока нет — найдите друга</button>}
@@ -1147,18 +1198,19 @@ export default function App() {
                           onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, server }); }}>
                           {expandedServers.includes(server.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           <span className="server-tree-icon">{server.icon && (server.icon.startsWith('http') || server.icon.startsWith('data:image/'))
-                            ? <img src={server.icon} alt="" /> : server.icon || (server.name[0] || 'S').toUpperCase()}</span>
+                            ? <img src={server.icon} alt="" /> : server.icon || <DefaultAvatar preset={(server.id * 7 + 3) % 12} size={26} />}</span>
                           <strong>{server.name}</strong>
                         </button>
                         {expandedServers.includes(server.id) && server.channels.map((channel) => {
                           const item: SidebarPin = { id: `channel:${channel.id}`, kind: 'channel', title: `# ${channel.name} · ${server.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id };
                           if (channel.type !== 'text') return <div key={channel.id} className="sidebar-row disabled" title="Скоро"><Volume2 size={14} /><span>{channel.name}</span><small>Скоро</small></div>;
-                          return <button type="button" key={channel.id} className={`sidebar-row channel-row ${activeTabId === item.id ? 'active' : ''}`}
+                          return <button type="button" key={channel.id} className={`sidebar-row channel-row ${activeTabId === item.id ? 'active' : ''} ${unreadChannelCounts[channel.id] ? 'has-unread' : ''} ${unreadChannelMentionCounts[channel.id] ? 'has-mention' : ''}`}
                             onClick={(event) => openChannelTab(server, channel.id, event.ctrlKey || event.metaKey)}
                             onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openChannelTab(server, channel.id, true); } }}
                             onContextMenu={(event) => contextTargetClick(event, item)}>
                             <HashIcon /><span className="sidebar-row-text"><strong>{channel.name}</strong></span>
-                            {unreadChannelCounts[channel.id] > 0 && <span className="sidebar-count-badge">{Math.min(9, unreadChannelCounts[channel.id])}</span>}
+                            {unreadChannelCounts[channel.id] > 0 && <span className="sidebar-count-badge" title={`${unreadChannelCounts[channel.id]} новых сообщений`}>{unreadChannelCounts[channel.id] > 99 ? '99+' : unreadChannelCounts[channel.id]}</span>}
+                            {unreadChannelMentionCounts[channel.id] > 0 && <span className="sidebar-mention-badge" title={`${unreadChannelMentionCounts[channel.id]} упоминаний`}>@{unreadChannelMentionCounts[channel.id] > 99 ? '99+' : unreadChannelMentionCounts[channel.id]}</span>}
                           </button>;
                         })}
                       </div>
@@ -1174,34 +1226,30 @@ export default function App() {
                     </div>}
                     
                     <div className="nexo-user-dock">
-              <button type="button" className="dock-user" onClick={() => setStatusMenuOpen((value) => !value)} title="Изменить статус">
-                <Avatar user={user} size={36} showStatus />
-                <span className="dock-user-copy"><strong>{user.display_name || user.username}</strong><small>{user.custom_status || `@${user.username}`}</small></span>
-              </button>
-              <div className="dock-actions">
-                <div className="dock-device-wrap">
-                  <button type="button" className={micMuted ? 'dock-icon danger' : 'dock-icon'} aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}
-                    title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => setMic(!micMuted)}>
-                    {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
-                  </button>
-                  <button type="button" className="dock-device-arrow" title="Выбрать микрофон" onClick={() => setDeviceMenu(deviceMenu === 'input' ? null : 'input')}><ChevronDown size={11} /></button>
-                  {deviceMenu === 'input' && <DeviceMenu devices={audioInputs} selected={audioInputId} onSelect={(id) => { setAudioInputId(id); localStorage.setItem(`nexo.audio-input.${user.id}`, id); setDeviceMenu(null); }} />}
-                </div>
-                <div className="dock-device-wrap">
-                  <button type="button" className={deafened ? 'dock-icon danger' : 'dock-icon'} aria-label={deafened ? 'Включить звук' : 'Отключить звук'}
-                    title={deafened ? 'Включить звук' : 'Отключить звук'} onClick={() => {
-                      if (!deafened) { playNexoSound('headphones-off'); setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
-                      else { playNexoSound('headphones-on'); setDeafened(false); setMic(savedMicMuted); }
-                    }}>
-                    {deafened ? <HeadphoneOff size={17} /> : <Headphones size={17} />}
-                  </button>
-                  <button type="button" className="dock-device-arrow" title="Выбрать устройство вывода" onClick={() => setDeviceMenu(deviceMenu === 'output' ? null : 'output')}><ChevronDown size={11} /></button>
-                  {deviceMenu === 'output' && <DeviceMenu devices={audioOutputs} selected={audioOutputId} onSelect={(id) => { setAudioOutputId(id); localStorage.setItem(`nexo.audio-output.${user.id}`, id); setDeviceMenu(null); }} />}
-                </div>
-                <button type="button" className="dock-icon" aria-label="Настройки" title="Настройки" onClick={() => openSettingsTab('account')}><Settings size={17} /></button>
-              </div>
-            </div>
-                  </div>
+                      <button type="button" className="dock-user"
+                        onClick={() => setStatusMenuOpen((value) => !value)}
+                        aria-haspopup="menu" aria-expanded={statusMenuOpen} title="Профиль и настройки">
+                        <Avatar user={user} size={36} showStatus />
+                        <span className="dock-user-copy"><strong>{user.display_name || user.username}</strong><small>{user.custom_status || `@${user.username}`}</small></span>
+                      </button>
+                      <div className="dock-actions">
+                        <button type="button" className={micMuted ? 'dock-icon danger' : 'dock-icon'}
+                          aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}
+                          title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => setMic(!micMuted)}>
+                          {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
+                        </button>
+                        <button type="button" className={deafened ? 'dock-icon danger' : 'dock-icon'}
+                          aria-label={deafened ? 'Включить звук' : 'Отключить звук'}
+                          title={deafened ? 'Включить звук' : 'Отключить звук'} onClick={() => {
+                            if (!deafened) { playNexoSound('headphones-off'); setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
+                            else { playNexoSound('headphones-on'); setDeafened(false); setMic(savedMicMuted); }
+                          }}>
+                          {deafened ? <HeadphoneOff size={17} /> : <Headphones size={17} />}
+                        </button>
+                        <button type="button" className="dock-icon" aria-label="Настройки" title="Настройки"
+                          onClick={() => openSettingsTab('account')}><Settings size={17} /></button>
+                      </div>
+                    </div>                  </div>
                 </>
               )}
               <div className="sidebar-resizer" onMouseDown={beginResize} onDoubleClick={() => { setSidebarWidth(264); if (user) localStorage.setItem(sidebarStorageKey(user.id), '264'); }} title="Перетащите, чтобы изменить ширину" />
@@ -1215,12 +1263,12 @@ export default function App() {
                     openFriends={openFriendsTab} openPalette={openPalette} openDm={openDmTab}
                     openChannel={(server, channelId) => openChannelTab(server, channelId)} />}
                   {tab.kind === 'friends' && <FriendsPanel user={user} onOpenConversation={(friend) => void handleOpenFriend(friend.username)} />}
-                  {tab.kind === 'dm' && <MessengerWorkspace key={tab.id} user={user} initialMode="friends" embedded
+                  {tab.kind === 'dm' && <MessengerWorkspace key={tab.id} user={user} initialMode="friends" embedded isActive={tab.id === activeTabId}
                     showConversationList={false} openConversationId={tab.targetId || null} openMessageId={tab.messageId || null}
                     pendingIncomingCall={pendingIncomingCall?.conversationId === tab.targetId ? pendingIncomingCall : null}
                     onIncomingCallHandled={() => setPendingIncomingCall(null)}
-                    micMuted={micMuted} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
-                  {tab.kind === 'channel' && <MessengerWorkspace key={tab.id} user={user} initialMode="servers" embedded
+                    micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
+                  {tab.kind === 'channel' && <MessengerWorkspace key={tab.id} user={user} initialMode="servers" embedded isActive={tab.id === activeTabId}
                     showChannelSidebar={false} openServerId={tab.serverId || null} openChannelId={tab.channelId || null} openMessageId={tab.messageId || null}
                     onEditChannel={() => {
                       const server = servers.find((item) => item.id === tab.serverId);
@@ -1229,7 +1277,7 @@ export default function App() {
                         title: tab.title, targetId: tab.channelId, serverId: server.id, channelId: tab.channelId
                       });
                     }}
-                    micMuted={micMuted} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
+                    micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
                   {tab.kind === 'settings' && <SettingsPanel key={tab.id} user={user} onUserUpdate={(nextUser) => setUser(nextUser)}
                     initialSection={tab.initialSection || 'account'} appVersion={appVersion} onCheckUpdates={handleCheckUpdates}
                     audioInputId={audioInputId} audioOutputId={audioOutputId}
@@ -1299,10 +1347,50 @@ export default function App() {
               </div>}
         </div>
       </motion.form></div>}
-      {statusMenuOpen && <ContextMenu x={12} y={window.innerHeight - 170} onClose={() => setStatusMenuOpen(false)}>
-        {statusChoices.map((choice) => <MenuAction key={choice.value} label={choice.label}
-          icon={<span className={`status-swatch ${choice.value}`} />} onClick={() => void changeStatus(choice.value)} />)}
-        <MenuAction icon={<MoreHorizontal size={14} />} label="Свой статус…" onClick={() => { setStatusMenuOpen(false); setCustomStatusDraft(user?.custom_status || ''); setCustomStatusOpen(true); }} />
+      {statusMenuOpen && user && <ContextMenu x={12} y={Math.max(12, window.innerHeight - 580)} onClose={() => setStatusMenuOpen(false)}>
+        <div className="dock-account-menu" role="menu">
+          <div className="dock-menu-profile">
+            <Avatar user={user} size={38} showStatus />
+            <span><strong>{user.display_name || user.username}</strong><small>@{user.username} · #{user.discriminator || '0001'}</small></span>
+          </div>
+          <div className="dock-menu-divider" />
+          <p className="dock-menu-label">Статус</p>
+          {statusChoices.map((choice) => <MenuAction key={choice.value} label={choice.label}
+            icon={<span className="dock-status-icon"><span className={`status-swatch ${choice.value}`} />{user.status === choice.value && <Check size={12} />}</span>}
+            onClick={() => void changeStatus(choice.value)} />)}
+          <MenuAction icon={<MoreHorizontal size={14} />} label="Свой статус…" onClick={() => { setStatusMenuOpen(false); setCustomStatusDraft(user?.custom_status || ''); setCustomStatusOpen(true); }} />
+          <div className="dock-menu-divider" />
+          <p className="dock-menu-label">Устройства</p>
+          <label className="dock-menu-select"><span>Микрофон</span>
+            <select value={audioInputId} onChange={(event) => { setAudioInputId(event.target.value); localStorage.setItem(`nexo.audio-input.${user.id}`, event.target.value); }}>
+              <option value="">Устройство по умолчанию</option>
+              {audioInputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Микрофон ${index + 1}`}</option>)}
+            </select>
+          </label>
+          <label className="dock-menu-select"><span>Наушники</span>
+            <select value={audioOutputId} onChange={(event) => { setAudioOutputId(event.target.value); localStorage.setItem(`nexo.audio-output.${user.id}`, event.target.value); }}>
+              <option value="">Устройство по умолчанию</option>
+              {audioOutputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Устройство вывода ${index + 1}`}</option>)}
+            </select>
+          </label>
+          {!audioInputs.length && <p className="dock-menu-hint">Микрофоны появятся после разрешения доступа к аудио.</p>}
+          {!audioOutputs.length && <p className="dock-menu-hint">Устройства вывода не обнаружены.</p>}
+          <label className="dock-menu-select"><span>Громкость звуков · {Math.round(dockSoundVolume * 100)}%</span>
+            <input type="range" min="0" max="1" step="0.02" value={dockSoundVolume}
+              onChange={(event) => {
+                const volume = Number(event.target.value);
+                setDockSoundVolume(volume);
+                saveNexoSoundPreferences({ ...getNexoSoundPreferences(), volume });
+              }} />
+          </label>
+          <div className="dock-menu-divider" />
+          <MenuAction icon={<UserRoundPlus size={14} />} label="Профиль" onClick={() => { setStatusMenuOpen(false); openSettingsTab('profile'); }} />
+          <MenuAction icon={<Settings size={14} />} label="Настройки" onClick={() => { setStatusMenuOpen(false); openSettingsTab('account'); }} />
+          <MenuAction icon={<Keyboard size={14} />} label="Горячие клавиши" onClick={() => { setStatusMenuOpen(false); openSettingsTab('hotkeys'); }} />
+          <MenuAction icon={<RefreshCw size={14} />} label="Обновления" onClick={() => { setStatusMenuOpen(false); openSettingsTab('updates'); }} />
+          <div className="dock-menu-divider" />
+          <MenuAction icon={<LogOut size={14} />} label="Выйти из аккаунта" onClick={() => { setStatusMenuOpen(false); void handleLogout(); }} />
+        </div>
       </ContextMenu>}
       {customStatusOpen && <div className="modal-backdrop"><motion.form className="modal-panel" onSubmit={(event) => { event.preventDefault(); void saveCustomStatus(); }}
         initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }}>
@@ -1438,15 +1526,6 @@ function HomeView({ user, conversations, servers, unreadDmCounts, unreadChannelC
         <button className="primary tiny" onClick={openFriends}>Найти друга</button>
       </div>}
     </section>
-  </div>;
-}
-
-function DeviceMenu({ devices, selected, onSelect }: { devices: MediaDeviceInfo[]; selected: string; onSelect: (id: string) => void }) {
-  return <div className="device-popover">
-    {devices.length ? devices.map((device, index) => <button type="button" key={device.deviceId || index}
-      className={selected === device.deviceId ? 'active' : ''} onClick={() => onSelect(device.deviceId)}>
-      {device.label || `Устройство ${index + 1}`}{selected === device.deviceId && <Check size={13} />}
-    </button>) : <p>Устройства не найдены. Разрешите доступ к аудио.</p>}
   </div>;
 }
 

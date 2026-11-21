@@ -1,0 +1,38 @@
+name: Nexo 0.0.7 validation
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install desktop dependencies
+        run: npm ci
+      - name: Install client dependencies
+        run: npm ci --prefix client
+      - name: Run tests and syntax checks
+        run: npm test
+      - name: Build client (TypeScript + Vite)
+        run: npm run build --prefix client
+      - name: Build Windows installer
+        run: npm run electron:build
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nexo-0.0.7-alpha-Windows
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 10

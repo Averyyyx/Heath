@@ -6,11 +6,17 @@ import {
   Image as ImageIcon,
   Code,
   Copy,
+  Search,
   Link as LinkIcon,
   Monitor,
   Paperclip,
   Phone,
   PhoneOff,
+  Camera,
+  CameraOff,
+  ChevronUp,
+  Mic,
+  MicOff,
   Plus,
   SendHorizontal,
   Settings,
@@ -20,7 +26,7 @@ import {
   Volume2
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
-import { startNexoRingtone } from '../lib/sounds';
+import { playNexoSound, startNexoOutgoingTone, startNexoRingtone } from '../lib/sounds';
 import type {
   Channel,
   ChannelMessage,
@@ -42,9 +48,11 @@ type MessengerWorkspaceProps = {
   openChannelId?: number | null;
   openMessageId?: number | null;
   embedded?: boolean;
+  isActive?: boolean;
   showConversationList?: boolean;
   showChannelSidebar?: boolean;
   micMuted?: boolean;
+  onToggleMic?: () => void;
   deafened?: boolean;
   audioInputId?: string;
   audioOutputId?: string;
@@ -54,7 +62,6 @@ type MessengerWorkspaceProps = {
   onEditChannel?: () => void;
   onFindFriends?: () => void;
   initialMode?: WorkspaceMode;
-  hideNavigation?: boolean;
   showServersRail?: boolean;
 };
 
@@ -96,9 +103,11 @@ export function MessengerWorkspace({
   openChannelId = null,
   openMessageId = null,
   embedded = false,
+  isActive = true,
   showConversationList = true,
   showChannelSidebar = true,
   micMuted = false,
+  onToggleMic,
   deafened = false,
   audioInputId = '',
   audioOutputId = '',
@@ -108,7 +117,6 @@ export function MessengerWorkspace({
   onEditChannel,
   onFindFriends,
   initialMode = 'servers',
-  hideNavigation = false,
   showServersRail = true
 }: MessengerWorkspaceProps) {
   const [mode, setMode] = useState<WorkspaceMode>(initialMode);
@@ -133,6 +141,7 @@ export function MessengerWorkspace({
   const [serverModalStatus, setServerModalStatus] = useState<Status>({ type: 'idle' });
 
   const socketRef = useRef<Socket | null>(null);
+  const incomingCallBackdropRef = useRef<HTMLDivElement>(null);
   const [callState, setCallState] = useState<CallState | null>(null);
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [ringtoneMuted, setRingtoneMuted] = useState(false);
@@ -140,6 +149,8 @@ export function MessengerWorkspace({
   const [serverMembers, setServerMembers] = useState<ServerMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [messageContext, setMessageContext] = useState<{ x: number; y: number; message: Message | ChannelMessage; kind: 'dm' | 'channel' } | null>(null);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [membersError, setMembersError] = useState('');
   const pendingIncomingSignalRef = useRef<SignalData | null>(null);
   const awaitingCallAcceptRef = useRef<number | null>(null);
@@ -236,15 +247,41 @@ export function MessengerWorkspace({
       const current = callStateRef.current;
       if (current?.conversationId === conversationId) current.peer?.signal(payload);
     };
-    const onCallAccept = ({ conversationId }: { conversationId: number }) => {
+    const onCallAccept = ({ conversationId, mediaType }: { conversationId: number; mediaType?: 'audio' | 'video' }) => {
+      if (mediaType === 'audio' && callStateRef.current?.conversationId === conversationId) {
+        const current = callStateRef.current;
+        const videoTrack = current.localStream?.getVideoTracks()[0];
+        if (videoTrack) {
+          current.peer?.removeTrack(videoTrack, current.localStream!);
+          current.localStream?.removeTrack(videoTrack);
+          videoTrack.stop();
+          setCallState({ ...current });
+        }
+      }
       if (awaitingCallAcceptRef.current !== conversationId) return;
       awaitingCallAcceptRef.current = null;
       const queued = queuedCallSignalsRef.current.splice(0);
       queued.forEach((payload) => socket.emit('call:signal', { conversationId, payload }));
+      playNexoSound('call-accepted');
     };
     const onCallReject = ({ conversationId }: { conversationId: number }) => {
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
+    };
+    const onCallError = ({ conversationId, message }: { conversationId: number; message: string }) => {
+      if (callStateRef.current?.conversationId === conversationId) endCall(false);
+      setCallError(message || 'Не удалось начать звонок.');
+      playNexoSound('error');
+    };
+    const onCallTimeout = ({ conversationId }: { conversationId: number }) => {
+      if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
+      if (callStateRef.current?.conversationId === conversationId) endCall(false);
+      if (incomingCall?.conversationId === conversationId) {
+        setIncomingCall(null);
+        pendingIncomingSignalRef.current = null;
+        onIncomingCallHandled?.();
+      }
+      playNexoSound('call-ended');
     };
     const onCallEnd = ({ conversationId }: { conversationId: number }) => {
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
@@ -276,10 +313,12 @@ export function MessengerWorkspace({
     socket.on('message:ack', onMessageAck);
     socket.on('message:delete', onMessageDelete);
     socket.on('typing', onTyping);
-    socket.on('call:invite', onCallInvite);
+    socket.on('call:ring', onCallInvite);
     socket.on('call:signal', onCallSignal);
     socket.on('call:accept', onCallAccept);
-    socket.on('call:reject', onCallReject);
+    socket.on('call:decline', onCallReject);
+    socket.on('call:timeout', onCallTimeout);
+    socket.on('call:error', onCallError);
     socket.on('call:end', onCallEnd);
     socket.on('server:upsert', onServerUpsert);
     socket.on('channel:message:new', onChannelMessage);
@@ -292,10 +331,12 @@ export function MessengerWorkspace({
       socket.off('message:ack', onMessageAck);
       socket.off('message:delete', onMessageDelete);
       socket.off('typing', onTyping);
-      socket.off('call:invite', onCallInvite);
+      socket.off('call:ring', onCallInvite);
       socket.off('call:signal', onCallSignal);
       socket.off('call:accept', onCallAccept);
-      socket.off('call:reject', onCallReject);
+      socket.off('call:decline', onCallReject);
+      socket.off('call:timeout', onCallTimeout);
+      socket.off('call:error', onCallError);
       socket.off('call:end', onCallEnd);
       socket.off('server:upsert', onServerUpsert);
       socket.off('channel:message:new', onChannelMessage);
@@ -307,9 +348,53 @@ export function MessengerWorkspace({
   }, [user, activeConversationId, incomingCall, onIncomingCallHandled]);
 
   useEffect(() => {
+    if (!isActive) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        setMessageSearchOpen(true);
+      }
+      if (event.key === 'Escape' && messageSearchOpen) setMessageSearchOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isActive, messageSearchOpen]);
+
+  useEffect(() => {
+    if (!incomingCall) return;
+    const conversationId = incomingCall.conversationId;
+    const timeout = window.setTimeout(() => {
+      socketRef.current?.emit('call:timeout', { conversationId });
+      pendingIncomingSignalRef.current = null;
+      setIncomingCall((current) => current?.conversationId === conversationId ? null : current);
+      playNexoSound('call-ended');
+      onIncomingCallHandled?.();
+    }, 45000);
+    return () => window.clearTimeout(timeout);
+  }, [incomingCall?.conversationId]);
+
+  useEffect(() => {
+    if (!callState?.initiator || callState.remoteStream) return;
+    const conversationId = callState.conversationId;
+    const timeout = window.setTimeout(() => {
+      const current = callStateRef.current;
+      if (!current || current.conversationId !== conversationId || current.remoteStream) return;
+      socketRef.current?.emit('call:timeout', { conversationId });
+      setCallError('Нет ответа');
+      endCall(false);
+    }, 45000);
+    return () => window.clearTimeout(timeout);
+  }, [callState?.conversationId, callState?.initiator, Boolean(callState?.remoteStream)]);
+
+  useEffect(() => {
     if (!incomingCall || ringtoneMuted) return;
     return startNexoRingtone();
   }, [incomingCall, ringtoneMuted]);
+
+  useEffect(() => {
+    if (!callState?.initiator || callState.remoteStream) return;
+    return startNexoOutgoingTone();
+  }, [callState?.conversationId, callState?.initiator, Boolean(callState?.remoteStream)]);
 
   useEffect(() => {
     if (!activeConversationId || !socketRef.current) return;
@@ -400,6 +485,12 @@ export function MessengerWorkspace({
     [activeServer, activeChannelId]
   );
   const activeChannelMessages = activeChannelId ? channelMessages[activeChannelId] || [] : [];
+  const messageSearchItems = useMemo(() => activeChannel ? activeChannelMessages : activeMessages, [activeChannel, activeChannelMessages, activeMessages]);
+  const messageSearchResults = useMemo(() => {
+    const query = messageSearchQuery.trim().toLocaleLowerCase('ru-RU');
+    if (!query) return [];
+    return messageSearchItems.filter((message) => `${message.author.display_name || message.author.username} ${message.content || ''}`.toLocaleLowerCase('ru-RU').includes(query)).slice(0, 20);
+  }, [messageSearchItems, messageSearchQuery]);
 
   useEffect(() => {
     if (!openMessageId) return;
@@ -407,7 +498,7 @@ export function MessengerWorkspace({
       || activeChannelMessages.some((message) => message.id === openMessageId);
     if (!exists) return;
     const frame = window.requestAnimationFrame(() => {
-      document.getElementById(`nexo-message-${mode === 'friends' ? 'dm-' + activeConversationId : 'channel-' + activeServerId + '-' + activeChannelId}-${openMessageId}`)
+      document.getElementById(mode === 'friends' ? `nexo-message-${openMessageId}` : `nexo-channel-message-${openMessageId}`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
     return () => window.cancelAnimationFrame(frame);
@@ -505,6 +596,14 @@ export function MessengerWorkspace({
     } catch (error) { window.alert((error as Error).message); }
   }
 
+  function jumpToSearchResult(messageId: number) {
+    const prefix = activeChannel ? 'nexo-channel-message-' : 'nexo-message-';
+    setMessageSearchOpen(false);
+    window.requestAnimationFrame(() => {
+      document.getElementById(prefix + messageId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
   function openMessageMenu(event: ReactMouseEvent, message: Message | ChannelMessage, kind: 'dm' | 'channel') {
     event.preventDefault();
     setMessageContext({ x: event.clientX, y: event.clientY, message, kind });
@@ -552,9 +651,14 @@ export function MessengerWorkspace({
       }
       const data = await response.json();
       setMessageStore((prev) => appendUniqueMessage(prev, activeConversationId, data.message));
+      const sentKey = `dm:${data.message.id}`;
+      setAnimatedMessageIds((current) => [...current.filter((item) => item !== sentKey), sentKey]);
+      window.setTimeout(() => setAnimatedMessageIds((current) => current.filter((item) => item !== sentKey)), 850);
+      playNexoSound('send');
       setComposerText('');
       setUploadFile(null);
     } catch (error) {
+      playNexoSound('error');
       console.error(error);
     }
   }
@@ -583,9 +687,14 @@ export function MessengerWorkspace({
       }
       const data = await response.json();
       setChannelMessages((prev) => appendUniqueChannelMessage(prev, activeChannelId, data.message));
+      const sentKey = `channel:${data.message.id}`;
+      setAnimatedMessageIds((current) => [...current.filter((item) => item !== sentKey), sentKey]);
+      window.setTimeout(() => setAnimatedMessageIds((current) => current.filter((item) => item !== sentKey)), 850);
+      playNexoSound('send');
       setChannelComposer('');
       setChannelUpload(null);
     } catch (error) {
+      playNexoSound('error');
       console.error(error);
     }
   }
@@ -646,7 +755,7 @@ export function MessengerWorkspace({
       };
       callStateRef.current = state;
       setCallState(state);
-      if (options?.initiator !== false) socketRef.current.emit('call:invite', { conversationId, mediaType });
+      if (options?.initiator !== false) socketRef.current.emit('call:ring', { conversationId, mediaType });
 
       peer.on('signal', (payload) => {
         if (awaitingCallAcceptRef.current === conversationId) {
@@ -695,26 +804,28 @@ export function MessengerWorkspace({
     current.peer?.signal(payload);
   }
 
-  async function acceptIncomingCall() {
+  async function acceptIncomingCall(acceptedMediaType?: 'audio' | 'video') {
     if (!incomingCall) return;
     const call = incomingCall;
     pendingIncomingSignalRef.current = null;
     setIncomingCall(null);
-    const started = await startCall(call.conversationId, { initiator: false }, call.mediaType);
+    const started = await startCall(call.conversationId, { initiator: false }, acceptedMediaType || call.mediaType);
     if (!started) {
-      socketRef.current?.emit('call:reject', { conversationId: call.conversationId });
+      socketRef.current?.emit('call:decline', { conversationId: call.conversationId });
       onIncomingCallHandled?.();
       return;
     }
-    socketRef.current?.emit('call:accept', { conversationId: call.conversationId });
+    socketRef.current?.emit('call:accept', { conversationId: call.conversationId, mediaType: acceptedMediaType || call.mediaType });
+    playNexoSound('call-accepted');
     onIncomingCallHandled?.();
   }
 
   function rejectIncomingCall() {
     if (!incomingCall) return;
-    socketRef.current?.emit('call:reject', { conversationId: incomingCall.conversationId });
+    socketRef.current?.emit('call:decline', { conversationId: incomingCall.conversationId });
     pendingIncomingSignalRef.current = null;
     setIncomingCall(null);
+    playNexoSound('call-ended');
     onIncomingCallHandled?.();
   }
 
@@ -736,9 +847,17 @@ export function MessengerWorkspace({
     callStateRef.current = null;
     setCallState(null);
     if (notifyRemote) socketRef.current?.emit('call:end', { conversationId: current.conversationId });
+    playNexoSound('call-ended');
     current.peer?.destroy();
     current.localStream?.getTracks().forEach((track) => track.stop());
     current.remoteStream?.getTracks().forEach((track) => track.stop());
+  }
+
+  function toggleCamera() {
+    const track = callStateRef.current?.localStream?.getVideoTracks()[0];
+    if (!track || callStateRef.current?.isScreenSharing) return;
+    track.enabled = !track.enabled;
+    setCallState((current) => current ? { ...current } : current);
   }
 
   async function shareScreen() {
@@ -809,6 +928,7 @@ export function MessengerWorkspace({
                   {activeConversation.title}
                 </div>
                 <div className="chat-actions">
+                  <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
                   <button type="button" className="ghost" onClick={() => startCall(activeConversation.id, { initiator: true }, 'audio')}>
                     <Phone size={16} />Голос
                   </button>
@@ -817,6 +937,35 @@ export function MessengerWorkspace({
                   </button>
                 </div>
               </header>
+              {callState?.conversationId === activeConversation.id && <CallOverlay
+                state={callState}
+                peer={activeConversation.counterpart || activeConversation.participants.find((participant) => participant.id !== user.id) || null}
+                currentUser={user}
+                micMuted={micMuted}
+                onToggleMic={onToggleMic}
+                onHangUp={endCall}
+                onShareScreen={shareScreen}
+                onToggleCamera={toggleCamera}
+                audioOutputId={audioOutputId}
+                deafened={deafened}
+              />}
+              {messageSearchOpen && <div className="message-search-panel">
+                <div className="message-search-input-wrap">
+                  <Search size={15} />
+                  <input autoFocus value={messageSearchQuery} onChange={(event) => setMessageSearchQuery(event.target.value)}
+                    placeholder="Поиск по сообщениям и авторам…" aria-label="Поиск по сообщениям" />
+                  <button type="button" className="ghost-icon" onClick={() => setMessageSearchOpen(false)} aria-label="Закрыть поиск"><X size={15} /></button>
+                </div>
+                {messageSearchQuery.trim() && <div className="message-search-results">
+                  {messageSearchResults.length ? messageSearchResults.map((message) => (
+                    <button key={message.id} type="button" onClick={() => jumpToSearchResult(message.id)}>
+                      <strong>{message.author.display_name || message.author.username}</strong>
+                      <span>{message.content || 'Вложение'}</span>
+                      <time>{new Date(message.created_at).toLocaleDateString('ru-RU')}</time>
+                    </button>
+                  )) : <p>Ничего не найдено в загруженной истории.</p>}
+                </div>}
+              </div>}
               <div className="message-stream">
                 {loadingMessages && <p className="muted">Загружаем…</p>}
                 {!loadingMessages &&
@@ -926,6 +1075,7 @@ export function MessengerWorkspace({
                   <small>{activeChannel.topic}</small>
                 </div>
                 <div className="chat-actions">
+                  <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
                   <button type="button" className={showMembersPanel ? 'ghost active' : 'ghost'} onClick={() => setShowMembersPanel((value) => !value)} title="Показать участников" aria-label="Показать участников">
                     <Users size={16} />Участники
                   </button>
@@ -944,7 +1094,7 @@ export function MessengerWorkspace({
                     return (
                       <Fragment key={message.id}>
                         {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
-                        <article className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
+                        <article id={`nexo-channel-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
                           onContextMenu={(event) => openMessageMenu(event, message, 'channel')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
@@ -1030,20 +1180,6 @@ export function MessengerWorkspace({
         onCreateServer={() => setShowCreateServer(true)}
       />}
       <div className="workspace-main">
-        {!hideNavigation && !embedded && <div className="workspace-nav">
-          <button
-            className={mode === 'servers' ? 'active' : ''}
-            onClick={() => setMode('servers')}
-          >
-            Серверы
-          </button>
-          <button
-            className={mode === 'friends' ? 'active' : ''}
-            onClick={() => setMode('friends')}
-          >
-            Друзья
-          </button>
-        </div>}
         {mode === 'friends' ? renderDirectMessages() : renderServerView()}
       </div>
 
@@ -1075,29 +1211,32 @@ export function MessengerWorkspace({
         </div>
       )}
       {incomingCall && (
-        <motion.div className="incoming-call-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <motion.div ref={incomingCallBackdropRef} className="incoming-call-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           <motion.section className="incoming-call-card" role="dialog" aria-modal="true" aria-label="Входящий звонок"
+            drag dragMomentum={false} dragElastic={0.04} dragConstraints={incomingCallBackdropRef}
             initial={{ opacity: 0, y: 18, scale: .92 }} animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: .96 }} transition={{ type: 'spring', stiffness: 360, damping: 28 }}>
             <div className="incoming-call-avatar">
               <span className="incoming-call-pulse" />
-              <Avatar user={incomingCall.user} size={64} showStatus />
+              <Avatar user={incomingCall.user} size={88} showStatus />
             </div>
             <div className="incoming-call-copy">
               <strong>{incomingCall.user.display_name || incomingCall.user.username}</strong>
-              <p>{incomingCall.groupTitle ? `Групповой звонок · ${incomingCall.groupTitle}` : incomingCall.mediaType === 'video' ? 'Входящий видеозвонок' : 'Входящий голосовой звонок'}</p>
+              <p>{incomingCall.groupTitle ? `${incomingCall.user.display_name || incomingCall.user.username} приглашает в звонок` : incomingCall.mediaType === 'video' ? 'Входящий видеозвонок' : 'Входящий голосовой звонок'}</p>
             </div>
+            {incomingCall.mediaType === 'video' && <span className="incoming-call-video-label"><Monitor size={14} /> Видеозвонок</span>}
+            {callState && <p className="incoming-call-busy-note">Вы уже в звонке. Принятие завершит текущий вызов.</p>}
             <button type="button" className="ringtone-toggle" onClick={() => setRingtoneMuted((value) => !value)}>
               {ringtoneMuted ? 'Включить звук звонка' : 'Отключить звук звонка'}
             </button>
             <div className="incoming-call-actions">
               <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" title="Отклонить"><PhoneOff size={20} /></button>
-              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title="Принять"><Phone size={20} /></button>
+              {incomingCall.mediaType === 'video' && <button type="button" className="call-accept call-accept-audio" onClick={() => void acceptIncomingCall('audio')} aria-label="Принять без видео" title="Принять без видео"><Phone size={18} /><small>Без видео</small></button>}
+              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title={callState ? 'Принять и завершить текущий' : 'Принять'}><Phone size={20} /></button>
             </div>
           </motion.section>
         </motion.div>
       )}
-      {callState && <CallOverlay state={callState} onHangUp={endCall} onShareScreen={shareScreen} audioOutputId={audioOutputId} deafened={deafened} />}
 
       {showCreateServer && (
         <CreateServerModal
@@ -1281,66 +1420,79 @@ function AttachmentPreview({ attachment }: { attachment: Message['attachment'] |
 }
 
 function CallOverlay({
-  state,
-  onHangUp,
-  onShareScreen,
-  audioOutputId,
-  deafened
+  state, peer, currentUser, micMuted = false, onToggleMic, onHangUp, onShareScreen, onToggleCamera, audioOutputId, deafened
 }: {
   state: CallState;
-  onHangUp: () => void;
+  peer: User | null;
+  currentUser: User;
+  micMuted?: boolean;
+  onToggleMic?: () => void;
+  onHangUp: (notifyRemote?: boolean) => void;
   onShareScreen: () => void;
-  audioOutputId: string;
-  deafened: boolean;
+  onToggleCamera: () => void;
+  audioOutputId?: string;
+  deafened?: boolean;
 }) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const [clock, setClock] = useState(Date.now());
+  const peerName = peer?.display_name || peer?.username || 'Собеседник';
+  const cameraTrack = state.localStream?.getVideoTracks()[0];
+  const cameraEnabled = Boolean(cameraTrack?.enabled && !state.isScreenSharing);
 
   useEffect(() => {
-    if (localVideoRef.current && state.localStream) {
-      localVideoRef.current.srcObject = state.localStream;
-    }
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (localVideoRef.current && state.localStream) localVideoRef.current.srcObject = state.localStream;
   }, [state.localStream]);
-
   useEffect(() => {
-    if (remoteVideoRef.current && state.remoteStream) {
-      remoteVideoRef.current.srcObject = state.remoteStream;
-    }
+    if (remoteVideoRef.current && state.remoteStream) remoteVideoRef.current.srcObject = state.remoteStream;
   }, [state.remoteStream]);
-
   useEffect(() => {
     const video = remoteVideoRef.current as (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }) | null;
     if (video?.setSinkId && audioOutputId) void video.setSinkId(audioOutputId).catch((error) => console.warn('Audio output selection failed:', error));
   }, [audioOutputId, state.remoteStream]);
 
+  const total = Math.max(0, Math.floor((clock - state.startedAt) / 1000));
+  const duration = `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`;
+  if (collapsed) return (
+    <div className="call-overlay-collapsed">
+      <span className="call-live-dot" />
+      <strong>Звонок · {peerName} · {duration}</strong>
+      <button type="button" className="ghost tiny" onClick={() => setCollapsed(false)}><ChevronUp size={14} />Развернуть</button>
+      <button type="button" className="call-hangup-small" onClick={() => onHangUp(true)} aria-label="Завершить звонок"><PhoneOff size={16} /></button>
+    </div>
+  );
+
   return (
-    <motion.div
-      className="call-overlay"
-      initial={{ opacity: 0, y: 60 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 40 }}
-    >
-      <div className="call-video remote">
-        {state.remoteStream ? (
-          <video ref={remoteVideoRef} autoPlay playsInline muted={deafened} />
-        ) : (
-          <p>Ожидание подключения...</p>
-        )}
+    <motion.section className="call-overlay"
+      initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
+      <div className="call-banner-participants">
+        <div className="call-banner-person connected"><Avatar user={currentUser} size={64} showStatus /><small>Вы</small></div>
+        <div className={state.remoteStream ? 'call-banner-person connected' : 'call-banner-person pending'}><Avatar user={peer} size={64} showStatus /><small>{peerName}</small></div>
       </div>
-      <div className="call-video local">
-        {state.localStream && <video ref={localVideoRef} autoPlay playsInline muted />}
+      <div className="call-banner-media">
+        {state.remoteStream && <video ref={remoteVideoRef} className={state.remoteStream.getVideoTracks().length ? '' : 'call-audio-sink'} autoPlay playsInline muted={deafened} />}
+        {!state.remoteStream?.getVideoTracks().length && <span>{state.remoteStream ? 'На связи' : 'Подключаемся…'}</span>}
+        {cameraTrack && <video ref={localVideoRef} className="call-local-preview" autoPlay playsInline muted />}
       </div>
-      <div className="call-controls">
-        <button className="ghost" onClick={onShareScreen}>
-          <Monitor size={18} />
-          Трансляция
+      <div className="call-banner-controls">
+        <button type="button" className={micMuted ? 'call-control danger' : 'call-control'} onClick={onToggleMic} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
+          {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
         </button>
-        <button className="primary" onClick={onHangUp}>
-          <Phone size={18} />
-          Завершить
+        <button type="button" className={cameraEnabled ? 'call-control' : 'call-control danger'} onClick={onToggleCamera}
+          disabled={!cameraTrack || state.isScreenSharing} title={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'} aria-label={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'}>
+          {cameraEnabled ? <Camera size={17} /> : <CameraOff size={17} />}
         </button>
+        <button type="button" className="call-control" onClick={onShareScreen} title="Поделиться экраном" aria-label="Поделиться экраном"><Monitor size={17} /></button>
+        <button type="button" className="call-control call-hangup" onClick={() => onHangUp(true)} title="Завершить звонок" aria-label="Завершить звонок"><PhoneOff size={17} /></button>
+        <button type="button" className="call-control" onClick={() => setCollapsed(true)} title="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
       </div>
-    </motion.div>
+      <span className="call-banner-duration">{duration}</span>
+    </motion.section>
   );
 }
 

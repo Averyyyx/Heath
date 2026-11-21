@@ -73,3 +73,5 @@ jobs:
           files: |
             dist/*.exe
             dist/*.exe.sha256
+            dist/latest.yml
+            dist/*.blockmap
