@@ -10,6 +10,7 @@ import {
   Link as LinkIcon,
   Monitor,
   Paperclip,
+  Pencil,
   Phone,
   PhoneOff,
   Camera,
@@ -128,6 +129,7 @@ export function MessengerWorkspace({
   const [animatedMessageIds, setAnimatedMessageIds] = useState<string[]>([]);
   const [callError, setCallError] = useState('');
   const [composerText, setComposerText] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const [servers, setServers] = useState<Server[]>([]);
@@ -232,6 +234,8 @@ export function MessengerWorkspace({
     };
     const onMessageAck = ({ conversationId, message }: { conversationId: number; message: Message }) =>
       setMessageStore((prev) => appendUniqueMessage(prev, conversationId, message));
+    const onMessageUpdate = ({ conversationId, message }: { conversationId: number; message: Message }) =>
+      setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).map((item) => item.id === message.id ? message : item) }));
     const onMessageDelete = ({ conversationId, messageId }: { conversationId: number; messageId: number }) =>
       setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).filter((message) => message.id !== messageId) }));
     const onTyping = ({ conversationId, user: typing, isTyping }: { conversationId: number; user: User; isTyping: boolean }) => {
@@ -312,6 +316,7 @@ export function MessengerWorkspace({
     socket.on('conversation:upsert', onConversationUpsert);
     socket.on('message:new', onMessageNew);
     socket.on('message:ack', onMessageAck);
+    socket.on('message:update', onMessageUpdate);
     socket.on('message:delete', onMessageDelete);
     socket.on('typing', onTyping);
     socket.on('call:ring', onCallInvite);
@@ -330,6 +335,7 @@ export function MessengerWorkspace({
       socket.off('conversation:upsert', onConversationUpsert);
       socket.off('message:new', onMessageNew);
       socket.off('message:ack', onMessageAck);
+      socket.off('message:update', onMessageUpdate);
       socket.off('message:delete', onMessageDelete);
       socket.off('typing', onTyping);
       socket.off('call:ring', onCallInvite);
@@ -628,6 +634,14 @@ export function MessengerWorkspace({
     });
   }
 
+  function beginEditMessage(message: Message | ChannelMessage) {
+    if (message.author.id !== user.id || !message.content) return;
+    setEditingMessageId(message.id);
+    setComposerText(message.content);
+    setMessageContext(null);
+    window.requestAnimationFrame(() => composerRef.current?.focus());
+  }
+
   function openMessageMenu(event: ReactMouseEvent, message: Message | ChannelMessage, kind: 'dm' | 'channel') {
     event.preventDefault();
     setMessageContext({ x: event.clientX, y: event.clientY, message, kind });
@@ -657,6 +671,27 @@ export function MessengerWorkspace({
     sendTyping(false);
     if (!activeConversationId) return;
     if (!composerText.trim() && !uploadFile) return;
+
+    if (editingMessageId !== null) {
+      try {
+        const response = await apiFetch(`/api/conversations/${activeConversationId}/messages/${editingMessageId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: composerText })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.message || 'Не удалось изменить сообщение.');
+        setMessageStore((prev) => ({
+          ...prev,
+          [activeConversationId]: (prev[activeConversationId] || []).map((item) => item.id === editingMessageId ? payload.message : item)
+        }));
+        setComposerText('');
+        setEditingMessageId(null);
+      } catch (error) {
+        window.alert((error as Error).message);
+      }
+      return;
+    }
 
     const formData = new FormData();
     formData.append('content', composerText);
@@ -1008,6 +1043,7 @@ export function MessengerWorkspace({
                           <div className="message-body">
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.content && <MessageContent content={message.content} />}
+                            {message.edited_at && <small className="message-edited-label">изменено</small>}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
                             {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) &&
                               (activeConversation.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0) >= message.id &&
@@ -1021,6 +1057,12 @@ export function MessengerWorkspace({
               {typingUser && <div className="typing-indicator">{typingUser.display_name || typingUser.username} печатает…</div>}
               {callError && <p className="status error call-error">{callError}</p>}
               <div className="composer">
+                {editingMessageId !== null && (
+                  <div className="composer-editing-banner">
+                    <span>Редактирование сообщения</span>
+                    <button type="button" className="link" onClick={() => { setEditingMessageId(null); setComposerText(''); }}>Отмена</button>
+                  </div>
+                )}
                 <label className="file-pill">
                   <Paperclip size={16} />
                   <input
@@ -1230,9 +1272,16 @@ export function MessengerWorkspace({
               setMessageContext(null);
             }}><LinkIcon /><span>Копировать ссылку</span></button>
             {messageContext.message.author.id === user.id && (
-              <button type="button" className="danger" onClick={() => void deleteMessage(messageContext.message, messageContext.kind)}>
-                <X size={14} /><span>Удалить сообщение</span>
-              </button>
+              <>
+                {messageContext.kind === 'dm' && messageContext.message.content && (
+                  <button type="button" onClick={() => beginEditMessage(messageContext.message)}>
+                    <Pencil size={14} /><span>Редактировать</span>
+                  </button>
+                )}
+                <button type="button" className="danger" onClick={() => void deleteMessage(messageContext.message, messageContext.kind)}>
+                  <X size={14} /><span>Удалить сообщение</span>
+                </button>
+              </>
             )}
           </div>
         </div>
