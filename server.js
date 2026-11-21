@@ -1255,18 +1255,27 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('call:invite', ({ conversationId, mediaType = 'audio' }) => {
+  const handleCallRing = ({ conversationId, mediaType = 'audio' }) => {
     try {
-      ensureConversationAccess(conversationId, socket.user.id);
+      ensureConversationAccess(Number(conversationId), socket.user.id);
+      const participants = getConversationParticipants(Number(conversationId));
+      if (participants.length > 4) {
+        socket.emit('call:error', { conversationId: Number(conversationId), message: 'Групповой звонок Nexo поддерживает не более четырёх участников.' });
+        return;
+      }
       const invitation = {
-        conversationId, from: socket.user.id, user: socket.user,
-        mediaType: mediaType === 'video' ? 'video' : 'audio'
+        conversationId: Number(conversationId), from: socket.user.id, user: socket.user,
+        mediaType: mediaType === 'video' ? 'video' : 'audio',
+        participants
       };
-      getConversationParticipants(conversationId)
-        .filter((participant) => participant.id !== socket.user.id)
-        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:invite', invitation));
+      participants.filter((participant) => participant.id !== socket.user.id).forEach((participant) => {
+        io.to(getUserRoom(participant.id)).emit('call:ring', invitation);
+        io.to(getUserRoom(participant.id)).emit('call:invite', invitation);
+      });
     } catch (error) { socket.emit('error', { message: error.message }); }
-  });
+  };
+  socket.on('call:ring', handleCallRing);
+  socket.on('call:invite', handleCallRing);
 
   socket.on('call:accept', ({ conversationId }) => {
     try {
@@ -1283,16 +1292,18 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('call:reject', ({ conversationId }) => {
+  const handleCallDecline = ({ conversationId }) => {
     try {
       ensureConversationAccess(Number(conversationId), socket.user.id);
-      getConversationParticipants(Number(conversationId))
-        .filter((participant) => participant.id !== socket.user.id)
-        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:reject', {
-          conversationId: Number(conversationId), from: socket.user.id
-        }));
+      getConversationParticipants(Number(conversationId)).filter((participant) => participant.id !== socket.user.id).forEach((participant) => {
+        const payload = { conversationId: Number(conversationId), from: socket.user.id };
+        io.to(getUserRoom(participant.id)).emit('call:decline', payload);
+        io.to(getUserRoom(participant.id)).emit('call:reject', payload);
+      });
     } catch (error) { socket.emit('error', { message: error.message }); }
-  });
+  };
+  socket.on('call:decline', handleCallDecline);
+  socket.on('call:reject', handleCallDecline);
 
   socket.on('call:timeout', ({ conversationId }) => {
     try {
