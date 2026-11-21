@@ -148,6 +148,7 @@ export default function App() {
   const [activeVoiceInfo, setActiveVoiceInfo] = useState<{ serverId: number; channelId: number; serverName: string; channelName: string; joinedAt: number } | null>(null);
   const [voiceClock, setVoiceClock] = useState(Date.now());
   const [voiceParticipantsByChannel, setVoiceParticipantsByChannel] = useState<Record<number, Array<{ user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string }; muted: boolean; deafened: boolean; canSpeak?: boolean }>>>({});
+  const [voiceSpeakingByChannel, setVoiceSpeakingByChannel] = useState<Record<number, number[]>>({});
   const [createChannelUserLimit, setCreateChannelUserLimit] = useState(8);
   const [appVersion, setAppVersion] = useState('0.0.8-alpha');
 
@@ -186,13 +187,18 @@ export default function App() {
         setActiveVoiceInfo((current) => current && (detail?.channelId === undefined || detail.channelId === current.channelId) ? null : current);
       }
     };
+    const onVoiceSpeaking = (event: Event) => {
+      const detail = (event as CustomEvent<{ channelId: number; userIds: number[] }>).detail;
+      if (detail?.channelId) setVoiceSpeakingByChannel((current) => ({ ...current, [detail.channelId]: detail.userIds || [] }));
+    };
     const onVoiceParticipants = (event: Event) => {
       const detail = (event as CustomEvent<{ channelId: number; participants: Array<{ user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string }; muted: boolean; deafened: boolean; canSpeak?: boolean }> }>).detail;
       if (detail?.channelId) setVoiceParticipantsByChannel((current) => ({ ...current, [detail.channelId]: detail.participants || [] }));
     };
     window.addEventListener('nexo-voice-state', onVoiceState);
     window.addEventListener('nexo-voice-participants', onVoiceParticipants);
-    return () => { window.removeEventListener('nexo-voice-state', onVoiceState); window.removeEventListener('nexo-voice-participants', onVoiceParticipants); };
+    window.addEventListener('nexo-voice-speaking', onVoiceSpeaking);
+    return () => { window.removeEventListener('nexo-voice-state', onVoiceState); window.removeEventListener('nexo-voice-participants', onVoiceParticipants); window.removeEventListener('nexo-voice-speaking', onVoiceSpeaking); };
   }, []);
 
   useEffect(() => {
@@ -1259,7 +1265,7 @@ export default function App() {
                                 <span className="sidebar-row-text"><strong>{channel.name}</strong></span>
                                 <small>{canConnect ? `${members.length}/${channel.user_limit || 8}` : 'Нет доступа'}</small>
                               </button>
-                              {members.map((member) => <div key={member.user.id} className="sidebar-voice-member">
+                              {members.map((member) => <div key={member.user.id} className={voiceSpeakingByChannel[channel.id]?.includes(member.user.id) ? "sidebar-voice-member speaking" : "sidebar-voice-member"}>
                                 <Avatar user={member.user} size={24} />
                                 <span>{member.user.display_name || member.user.username}</span>
                                 {member.muted && <MicOff size={12} />}
