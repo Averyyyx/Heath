@@ -3078,3 +3078,12 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 }
 
 .dock-status-icon { display: inline-flex; min-width: 26px; align-items: center; gap: 5px; }
+
+/* Readability floor for the workspace navigation */
+.nexo-tab .tab-title { font-size: 13px; }
+.tab-unread { min-width: 19px; padding: 2px 5px; font-size: 12px; font-weight: 650; }
+.workspace-indicator { font-size: 12px; letter-spacing: .04em; }
+.sidebar-section-toggle { font-size: 12px; letter-spacing: .02em; }
+.sidebar-section-toggle small { font-size: 12px; }
+.sidebar-empty, .sidebar-empty-action { font-size: 12px; }
+.server-tree-icon { font-size: 12px; }
