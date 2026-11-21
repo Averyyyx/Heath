@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import SimplePeer from 'simple-peer';
-import { Camera, CameraOff, Mic, MicOff, MonitorUp, PhoneOff, Volume2, VolumeX, UserPlus, X } from 'lucide-react';
+import { Camera, CameraOff, Mic, MicOff, MonitorUp, PhoneOff, Volume2, VolumeX, UserPlus, X, MoreHorizontal } from 'lucide-react';
 import type { Channel, Server, User, VoiceState } from '../types';
 import { apiFetch } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { Avatar } from './Avatar';
+import { Select, Slider, Switch } from './ui';
 
 type VoiceMember = {
   user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string };
@@ -41,6 +42,10 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
   const [inviteOpen, setInviteOpen] = useState(false);
   const [serverMembers, setServerMembers] = useState<Array<{ id: number; user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string } }>>([]);
   const [inviteStatus, setInviteStatus] = useState('');
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [noiseSuppression, setNoiseSuppression] = useState(true);
+  const [remoteVolume, setRemoteVolume] = useState(1);
+  const [tileSize, setTileSize] = useState<'compact' | 'comfortable' | 'large'>('comfortable');
   const peers = useRef(new Map<number, SimplePeer.Instance>());
   const localRef = useRef<MediaStream | null>(null);
   const screenRef = useRef<MediaStream | null>(null);
@@ -101,13 +106,18 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
   }, [localStream, micMuted, participants, user.id]);
 
   useEffect(() => {
+    localStream?.getAudioTracks().forEach((track) => { void track.applyConstraints({ noiseSuppression }).catch(() => {}); });
+  }, [localStream, noiseSuppression]);
+
+  useEffect(() => {
     Object.values(audioRefs.current).forEach((audio) => {
       if (!audio) return;
       audio.muted = deafened;
+      audio.volume = remoteVolume;
       const sink = audio as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
       if (audioOutputId && sink.setSinkId) void sink.setSinkId(audioOutputId).catch(() => {});
     });
-  }, [remoteStreams, deafened, audioOutputId]);
+  }, [remoteStreams, deafened, audioOutputId, remoteVolume]);
 
   useEffect(() => {
     if (!localStream) return;
@@ -333,7 +343,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       </header>
       {error && <p className="voice-room-error">{error}</p>}
       {busy && <p className="voice-room-loading">Подключаемся к голосовому каналу…</p>}
-      <div className={screenStream || cameraStream || Object.values(remoteStreams).some((stream) => stream.getVideoTracks().length) ? 'voice-room-grid has-video' : 'voice-room-grid'}>
+      <div className={`voice-room-grid ${tileSize} ${screenStream || cameraStream || Object.values(remoteStreams).some((stream) => stream.getVideoTracks().length) ? 'has-video' : ''}`}>
         {visibleMembers.map((member) => {
           const remote = remoteStreams[member.user.id];
           const isLocal = member.user.id === user.id;
@@ -352,7 +362,17 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
         <button type="button" className={micMuted ? 'is-off' : ''} onClick={onToggleMic} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>{micMuted ? <MicOff /> : <Mic />}<span>Микрофон</span></button>
         <button type="button" className={deafened ? 'is-off' : ''} onClick={onToggleDeafen} title={deafened ? 'Включить звук' : 'Выключить звук'}>{deafened ? <VolumeX /> : <Volume2 />}<span>Наушники</span></button>
         <button type="button" className={cameraStream ? 'is-on' : ''} onClick={() => void toggleCamera()} title={cameraStream ? 'Выключить камеру' : 'Включить камеру'}>{cameraStream ? <CameraOff /> : <Camera />}<span>Камера</span></button>
-        <button type="button" className={screenStream ? 'is-on' : ''} onClick={() => void toggleScreenShare()} title={screenStream ? 'Остановить демонстрацию' : 'Демонстрация экрана'}>{screenStream ? <MonitorUp /> : <MonitorUp />}<span>Экран</span></button>
+        <button type="button" className={screenStream ? 'is-on' : ''} onClick={() => void toggleScreenShare()} title={screenStream ? 'Остановить демонстрацию' : 'Демонстрация экрана'}><MonitorUp /><span>Экран</span></button>
+        <div className="voice-room-more-wrap">
+          <button type="button" className={moreOpen ? 'is-on' : ''} onClick={() => setMoreOpen((value) => !value)} title="Дополнительные настройки"><MoreHorizontal /><span>Ещё</span></button>
+          {moreOpen && <div className="voice-room-more-popover">
+            <div><span>Шумоподавление</span><Switch checked={noiseSuppression} onChange={setNoiseSuppression} label="Шумоподавление" /></div>
+            <Slider label="Громкость участников" min={0} max={1} step={0.05} value={remoteVolume} valueLabel={`${Math.round(remoteVolume * 100)}%`} onChange={setRemoteVolume} />
+            <label><span>Размер плитки</span><Select value={tileSize} onChange={(event) => setTileSize(event.target.value as typeof tileSize)}>
+              <option value="compact">Компактный</option><option value="comfortable">Обычный</option><option value="large">Крупный</option>
+            </Select></label>
+          </div>}
+        </div>
         <button type="button" className="voice-room-hangup" onClick={onLeave}><PhoneOff /><span>Выйти</span></button>
       </footer>
       {participants.length > 6 && <p className="voice-room-limit-note">Mesh-связь рассчитана на небольшие группы: комфортный предел — 5–6 участников.</p>}
