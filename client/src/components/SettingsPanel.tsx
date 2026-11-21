@@ -118,6 +118,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   const [accountHandle, setAccountHandle] = useState(user.username || '');
   const [profileBio, setProfileBio] = useState(user.bio || '');
   const [profileColor, setProfileColor] = useState(user.avatar_color || '#D97757');
+  const [profileAvatarPreset, setProfileAvatarPreset] = useState(user.avatar_preset ?? 0);
   const [handleState, setHandleState] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [handleHint, setHandleHint] = useState('Логин можно менять раз в 14 дней.');
   const [profileBusy, setProfileBusy] = useState(false);
@@ -1077,7 +1078,8 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           displayName: accountName.trim(),
           username: accountHandle.trim().toLowerCase(),
           bio: profileBio.trim().slice(0, 200),
-          avatarColor: profileColor
+          avatarColor: profileColor,
+          avatarPreset: profileAvatarPreset
         })
       });
       const payload = await response.json().catch(() => ({}));
@@ -1235,7 +1237,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         <p className="eyebrow">ПУБЛИЧНЫЙ ПРОФИЛЬ</p>
         <h2>Профиль</h2>
         <div className="profile-card-preview">
-          <Avatar user={{ ...user, display_name: accountName, username: accountHandle, avatar_color: profileColor }} size={58} />
+          <Avatar user={{ ...user, display_name: accountName, username: accountHandle, avatar_color: profileColor, avatar_preset: profileAvatarPreset, avatar_url: avatarPreview || (profileAvatarPreset !== (user.avatar_preset ?? 0) ? '' : user.avatar_url) }} size={58} />
           <div><strong>{accountName || 'Ваше имя'}</strong><small>@{accountHandle || 'username'} · #{user.discriminator || '0001'}</small>
             <p>{profileBio || 'Описание профиля пока пустое.'}</p></div>
         </div>
@@ -1266,6 +1268,18 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           <div className="avatar-color-options">{profilePalette.map((color) => <button key={color} type="button"
             className={profileColor === color ? 'selected' : ''} style={{ backgroundColor: color }}
             aria-label={`Цвет ${color}`} aria-pressed={profileColor === color} onClick={() => setProfileColor(color)} />)}</div>
+        </div>
+        <div className="settings-group">
+          <h3>Аватары Nexo</h3>
+          <p className="muted">Выберите одну из 12 геометрических эмблем. Загруженное изображение имеет приоритет.</p>
+          <div className="avatar-preset-grid">
+            {Array.from({ length: 12 }, (_, preset) => <button key={preset} type="button"
+              className={profileAvatarPreset === preset ? 'selected' : ''}
+              aria-label={`Аватар Nexo ${preset + 1}`} aria-pressed={profileAvatarPreset === preset}
+              onClick={() => setProfileAvatarPreset(preset)}>
+              <Avatar user={{ ...user, avatar_url: '', avatar_preset: preset }} size={42} />
+            </button>)}
+          </div>
         </div>
         <button type="button" className="primary" onClick={() => void saveProfile()} disabled={profileBusy || handleState === 'checking'}>
           {profileBusy ? 'Сохраняем…' : 'Сохранить профиль'}
