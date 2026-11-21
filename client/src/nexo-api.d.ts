@@ -19,7 +19,7 @@ declare global {
       setUpdatePreferences: (preferences: { autoDownload: boolean }) => void;
       onNotificationUpdate: (callback: (...args: unknown[]) => void) => void;
       removeAllListeners: (channel: string) => void;
-      onDeepLink: (callback: (payload: { type: 'dm'; conversationId: number; messageId: number } | { type: 'channel'; serverId: number; channelId: number; messageId: number }) => void) => () => void;
+      onDeepLink: (callback: (payload: { type: 'dm'; conversationId: number; messageId?: number } | { type: 'channel'; serverId: number; channelId: number; messageId?: number }) => void) => () => void;
     };
   }
 }
