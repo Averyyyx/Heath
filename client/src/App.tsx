@@ -1410,46 +1410,43 @@ function HomeView({ user, conversations, servers, unreadDmCounts, unreadChannelC
     .filter((channel) => channel.type === 'text')
     .slice(0, 3)
     .map((channel) => ({ server, channel }))).slice(0, 6);
-  const [lastItems, setLastItems] = useState<Record<string, { content: string; created_at: string }>>({});
+  const [lastItems, setLastItems] = useState<Record<string, { content: string; created_at: string; authorId?: number }>>({});
 
   useEffect(() => {
     let cancelled = false;
-    async function loadPreviews() {
-      const entries = await Promise.all([
-        ...recent.map(async (conversation) => {
-          try {
-            const response = await apiFetch(`/api/conversations/${conversation.id}/messages`);
-            if (!response.ok) return null;
-            const payload = await response.json();
-            const message = (payload.messages || []).slice(-1)[0];
-            return message ? [`dm:${conversation.id}`, { content: message.content || (message.attachment ? 'Вложение' : 'Сообщение'), created_at: message.created_at }] as const : null;
-          } catch { return null; }
-        }),
-        ...channels.map(async ({ server, channel }) => {
-          try {
-            const response = await apiFetch(`/api/servers/${server.id}/channels/${channel.id}/messages`);
-            if (!response.ok) return null;
-            const payload = await response.json();
-            const message = (payload.messages || []).slice(-1)[0];
-            return message ? [`channel:${channel.id}`, { content: message.content || (message.attachment ? 'Вложение' : 'Сообщение'), created_at: message.created_at }] as const : null;
-          } catch { return null; }
-        })
-      ]);
+    async function loadChannelPreviews() {
+      const entries = await Promise.all(channels.map(async ({ server, channel }) => {
+        try {
+          const response = await apiFetch(`/api/servers/${server.id}/channels/${channel.id}/messages?limit=1`);
+          if (!response.ok) return null;
+          const payload = await response.json();
+          const message = (payload.messages || []).slice(-1)[0];
+          if (!message) return null;
+          const content = message.content?.trim() || (message.attachment?.mime?.startsWith('image/') ? 'Фото' : message.attachment ? `Файл: ${message.attachment.name}` : 'Сообщение');
+          return [`channel:${channel.id}`, { content, created_at: message.created_at, authorId: message.author?.id }] as const;
+        } catch { return null; }
+      }));
       if (!cancelled) {
-        const next: Record<string, { content: string; created_at: string }> = {};
+        const next: Record<string, { content: string; created_at: string; authorId?: number }> = {};
         for (const entry of entries) if (entry) next[entry[0]] = entry[1];
         setLastItems(next);
       }
     }
-    void loadPreviews();
+    void loadChannelPreviews();
     return () => { cancelled = true; };
-  }, [conversations, servers]);
+  }, [servers]);
 
   const formatTime = (value?: string) => {
     if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
     return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(date);
+  };
+  const dmPreview = (conversation: Conversation) => {
+    const message = conversation.last_message;
+    if (!message) return 'Личный диалог';
+    const content = message.content?.trim() || (message.attachment?.mime?.startsWith('image/') ? 'Фото' : message.attachment ? `Файл: ${message.attachment.name}` : 'Сообщение');
+    return message.author.id === user.id ? `Вы: ${content}` : content;
   };
   const hasItems = recent.length > 0 || channels.length > 0;
   return <div className="nexo-home-view">
@@ -1464,12 +1461,12 @@ function HomeView({ user, conversations, servers, unreadDmCounts, unreadChannelC
         {recent.map((conversation) => {
           const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
           const name = person?.display_name || person?.username || conversation.title || 'Диалог';
-          const preview = lastItems[`dm:${conversation.id}`];
+          const message = conversation.last_message;
           const unread = unreadDmCounts[conversation.id] || 0;
           return <button key={`dm-${conversation.id}`} type="button" onClick={() => openDm(conversation)}>
             <Avatar user={person} size={36} showStatus />
-            <span><strong>{name}</strong><small>{preview?.content || 'Личный диалог'}</small></span>
-            {preview && <time>{formatTime(preview.created_at)}</time>}
+            <span><strong>{name}</strong><small>{dmPreview(conversation)}</small></span>
+            {message && <time>{formatTime(message.created_at)}</time>}
             {unread > 0 && <span className="home-unread">{unread > 99 ? '99+' : unread}</span>}
             <ChevronRight size={15} />
           </button>;
@@ -1479,7 +1476,7 @@ function HomeView({ user, conversations, servers, unreadDmCounts, unreadChannelC
           const unread = unreadChannelCounts[channel.id] || 0;
           return <button key={`channel-${channel.id}`} type="button" onClick={() => openChannel(server, channel.id)}>
             <span className="home-channel-avatar"><HashIcon /></span>
-            <span><strong>{channel.name}</strong><small>{preview?.content || server.name}</small></span>
+            <span><strong>{channel.name}</strong><small>{preview ? `${preview.authorId === user.id ? 'Вы: ' : ''}${preview.content}` : server.name}</small></span>
             {preview && <time>{formatTime(preview.created_at)}</time>}
             {unread > 0 && <span className="home-unread">{unread > 99 ? '99+' : unread}</span>}
             <ChevronRight size={15} />
