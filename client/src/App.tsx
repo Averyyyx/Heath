@@ -12,6 +12,7 @@ import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
 import { MessengerWorkspace } from './components/MessengerWorkspace';
 import { VoiceRoom } from './components/VoiceRoom';
+import { Field, Input, Select, Textarea, Button } from './components/ui';
 import { FriendsPanel } from './components/FriendsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Avatar } from './components/Avatar';
@@ -1407,8 +1408,8 @@ export default function App() {
       {createSpaceOpen && <div className="modal-backdrop"><motion.form className="modal-panel" onSubmit={(event) => { event.preventDefault(); void createSpace(); }}
         initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: .98 }}>
         <header><h2>Новое пространство</h2><button type="button" className="ghost-icon" onClick={() => setCreateSpaceOpen(false)} aria-label="Закрыть"><X size={17} /></button></header>
-        <label><span>Название</span><input value={createSpaceName} onChange={(event) => setCreateSpaceName(event.target.value)} minLength={3} maxLength={48} required /></label>
-        <label><span>Описание</span><textarea value={createSpaceDescription} onChange={(event) => setCreateSpaceDescription(event.target.value)} maxLength={240} rows={3} /></label>
+        <Field label="Название"><Input value={createSpaceName} onChange={(event) => setCreateSpaceName(event.target.value)} minLength={3} maxLength={48} required /></Field>
+        <Field label="Описание"><Textarea value={createSpaceDescription} onChange={(event) => setCreateSpaceDescription(event.target.value)} maxLength={240} rows={3} /></Field>
         {createSpaceStatus && <p className="status error">{createSpaceStatus}</p>}
         <button className="primary" type="submit">Создать пространство</button>
       </motion.form></div>}
@@ -1416,18 +1417,18 @@ export default function App() {
       {createChannelServerId !== null && <div className="modal-backdrop"><motion.form className="modal-panel" onSubmit={(event) => { event.preventDefault(); void createChannel(); }}
         initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }}>
         <header><h2>Создать канал</h2><button type="button" className="ghost-icon" aria-label="Закрыть" onClick={() => setCreateChannelServerId(null)}><X size={16} /></button></header>
-        <label><span>Название</span><input value={createChannelName} onChange={(event) => setCreateChannelName(event.target.value)} minLength={3} maxLength={32} required /></label>
-        <label><span>Тип</span><select value={createChannelType} onChange={(event) => setCreateChannelType(event.target.value as 'text' | 'voice')}><option value="text">Текстовый</option><option value="voice">Голосовой</option></select></label>
-        {createChannelType === 'voice' && <label><span>Лимит участников</span><select value={createChannelUserLimit} onChange={(event) => setCreateChannelUserLimit(Number(event.target.value))}>{[2,3,4,5,6,7,8].map((limit) => <option key={limit} value={limit}>{limit} участников</option>)}</select></label>}
-        <label><span>Тема</span><textarea value={createChannelTopic} onChange={(event) => setCreateChannelTopic(event.target.value)} maxLength={240} rows={3} /></label>
+        <Field label="Название"><Input value={createChannelName} onChange={(event) => setCreateChannelName(event.target.value)} minLength={3} maxLength={32} required /></Field>
+        <Field label="Тип"><Select value={createChannelType} onChange={(event) => setCreateChannelType(event.target.value as 'text' | 'voice')}><option value="text">Текстовый</option><option value="voice">Голосовой</option></Select></Field>
+        {createChannelType === 'voice' && <Field label="Лимит участников"><Select value={createChannelUserLimit} onChange={(event) => setCreateChannelUserLimit(Number(event.target.value))}>{[2,3,4,5,6,7,8].map((limit) => <option key={limit} value={limit}>{limit} участников</option>)}</Select></Field>}
+        <Field label="Тема"><Textarea value={createChannelTopic} onChange={(event) => setCreateChannelTopic(event.target.value)} maxLength={240} rows={3} /></Field>
         {createChannelStatus && <p className="status error">{createChannelStatus}</p>}
         <button type="submit" className="primary" disabled={createChannelStatus === 'Создаём канал…'}>Создать канал</button>
       </motion.form></div>}
       {channelEditTarget && <div className="modal-backdrop"><motion.form className="modal-panel" onSubmit={(event) => { event.preventDefault(); void saveChannelSettings(); }}
         initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }}>
         <header><h2>Настройки канала</h2><button type="button" className="ghost-icon" aria-label="Закрыть" onClick={() => setChannelEditTarget(null)}><X size={16} /></button></header>
-        <label><span>Название</span><input value={channelEditName} onChange={(event) => setChannelEditName(event.target.value)} minLength={3} maxLength={32} required /></label>
-        <label><span>Тема</span><textarea value={channelEditTopic} onChange={(event) => setChannelEditTopic(event.target.value)} maxLength={256} rows={3} /></label>
+        <Field label="Название"><Input value={channelEditName} onChange={(event) => setChannelEditName(event.target.value)} minLength={3} maxLength={32} required /></Field>
+        <Field label="Тема"><Textarea value={channelEditTopic} onChange={(event) => setChannelEditTopic(event.target.value)} maxLength={256} rows={3} /></Field>
         {channelEditStatus && <p className="status error">{channelEditStatus}</p>}
         <div className="channel-settings-actions">
           <button type="submit" className="primary" disabled={channelEditStatus === 'Сохраняем…' || channelEditStatus === 'Удаляем канал…'}>Сохранить</button>
