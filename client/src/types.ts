@@ -87,6 +87,12 @@ export type MessageAuthor = {
   avatar_preset?: number | null;
 };
 
+export type MessageReaction = {
+  emoji: string;
+  count: number;
+  user_ids: number[];
+};
+
 export type Message = {
   id: number;
   conversation_id: number;
@@ -95,6 +101,7 @@ export type Message = {
   attachment: Attachment | null;
   created_at: string;
   edited_at?: string | null;
+  reactions?: MessageReaction[];
 };
 
 export type Conversation = {
@@ -159,5 +166,6 @@ export type ChannelMessage = {
   attachment: Attachment | null;
   created_at: string;
   edited_at?: string | null;
+  reactions?: MessageReaction[];
 };
 
