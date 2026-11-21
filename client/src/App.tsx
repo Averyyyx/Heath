@@ -138,6 +138,7 @@ export default function App() {
   const [savedMicMuted, setSavedMicMuted] = useState(false);
   const [audioInputId, setAudioInputId] = useState('');
   const [audioOutputId, setAudioOutputId] = useState('');
+  const [videoInputId, setVideoInputId] = useState('');
   const [notificationUpdate, setNotificationUpdate] = useState<{ version: string; message: string } | null>(null);
   const [pendingIncomingCall, setPendingIncomingCall] = useState<IncomingCallInfo | null>(null);
   const [pendingVoiceInvite, setPendingVoiceInvite] = useState<VoiceInviteInfo | null>(null);
@@ -373,9 +374,11 @@ export default function App() {
     if (!user) return;
     const savedInput = localStorage.getItem(`nexo.audio-input.${user.id}`) || '';
     const savedOutput = localStorage.getItem(`nexo.audio-output.${user.id}`) || '';
+    const savedVideo = localStorage.getItem(`nexo.video-input.${user.id}`) || '';
     const savedMic = localStorage.getItem(`nexo.mic-muted.${user.id}`) === 'true';
     setAudioInputId(savedInput);
     setAudioOutputId(savedOutput);
+    setVideoInputId(savedVideo);
     setMicMuted(savedMic);
   }, [user]);
 
@@ -1346,12 +1349,12 @@ export default function App() {
                     showConversationList={false} openConversationId={tab.targetId || null} openMessageId={tab.messageId || null}
                     pendingIncomingCall={pendingIncomingCall?.conversationId === tab.targetId ? pendingIncomingCall : null}
                     onIncomingCallHandled={() => setPendingIncomingCall(null)}
-                    micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
+                    micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} videoInputId={videoInputId} />}
                   {tab.kind === 'voice' && (() => {
                     const server = servers.find((item) => item.id === tab.serverId);
                     const channel = server?.channels.find((item) => item.id === tab.channelId && item.type === 'voice');
                     return server && channel ? <VoiceRoom key={tab.id} server={server} channel={channel} user={user}
-                      micMuted={micMuted} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId}
+                      micMuted={micMuted} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} videoInputId={videoInputId}
                       onToggleMic={() => setMic(!micMuted)}
                       onToggleDeafen={() => {
                         if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
@@ -1371,7 +1374,8 @@ export default function App() {
                     micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
                   {tab.kind === 'settings' && <SettingsPanel key={tab.id} user={user} onUserUpdate={(nextUser) => setUser(nextUser)}
                     initialSection={tab.initialSection || 'account'} appVersion={appVersion} onCheckUpdates={handleCheckUpdates}
-                    audioInputId={audioInputId} audioOutputId={audioOutputId}
+                    audioInputId={audioInputId} audioOutputId={audioOutputId} videoInputId={videoInputId}
+                    onVideoInputChange={(id) => { setVideoInputId(id); localStorage.setItem(`nexo.video-input.${user.id}`, id); }}
                     onAudioInputChange={(id) => { setAudioInputId(id); localStorage.setItem(`nexo.audio-input.${user.id}`, id); }}
                     onAudioOutputChange={(id) => { setAudioOutputId(id); localStorage.setItem(`nexo.audio-output.${user.id}`, id); }}
                     onClose={() => closeTab(tab.id)} onLogout={handleLogout} />}
