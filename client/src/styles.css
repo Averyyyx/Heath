@@ -2448,20 +2448,20 @@
 .home-empty strong { color: var(--text); font: 600 17px var(--font-serif); }
 .home-empty p { font-size: 12px; }
 .nexo-statusbar { display: flex; flex: 0 0 66px; min-height: 66px; align-items: center; justify-content: space-between; gap: 14px; padding: 7px 10px; border-top: 1px solid var(--border); background: var(--bg-secondary); }
-.nexo-user-dock { display: flex; align-items: center; gap: 15px; padding: 5px 7px 5px 9px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
-.dock-user { display: flex; min-width: 150px; align-items: center; gap: 9px; padding: 0; border: 0; background: transparent; color: var(--text); cursor: pointer; text-align: left; }
-.dock-user-copy { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
-.dock-user-copy strong { max-width: 160px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.dock-user-copy small { color: var(--text-faint); font-size: 12px; }
-.dock-actions { display: flex; align-items: center; gap: 4px; }
+.nexo-user-dock { display: flex; width: 100%; min-width: 0; height: 52px; flex: 0 0 52px; align-items: center; gap: 8px; padding: 6px 7px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.dock-user { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; }
+.dock-user-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.dock-user-copy strong { max-width: 100%; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.dock-user-copy small { overflow: hidden; color: var(--text-faint); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.dock-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }
 .dock-device-wrap { position: relative; display: flex; align-items: center; }
 .dock-icon, .dock-device-arrow {
-  display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 7px;
+  display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border: 0; border-radius: 8px;
   background: transparent; color: var(--text-muted); cursor: pointer; transition: background 120ms ease, color 120ms ease;
 }
 .dock-device-arrow { width: 15px; }
 .dock-icon:hover, .dock-device-arrow:hover { background: var(--surface-hover); color: var(--text); }
-.dock-icon.danger { color: var(--danger); }
+.dock-icon.danger { color: var(--danger); background: var(--danger-soft); }
 .device-popover { position: absolute; right: 0; bottom: 38px; z-index: 40; min-width: 190px; max-width: 260px; padding: 5px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); box-shadow: none; }
 .device-popover button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; text-align: left; font-size: 12px; }
 .device-popover button:hover, .device-popover button.active { background: var(--surface-hover); }
@@ -2550,15 +2550,12 @@
   display: flex; flex: 0 0 auto; min-width: 0; flex-direction: column; gap: 6px;
   margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border);
 }
-.sidebar-user-area .nexo-user-dock {
-  display: flex; width: 100%; min-width: 0; flex-direction: column; align-items: stretch;
-  gap: 8px; padding: 9px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
-}
-.sidebar-user-area .dock-user { min-width: 0; width: 100%; }
-.sidebar-user-area .dock-user-copy strong { max-width: 155px; }
-.sidebar-user-area .dock-actions { justify-content: space-between; border-top: 1px solid var(--border); padding-top: 6px; }
+.sidebar-user-area .nexo-user-dock { flex-direction: row; align-items: center; gap: 7px; padding: 6px; }
+.sidebar-user-area .dock-user { min-width: 0; width: auto; flex: 1 1 auto; }
+.sidebar-user-area .dock-user-copy strong { max-width: 100%; }
+.sidebar-user-area .dock-actions { justify-content: flex-end; border: 0; padding: 0; }
+.sidebar-user-area .dock-icon { width: 32px; height: 32px; }
 .sidebar-user-area .dock-device-wrap { gap: 1px; }
-.sidebar-user-area .dock-icon { width: 34px; height: 31px; }
 .sidebar-user-area .dock-device-arrow { width: 14px; height: 28px; }
 .sidebar-user-area .device-popover { right: auto; left: 0; bottom: 35px; }
 .nexo-workbench.settings-active .nexo-tab-content { width: 100%; }
