@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import type { User, MessageAuthor, UserStatus } from '../types';
+import { DefaultAvatar } from './DefaultAvatar';
 
-type AvatarUser = Partial<Pick<User, 'id' | 'username' | 'display_name' | 'avatar_url' | 'avatar_color' | 'status'>> &
-  Partial<Pick<MessageAuthor, 'username' | 'display_name' | 'avatar_url' | 'avatar_color'>>;
+type AvatarUser = Partial<Pick<User, 'id' | 'username' | 'display_name' | 'avatar_url' | 'avatar_color' | 'avatar_preset' | 'status'>> &
+  Partial<Pick<MessageAuthor, 'username' | 'display_name' | 'avatar_url' | 'avatar_color' | 'avatar_preset'>>;
 
 type AvatarProps = {
   user?: AvatarUser | null;
@@ -32,7 +33,9 @@ export function Avatar({ user, name, size = 36, showStatus = false, className = 
     <span className={`nexo-avatar ${className}`} style={style} title={title} aria-label={title}>
       {user?.avatar_url
         ? <img src={user.avatar_url} alt="" draggable={false} />
-        : <span>{initial}</span>}
+        : Number.isInteger(user?.avatar_preset)
+          ? <DefaultAvatar preset={user?.avatar_preset} size={size} />
+          : <span>{initial}</span>}
       {showStatus && (
         <i className={`nexo-avatar-status ${statusClass[user?.status || 'offline']}`} aria-label={user?.status || 'offline'} />
       )}
