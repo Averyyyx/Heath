@@ -3100,3 +3100,34 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .incoming-call-video-label { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 12px; }
 .call-accept-audio { display: flex; width: auto; min-width: 84px; flex-direction: column; gap: 2px; border-radius: 12px; background: var(--surface-hover); color: var(--text); }
 .call-accept-audio small { font-size: 11px; }
+
+/* In-chat call dock */
+.call-overlay {
+  position: relative; inset: auto; z-index: 2; display: flex; width: auto; min-height: 132px;
+  flex-direction: row; align-items: center; gap: 18px; margin: 12px 12px 0; padding: 12px 14px;
+  border-radius: 14px; border: 1px solid var(--border); background: var(--bg-secondary); box-shadow: none;
+}
+.call-banner-participants { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; }
+.call-banner-person { display: flex; min-width: 58px; flex-direction: column; align-items: center; gap: 5px; }
+.call-banner-person small { max-width: 84px; overflow: hidden; color: var(--text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.call-banner-media { position: relative; display: grid; width: min(220px, 24vw); height: 104px; flex: 1 1 180px; place-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--text-muted); font-size: 12px; }
+.call-banner-media > video:not(.call-local-preview) { width: 100%; height: 100%; object-fit: cover; }
+.call-banner-media .call-audio-sink { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.call-banner-media .call-local-preview { position: absolute; right: 6px; bottom: 6px; width: 64px; height: 44px; border: 1px solid var(--border); border-radius: 7px; object-fit: cover; }
+.call-banner-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 5px; }
+.call-control { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--text); cursor: pointer; transition: background .12s ease, color .12s ease, border-color .12s ease; }
+.call-control:hover { background: var(--surface-hover); }
+.call-control.danger { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); background: var(--danger-soft); color: var(--danger); }
+.call-control:disabled { opacity: .4; cursor: not-allowed; }
+.call-control.call-hangup { border-color: transparent; background: var(--danger); color: white; }
+.call-banner-duration { align-self: flex-start; color: var(--text-faint); font: 11px var(--font-mono); }
+.call-overlay-collapsed { display: flex; min-height: 40px; align-items: center; gap: 10px; margin: 8px 12px 0; padding: 5px 9px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-secondary); }
+.call-overlay-collapsed strong { flex: 1; font-size: 12px; }
+.call-overlay-collapsed .ghost { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.call-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-online); }
+.call-hangup-small { display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 8px; background: var(--danger-soft); color: var(--danger); cursor: pointer; }
+@media (max-width: 760px) {
+  .call-overlay { flex-wrap: wrap; gap: 10px; }
+  .call-banner-media { min-width: 120px; }
+  .call-banner-controls { margin-left: auto; }
+}
