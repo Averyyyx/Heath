@@ -11,6 +11,7 @@ import {
 import { LoginPanel } from './components/LoginPanel';
 import { ProfileSetup } from './components/ProfileSetup';
 import { MessengerWorkspace } from './components/MessengerWorkspace';
+import { VoiceRoom } from './components/VoiceRoom';
 import { FriendsPanel } from './components/FriendsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Avatar } from './components/Avatar';
@@ -22,7 +23,7 @@ import { getNexoSoundPreferences, playNexoSound, saveNexoSoundPreferences } from
 import { getSocket } from './lib/socket';
 import type { ChannelMessage, Conversation, FriendPayload, Message, Server, User, UserStatus } from './types';
 
-type TabKind = 'home' | 'friends' | 'dm' | 'channel' | 'settings';
+type TabKind = 'home' | 'friends' | 'dm' | 'channel' | 'voice' | 'settings';
 type WorkspaceTab = {
   id: string;
   kind: TabKind;
@@ -146,6 +147,10 @@ export default function App() {
   const [pendingDeepLink, setPendingDeepLink] = useState<DeepLinkPayload | null>(null);
   const [activeCallInfo, setActiveCallInfo] = useState<ActiveCallInfo | null>(null);
   const [callClock, setCallClock] = useState(Date.now());
+  const [activeVoiceInfo, setActiveVoiceInfo] = useState<{ serverId: number; channelId: number; serverName: string; channelName: string; joinedAt: number } | null>(null);
+  const [voiceClock, setVoiceClock] = useState(Date.now());
+  const [voiceParticipantsByChannel, setVoiceParticipantsByChannel] = useState<Record<number, Array<{ user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string }; muted: boolean; deafened: boolean; canSpeak?: boolean }>>>({});
+  const [createChannelUserLimit, setCreateChannelUserLimit] = useState(8);
   const [appVersion, setAppVersion] = useState('0.0.8-alpha');
 
   const desktopApi = typeof window !== 'undefined' ? window.nexoAPI : undefined;
@@ -169,6 +174,30 @@ export default function App() {
   useEffect(() => {
     desktopApi?.getAppVersion?.().then(setAppVersion).catch(() => {});
   }, [desktopApi]);
+
+  useEffect(() => {
+    const onVoiceState = (event: Event) => {
+      const detail = (event as CustomEvent<{ active: boolean; serverId?: number; channelId?: number; serverName?: string; channelName?: string; joinedAt?: number }>).detail;
+      if (detail?.active && detail.serverId && detail.channelId) {
+        setActiveVoiceInfo({ serverId: detail.serverId, channelId: detail.channelId, serverName: detail.serverName || '', channelName: detail.channelName || '', joinedAt: detail.joinedAt || Date.now() });
+      } else if (!detail?.active) {
+        setActiveVoiceInfo((current) => current && (detail?.channelId === undefined || detail.channelId === current.channelId) ? null : current);
+      }
+    };
+    const onVoiceParticipants = (event: Event) => {
+      const detail = (event as CustomEvent<{ channelId: number; participants: Array<{ user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string }; muted: boolean; deafened: boolean; canSpeak?: boolean }> }>).detail;
+      if (detail?.channelId) setVoiceParticipantsByChannel((current) => ({ ...current, [detail.channelId]: detail.participants || [] }));
+    };
+    window.addEventListener('nexo-voice-state', onVoiceState);
+    window.addEventListener('nexo-voice-participants', onVoiceParticipants);
+    return () => { window.removeEventListener('nexo-voice-state', onVoiceState); window.removeEventListener('nexo-voice-participants', onVoiceParticipants); };
+  }, []);
+
+  useEffect(() => {
+    if (!activeVoiceInfo) return;
+    const timer = window.setInterval(() => setVoiceClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [activeVoiceInfo]);
 
   useEffect(() => {
     desktopApi?.setNotificationCount?.(unreadTotal);
@@ -229,9 +258,9 @@ export default function App() {
         const validTabs = (saved.tabs || []).filter((tab) => {
           if (tab.kind === 'home' || tab.kind === 'friends' || tab.kind === 'settings') return true;
           if (tab.kind === 'dm') return nextConversations.some((conversation) => conversation.id === tab.targetId);
-          if (tab.kind === 'channel') {
+          if (tab.kind === 'channel' || tab.kind === 'voice') {
             const server = nextServers.find((item) => item.id === tab.serverId);
-            return Boolean(server?.channels.some((channel) => channel.id === tab.channelId));
+            return Boolean(server?.channels.some((channel) => channel.id === tab.channelId && (tab.kind !== 'voice' || channel.type === 'voice')));
           }
           return false;
         });
@@ -704,6 +733,12 @@ export default function App() {
     }, background);
   }
 
+  function openVoiceTab(server: Server, channelId: number) {
+    const channel = server.channels.find((item) => item.id === channelId && item.type === 'voice');
+    if (!channel) return;
+    openTab({ id: `voice:${channel.id}`, kind: 'voice', title: `Голосовой · ${channel.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id });
+  }
+
   function selectServer(server: Server) {
     setExpandedServers((current) => current.includes(server.id) ? current : [...current, server.id]);
     const firstTextChannel = server.channels.find((channel) => channel.type === 'text');
@@ -1142,7 +1177,7 @@ export default function App() {
                   onDragOverCapture={(event: DragEvent<HTMLButtonElement>) => event.preventDefault()}
                   onDropCapture={(event: DragEvent<HTMLButtonElement>) => { event.preventDefault(); reorderTabs(event.dataTransfer.getData('text/nexo-tab'), tab.id); }}
                   onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, tabId: tab.id }); }}>
-                  {tab.kind === 'home' ? <Home size={14} /> : tab.kind === 'friends' ? <Users size={14} /> : tab.kind === 'dm' ? <Avatar user={conversations.find((conversation) => conversation.id === tab.targetId)?.counterpart || conversations.find((conversation) => conversation.id === tab.targetId)?.participants.find((participant) => participant.id !== user?.id)} size={19} /> : tab.kind === 'channel' ? <HashIcon /> : <Settings size={14} />}
+                  {tab.kind === 'home' ? <Home size={14} /> : tab.kind === 'friends' ? <Users size={14} /> : tab.kind === 'dm' ? <Avatar user={conversations.find((conversation) => conversation.id === tab.targetId)?.counterpart || conversations.find((conversation) => conversation.id === tab.targetId)?.participants.find((participant) => participant.id !== user?.id)} size={19} /> : tab.kind === 'channel' ? <HashIcon /> : tab.kind === 'voice' ? <Volume2 size={14} /> : <Settings size={14} />}
                   {!tab.pinned && <span className="tab-title">{tab.title}</span>}
                   {tab.unread ? <span className="tab-unread">{tab.unread > 9 ? '9+' : tab.unread}</span> : null}
                   {tab.pinned ? null : <span className="tab-close" role="button" title="Закрыть вкладку (Ctrl+W)"
@@ -1210,7 +1245,24 @@ export default function App() {
                         </button>
                         {expandedServers.includes(server.id) && server.channels.map((channel) => {
                           const item: SidebarPin = { id: `channel:${channel.id}`, kind: 'channel', title: `# ${channel.name} · ${server.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id };
-                          if (channel.type !== 'text') return <div key={channel.id} className="sidebar-row disabled" title="Скоро"><Volume2 size={14} /><span>{channel.name}</span><small>Скоро</small></div>;
+                          if (channel.type === 'voice') {
+                            const members = voiceParticipantsByChannel[channel.id] || [];
+                            const currentVoiceTab = activeTabId === `voice:${channel.id}`;
+                            return <div key={channel.id} className="sidebar-voice-channel">
+                              <button type="button" className={`sidebar-row voice-channel-row ${currentVoiceTab ? 'active' : ''}`}
+                                onClick={() => openVoiceTab(server, channel.id)} title={`Войти в голосовой канал ${channel.name}`}>
+                                <Volume2 size={14} /><span className="sidebar-row-text"><strong>{channel.name}</strong></span>
+                                <small>{members.length}/{channel.user_limit || 8}</small>
+                              </button>
+                              {members.map((member) => <div key={member.user.id} className="sidebar-voice-member">
+                                <Avatar user={member.user} size={24} />
+                                <span>{member.user.display_name || member.user.username}</span>
+                                {member.muted && <MicOff size={12} />}
+                                {member.deafened && <HeadphoneOff size={12} />}
+                              </div>)}
+                            </div>;
+                          }
+
                           return <button type="button" key={channel.id} className={`sidebar-row channel-row ${activeTabId === item.id ? 'active' : ''} ${unreadChannelCounts[channel.id] ? 'has-unread' : ''} ${unreadChannelMentionCounts[channel.id] ? 'has-mention' : ''}`}
                             onClick={(event) => openChannelTab(server, channel.id, event.ctrlKey || event.metaKey)}
                             onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openChannelTab(server, channel.id, true); } }}
@@ -1278,6 +1330,18 @@ export default function App() {
                     pendingIncomingCall={pendingIncomingCall?.conversationId === tab.targetId ? pendingIncomingCall : null}
                     onIncomingCallHandled={() => setPendingIncomingCall(null)}
                     micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
+                  {tab.kind === 'voice' && (() => {
+                    const server = servers.find((item) => item.id === tab.serverId);
+                    const channel = server?.channels.find((item) => item.id === tab.channelId && item.type === 'voice');
+                    return server && channel ? <VoiceRoom key={tab.id} server={server} channel={channel} user={user}
+                      micMuted={micMuted} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId}
+                      onToggleMic={() => setMic(!micMuted)}
+                      onToggleDeafen={() => {
+                        if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
+                        else { setDeafened(false); setMic(savedMicMuted); }
+                      }}
+                      onLeave={() => closeTab(tab.id)} /> : <div className="empty-state"><p>Голосовой канал больше недоступен.</p></div>;
+                  })()}
                   {tab.kind === 'channel' && <MessengerWorkspace key={tab.id} user={user} initialMode="servers" embedded isActive={tab.id === activeTabId}
                     showChannelSidebar={false} openServerId={tab.serverId || null} openChannelId={tab.channelId || null} openMessageId={tab.messageId || null}
                     onEditChannel={() => {
