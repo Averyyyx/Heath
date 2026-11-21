@@ -156,6 +156,9 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       const peer = peers.current.get(from) || createPeer(from, false, socket);
       try { peer?.signal(payload as never); } catch (reason) { setError((reason as Error).message); }
     };
+    const onInviteResponse = ({ channelId, accepted }: { channelId: number; accepted: boolean }) => {
+      if (channelId === channel.id) setInviteStatus(accepted ? 'Приглашение принято' : 'Приглашение отклонено');
+    };
     const onState = ({ channelId, participants: next }: { channelId: number; participants: VoiceMember[] }) => {
       if (channelId === channel.id && !disposed) setParticipants(next);
     };
@@ -166,6 +169,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
     socket.on('voice:signal', onSignal);
     socket.on('voice:state', onState);
     socket.on('voice:left', onLeft);
+    socket.on('voice:invite-response', onInviteResponse);
 
     async function join() {
       try {
@@ -210,6 +214,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       socket.off('voice:signal', onSignal);
       socket.off('voice:state', onState);
       socket.off('voice:left', onLeft);
+      socket.off('voice:invite-response', onInviteResponse);
       peers.current.forEach((peer) => peer.destroy());
       peers.current.clear();
       localRef.current?.getTracks().forEach((track) => track.stop());
