@@ -2454,18 +2454,12 @@
 .dock-user-copy strong { max-width: 100%; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .dock-user-copy small { overflow: hidden; color: var(--text-faint); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .dock-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }
-.dock-device-wrap { position: relative; display: flex; align-items: center; }
-.dock-icon, .dock-device-arrow {
+.dock-icon {
   display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border: 0; border-radius: 8px;
   background: transparent; color: var(--text-muted); cursor: pointer; transition: background 120ms ease, color 120ms ease;
 }
-.dock-device-arrow { width: 15px; }
-.dock-icon:hover, .dock-device-arrow:hover { background: var(--surface-hover); color: var(--text); }
+.dock-icon:hover { background: var(--surface-hover); color: var(--text); }
 .dock-icon.danger { color: var(--danger); background: var(--danger-soft); }
-.device-popover { position: absolute; right: 0; bottom: 38px; z-index: 40; min-width: 190px; max-width: 260px; padding: 5px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); box-shadow: none; }
-.device-popover button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; text-align: left; font-size: 12px; }
-.device-popover button:hover, .device-popover button.active { background: var(--surface-hover); }
-.device-popover p { padding: 8px; color: var(--text-muted); font-size: 12px; }
 .nexo-avatar { position: relative; display: inline-grid; flex: 0 0 auto; place-items: center; overflow: visible; border-radius: 50%; color: white; font-weight: 600; }
 .nexo-avatar > img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
 .nexo-avatar-status { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border: 2px solid var(--surface); border-radius: 50%; background: var(--status-offline); }
@@ -2555,9 +2549,6 @@
 .sidebar-user-area .dock-user-copy strong { max-width: 100%; }
 .sidebar-user-area .dock-actions { justify-content: flex-end; border: 0; padding: 0; }
 .sidebar-user-area .dock-icon { width: 32px; height: 32px; }
-.sidebar-user-area .dock-device-wrap { gap: 1px; }
-.sidebar-user-area .dock-device-arrow { width: 14px; height: 28px; }
-.sidebar-user-area .device-popover { right: auto; left: 0; bottom: 35px; }
 .nexo-workbench.settings-active .nexo-tab-content { width: 100%; }
 .workspace-grid.servers:has(.channel-members-panel) {
   grid-template-columns: minmax(215px, 260px) minmax(0, 1fr) 238px;
@@ -3057,7 +3048,6 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   .call-banner-controls { margin-left: auto; }
 }
 
-.dock-status-icon { display: inline-flex; min-width: 26px; align-items: center; gap: 5px; }
 
 /* Readability floor for the workspace navigation */
 .nexo-tab .tab-title { font-size: 13px; }
@@ -3087,7 +3077,6 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 
 .nexo-workbench.settings-active .nexo-sidebar { display: none; }
 
-.dock-menu-select input[type='range'] { width: 100%; min-height: 16px; padding: 0; accent-color: var(--accent); }
 
 .incoming-call-busy-note { margin: 0; color: var(--text-muted); font-size: 12px; text-align: center; }
 
