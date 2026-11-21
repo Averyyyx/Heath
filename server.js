@@ -2003,12 +2003,6 @@ function createMessage(conversationId, authorId, content, attachmentPayload = nu
     error.statusCode = 400;
     throw error;
   }
-  const replyId = replyToMessageId ? Number(replyToMessageId) : null;
-  if (replyId !== null && (!Number.isInteger(replyId) || !db.prepare('SELECT id FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?').get(replyId, serverId, channelId))) {
-    const error = new Error('Сообщение для ответа не найдено в этом канале.');
-    error.statusCode = 400;
-    throw error;
-  }
   const trimmed = (content || '').trim();
   if (!trimmed && !attachmentPayload) {
     const error = new Error('Message must include text or attachment.');
@@ -2062,6 +2056,13 @@ function createChannelMessage(serverId, channelId, authorId, content, attachment
   }
   if (channel.type !== 'text') {
     const error = new Error('Messages can only be sent to text channels.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const replyId = replyToMessageId ? Number(replyToMessageId) : null;
+  if (replyId !== null && (!Number.isInteger(replyId) || !db.prepare('SELECT id FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?').get(replyId, serverId, channelId))) {
+    const error = new Error('Сообщение для ответа не найдено в этом канале.');
     error.statusCode = 400;
     throw error;
   }
