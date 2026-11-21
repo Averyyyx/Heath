@@ -2944,7 +2944,8 @@ app.post('/api/servers/:serverId/channels/:channelId/messages/:messageId/reactio
     return res.status(400).json({ message: 'Некорректная реакция.' });
   }
   try {
-    ensureChannelAccess(serverId, channelId, req.user.id);
+    const { permissions } = ensureChannelAccess(serverId, channelId, req.user.id);
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_CHANNEL)) return res.status(403).json({ message: 'Нет доступа к этому каналу.' });
     const message = db.prepare('SELECT id FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?')
       .get(messageId, serverId, channelId);
     if (!message) return res.status(404).json({ message: 'Сообщение не найдено.' });
@@ -3302,6 +3303,7 @@ app.delete('/api/servers/:serverId/channels/:channelId/messages/:messageId', ens
   const attachments = db.prepare('SELECT path FROM server_attachments WHERE server_message_id = ?').all(messageId);
   try {
     db.transaction(() => {
+      db.prepare("DELETE FROM message_reactions WHERE scope = 'channel' AND message_id = ?").run(messageId);
       db.prepare('DELETE FROM server_attachments WHERE server_message_id = ?').run(messageId);
       db.prepare('DELETE FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?').run(messageId, serverId, channelId);
     })();
@@ -3414,6 +3416,7 @@ app.delete('/api/conversations/:id/messages/:messageId', ensureAuthenticated, me
   const attachments = db.prepare('SELECT path FROM attachments WHERE message_id = ?').all(messageId);
   try {
     db.transaction(() => {
+      db.prepare("DELETE FROM message_reactions WHERE scope = 'dm' AND message_id = ?").run(messageId);
       db.prepare('DELETE FROM attachments WHERE message_id = ?').run(messageId);
       db.prepare('DELETE FROM messages WHERE id = ? AND conversation_id = ?').run(messageId, conversationId);
       db.prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(conversationId);
