@@ -326,6 +326,19 @@ ensureUserColumn('discriminator', `discriminator TEXT DEFAULT '0001'`);
 ensureUserColumn('profile_complete', `profile_complete INTEGER DEFAULT 0`);
 ensureUserColumn('bio', `bio TEXT DEFAULT ''`);
 ensureUserColumn('avatar_color', `avatar_color TEXT DEFAULT '#D97757'`);
+const hadAvatarPresetColumn = db.prepare('PRAGMA table_info(users)').all().some((column) => column.name === 'avatar_preset');
+ensureUserColumn('avatar_preset', 'avatar_preset INTEGER');
+if (!hadAvatarPresetColumn) {
+  db.prepare('UPDATE users SET avatar_preset = ((id * 7 + 3) % 12)').run();
+}
+db.prepare(`
+  CREATE TRIGGER IF NOT EXISTS users_assign_avatar_preset
+  AFTER INSERT ON users
+  WHEN NEW.avatar_preset IS NULL
+  BEGIN
+    UPDATE users SET avatar_preset = ((NEW.id * 7 + 3) % 12) WHERE id = NEW.id;
+  END
+`).run();
 ensureUserColumn('username_changed_at', 'username_changed_at DATETIME');
 ensureUserColumn('display_name_changed_at', 'display_name_changed_at DATETIME');
 ensureUserColumn('status', "status TEXT DEFAULT 'online'");
@@ -635,7 +648,9 @@ const updateTwoFactor = db.prepare('UPDATE users SET twofa_secret = ?, twofa_ena
 const updatePasswordHash = db.prepare('UPDATE users SET password_hash = ? WHERE id = ?');
 const markProfile = db.prepare(`
   UPDATE users
-  SET display_name = ?, username = ?, discriminator = ?, bio = ?, avatar_color = ?, profile_complete = 1,
+  SET display_name = ?, username = ?, discriminator = ?, bio = ?, avatar_color = ?,
+      avatar_url = CASE WHEN avatar_preset != ? THEN '' ELSE avatar_url END,
+      avatar_preset = ?, profile_complete = 1,
       display_name_changed_at = CASE WHEN display_name != ? THEN CURRENT_TIMESTAMP ELSE display_name_changed_at END,
       username_changed_at = CASE WHEN username != ? THEN CURRENT_TIMESTAMP ELSE username_changed_at END
   WHERE id = ?
@@ -675,7 +690,7 @@ const listConversationsForUser = db.prepare(`
 const insertMessage = db.prepare('INSERT INTO messages (conversation_id, author_id, content, attachment) VALUES (?, ?, ?, ?)');
 const selectMessageById = db.prepare('SELECT * FROM messages WHERE id = ?');
 const selectMessageWithAuthor = db.prepare(`
-  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color
+  SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
   FROM messages m
   JOIN users u ON u.id = m.author_id
   WHERE m.id = ?
@@ -716,7 +731,7 @@ const insertServerMember = db.prepare('INSERT INTO server_members (server_id, us
 const selectServerMember = db.prepare('SELECT * FROM server_members WHERE server_id = ? AND user_id = ?');
 const listServerMembers = db.prepare('SELECT * FROM server_members WHERE server_id = ?');
 const listServerMembersDetailed = db.prepare(`
-  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color
+  SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
   FROM server_members sm
   JOIN users u ON u.id = sm.user_id
   WHERE sm.server_id = ?
@@ -1500,7 +1515,8 @@ function serializeMessage(row) {
       username: row.username,
       display_name: row.display_name,
       avatar_url: row.avatar_url,
-      avatar_color: row.avatar_color || '#D97757'
+      avatar_color: row.avatar_color || '#D97757',
+      avatar_preset: Number.isInteger(row.avatar_preset) ? row.avatar_preset : 0
     },
     content: row.content,
     attachment: serializeAttachment(row.attachment),
@@ -2331,7 +2347,10 @@ app.post('/api/profile', ensureAuthenticated, friendActionLimiter, (req, res) =>
 
   try {
     const stableDiscriminator = req.user.discriminator || randomDiscriminator();
-    markProfile.run(rawName, rawHandle, stableDiscriminator, safeBio, safeAvatarColor, rawName, rawHandle, req.user.id);
+    const requestedPreset = Number(req.body?.avatarPreset);
+    const safeAvatarPreset = Number.isInteger(requestedPreset) && requestedPreset >= 0 && requestedPreset <= 11
+      ? requestedPreset : Number(req.user.avatar_preset) || 0;
+    markProfile.run(rawName, rawHandle, stableDiscriminator, safeBio, safeAvatarColor, safeAvatarPreset, safeAvatarPreset, rawName, rawHandle, req.user.id);
     const updated = sanitizeUser(selectUserById.get(req.user.id));
     req.user = updated;
     broadcastUserUpdate(updated);
