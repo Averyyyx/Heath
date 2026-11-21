@@ -13,6 +13,7 @@ type VoiceMember = {
   muted: boolean;
   deafened: boolean;
   canSpeak?: boolean;
+  canStream?: boolean;
   joined_at: string;
 };
 
@@ -338,6 +339,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
   const elapsed = joinedAt ? Math.max(0, Math.floor((clock - joinedAt) / 1000)) : 0;
   const duration = `${Math.floor(elapsed / 60).toString().padStart(2, '0')}:${(elapsed % 60).toString().padStart(2, '0')}`;
   const visibleMembers = participants.length ? participants : [{ user: { id: user.id, username: user.username, display_name: user.display_name, avatar_url: user.avatar_url, avatar_color: user.avatar_color }, muted: micMuted, deafened, canSpeak: true, joined_at: new Date().toISOString() }];
+  const localCanStream = participants.find((member) => member.user.id === user.id)?.canStream !== false;
 
   return (
     <div className="voice-room">
@@ -368,8 +370,8 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       <footer className="voice-room-controls">
         <button type="button" className={micMuted ? 'is-off' : ''} onClick={onToggleMic} data-tooltip={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>{micMuted ? <MicOff /> : <Mic />}<span>Микрофон</span></button>
         <button type="button" className={deafened ? 'is-off' : ''} onClick={onToggleDeafen} data-tooltip={deafened ? 'Включить звук' : 'Выключить звук'}>{deafened ? <VolumeX /> : <Volume2 />}<span>Наушники</span></button>
-        <button type="button" className={cameraStream ? 'is-on' : ''} onClick={() => void toggleCamera()} title={cameraStream ? 'Выключить камеру' : 'Включить камеру'}>{cameraStream ? <CameraOff /> : <Camera />}<span>Камера</span></button>
-        <button type="button" className={screenStream ? 'is-on' : ''} onClick={() => void toggleScreenShare()} title={screenStream ? 'Остановить демонстрацию' : 'Демонстрация экрана'}><MonitorUp /><span>Экран</span></button>
+        <button type="button" className={cameraStream ? 'is-on' : ''} onClick={() => void toggleCamera()} disabled={!localCanStream} title={localCanStream ? (cameraStream ? 'Выключить камеру' : 'Включить камеру') : 'Нет права передавать видео'}>{cameraStream ? <CameraOff /> : <Camera />}<span>Камера</span></button>
+        <button type="button" className={screenStream ? 'is-on' : ''} onClick={() => void toggleScreenShare()} disabled={!localCanStream} title={localCanStream ? (screenStream ? 'Остановить демонстрацию' : 'Демонстрация экрана') : 'Нет права передавать экран'}><MonitorUp /><span>Экран</span></button>
         <div className="voice-room-more-wrap">
           <button type="button" className={moreOpen ? 'is-on' : ''} onClick={() => setMoreOpen((value) => !value)} title="Дополнительные настройки"><MoreHorizontal /><span>Ещё</span></button>
           {moreOpen && <div className="voice-room-more-popover">
