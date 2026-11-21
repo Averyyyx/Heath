@@ -1321,7 +1321,8 @@ export default function App() {
           <div className="dock-menu-divider" />
           <p className="dock-menu-label">Статус</p>
           {statusChoices.map((choice) => <MenuAction key={choice.value} label={choice.label}
-            icon={<span className={`status-swatch ${choice.value}`} />} onClick={() => void changeStatus(choice.value)} />)}
+            icon={<span className="dock-status-icon"><span className={`status-swatch ${choice.value}`} />{user.status === choice.value && <Check size={12} />}</span>}
+            onClick={() => void changeStatus(choice.value)} />)}
           <MenuAction icon={<MoreHorizontal size={14} />} label="Свой статус…" onClick={() => { setStatusMenuOpen(false); setCustomStatusDraft(user?.custom_status || ''); setCustomStatusOpen(true); }} />
           <div className="dock-menu-divider" />
           <p className="dock-menu-label">Устройства</p>
