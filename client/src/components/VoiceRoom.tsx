@@ -108,6 +108,28 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
   }, [localStream, micMuted, participants, user.id]);
 
   useEffect(() => {
+    if (!joinedRef.current || !localRef.current) return;
+    let cancelled = false;
+    void navigator.mediaDevices.getUserMedia({
+      audio: audioInputId ? { deviceId: { exact: audioInputId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true },
+      video: false
+    }).then((replacementStream) => {
+      if (cancelled) { replacementStream.getTracks().forEach((track) => track.stop()); return; }
+      const currentStream = localRef.current;
+      const nextTrack = replacementStream.getAudioTracks()[0];
+      const oldTrack = currentStream?.getAudioTracks()[0];
+      if (!currentStream || !nextTrack) { replacementStream.getTracks().forEach((track) => track.stop()); return; }
+      if (oldTrack) peers.current.forEach((peer) => { try { peer.replaceTrack(oldTrack, nextTrack, currentStream); } catch {} });
+      if (oldTrack) { currentStream.removeTrack(oldTrack); oldTrack.stop(); }
+      currentStream.addTrack(nextTrack);
+      setLocalStream(new MediaStream(currentStream.getTracks()));
+    }).catch((reason) => setError((reason as Error).message || 'Не удалось переключить микрофон.'));
+    return () => { cancelled = true; };
+  }, [audioInputId]);
+
+
+
+  useEffect(() => {
     localStream?.getAudioTracks().forEach((track) => { void track.applyConstraints({ noiseSuppression }).catch(() => {}); });
   }, [localStream, noiseSuppression]);
 
@@ -245,7 +267,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       joinedRef.current = false;
       window.dispatchEvent(new CustomEvent('nexo-voice-state', { detail: { active: false, channelId: channel.id } }));
     };
-  }, [server.id, server.name, channel.id, channel.name, user.id, audioInputId, createPeer, closePeer]);
+  }, [server.id, server.name, channel.id, channel.name, user.id, createPeer, closePeer]);
 
   useEffect(() => {
     if (joinedRef.current) void updateVoiceState(micMuted, deafened);
