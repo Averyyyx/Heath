@@ -3326,3 +3326,61 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .voice-room-controls .voice-room-hangup { background: #d64045; color: white; }
 .voice-room-error { margin: 0; padding: 9px 12px; border: 1px solid rgba(214,64,69,.45); border-radius: 9px; color: #ff9a9e; font-size: 12px; }
 .voice-room-loading, .voice-room-limit-note { margin: 0; color: #aaa39a; font-size: 12px; text-align: center; }
+
+
+/* Shared form primitives */
+.nexo-field { display: flex; min-width: 0; flex-direction: column; gap: 6px; color: var(--text); }
+.nexo-field > span:first-child { color: var(--text-muted); font-size: 13px; }
+.nexo-field-control { display: flex; min-width: 0; }
+.nexo-field-hint, .nexo-field-error { font-size: 12px; line-height: 1.4; }
+.nexo-field-hint { color: var(--text-faint); }
+.nexo-field-error { color: var(--danger); }
+.nexo-input, .nexo-textarea, .nexo-select {
+  width: 100%; min-width: 0; min-height: 40px; padding: 0 11px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface); color: var(--text); font: 14px var(--font-sans);
+  outline: none; transition: border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+.nexo-input::placeholder, .nexo-textarea::placeholder { color: var(--text-faint); }
+.nexo-input:focus, .nexo-textarea:focus, .nexo-select:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.nexo-input[aria-invalid="true"], .nexo-textarea[aria-invalid="true"] { border-color: var(--danger); }
+.nexo-input:disabled, .nexo-textarea:disabled, .nexo-select:disabled { opacity: .6; cursor: not-allowed; }
+.nexo-textarea { min-height: 88px; padding: 10px 11px; resize: vertical; }
+.nexo-select-wrap { position: relative; display: block; width: 100%; }
+.nexo-select { appearance: none; padding-right: 34px; cursor: pointer; }
+.nexo-select-wrap > svg { position: absolute; top: 50%; right: 11px; color: var(--text-muted); pointer-events: none; transform: translateY(-50%); }
+.nexo-switch { position: relative; display: inline-flex; width: 36px; height: 20px; flex: 0 0 36px; align-items: center; padding: 2px; border: 0; border-radius: 99px; background: var(--border-strong); cursor: pointer; transition: background 150ms ease; }
+.nexo-switch > span { width: 16px; height: 16px; border-radius: 50%; background: white; box-shadow: 0 1px 2px rgba(0,0,0,.18); transition: transform 150ms ease; }
+.nexo-switch.checked { background: var(--accent); }
+.nexo-switch.checked > span { transform: translateX(16px); }
+.nexo-switch:disabled { opacity: .6; cursor: not-allowed; }
+.nexo-slider { display: flex; min-width: 0; align-items: center; gap: 12px; color: var(--text); font-size: 13px; }
+.nexo-slider input { flex: 1; min-width: 70px; height: 4px; accent-color: var(--accent); }
+.nexo-slider output { min-width: 42px; color: var(--text-muted); text-align: right; font-variant-numeric: tabular-nums; }
+.nexo-ui-button { display: inline-flex; width: auto; min-width: 0; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; border-radius: 10px; font: 600 13px var(--font-sans); cursor: pointer; transition: background 120ms ease, color 120ms ease, transform 80ms ease; }
+.nexo-ui-button.sm { min-height: 32px; padding: 0 10px; }
+.nexo-ui-button.md { min-height: 36px; padding: 0 13px; }
+.nexo-ui-button.lg { min-height: 44px; padding: 0 16px; }
+.nexo-ui-button.primary { background: var(--accent); color: white; }
+.nexo-ui-button.secondary { border-color: var(--border); background: var(--surface); color: var(--text); }
+.nexo-ui-button.ghost { background: transparent; color: var(--text-muted); }
+.nexo-ui-button.danger { background: var(--danger-soft); color: var(--danger); }
+.nexo-ui-button:hover { filter: brightness(1.05); }
+.nexo-ui-button:active { transform: scale(.97); }
+.nexo-ui-button:disabled { opacity: .6; cursor: not-allowed; }
+.nexo-icon-button { position: relative; display: inline-grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; }
+.nexo-icon-button:hover, .nexo-icon-button:focus-visible { border-color: var(--border); background: var(--surface-hover); color: var(--text); }
+.nexo-icon-button:focus-visible, .nexo-ui-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.nexo-tooltip { position: relative; display: inline-flex; }
+.nexo-tooltip::after { position: absolute; bottom: calc(100% + 8px); left: 50%; z-index: 1200; padding: 6px 9px; border-radius: 8px; background: var(--text); color: var(--bg); content: attr(data-tooltip); font-size: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transform: translate(-50%, 3px); transition: opacity 120ms ease, transform 120ms ease; }
+.nexo-tooltip:hover::after, .nexo-tooltip:focus-within::after { opacity: 1; transform: translate(-50%, 0); }
+.nexo-ui-modal-backdrop { position: fixed; inset: 0; z-index: 1300; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.48); }
+.nexo-ui-modal { display: flex; width: min(440px, calc(100vw - 32px)); max-height: min(84vh, 820px); flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: 0 18px 54px rgba(0,0,0,.18); animation: nexo-modal-in 160ms ease both; }
+.nexo-ui-modal.wide { width: min(560px, calc(100vw - 32px)); }
+.nexo-ui-modal > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 22px 12px; }
+.nexo-ui-modal > header h2 { margin: 0; font: 600 20px var(--font-serif); }
+.nexo-ui-modal-content { min-height: 0; overflow: auto; padding: 12px 22px 22px; }
+.nexo-ui-modal > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 22px 18px; border-top: 1px solid var(--border); }
+@keyframes nexo-modal-in { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: scale(1); } }
