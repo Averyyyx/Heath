@@ -33,6 +33,7 @@ import type {
   ChannelMessage,
   Conversation,
   Message,
+  MessageReaction,
   Server,
   User
 } from '../types';
@@ -242,6 +243,8 @@ export function MessengerWorkspace({
       setMessageStore((prev) => appendUniqueMessage(prev, conversationId, message));
     const onMessageUpdate = ({ conversationId, message }: { conversationId: number; message: Message }) =>
       setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).map((item) => item.id === message.id ? message : item) }));
+    const onMessageReactionsUpdate = ({ conversationId, messageId, reactions }: { conversationId: number; messageId: number; reactions: MessageReaction[] }) =>
+      setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).map((item) => item.id === messageId ? { ...item, reactions } : item) }));
     const onMessageDelete = ({ conversationId, messageId }: { conversationId: number; messageId: number }) =>
       setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).filter((message) => message.id !== messageId) }));
     const onTyping = ({ conversationId, user: typing, isTyping }: { conversationId: number; user: User; isTyping: boolean }) => {
@@ -309,6 +312,8 @@ export function MessengerWorkspace({
         [channelId]: (prev[channelId] || []).map((item) => item.id === message.id ? message : item)
       }));
     };
+    const onChannelReactionsUpdate = ({ channelId, messageId, reactions }: { channelId: number; messageId: number; reactions: MessageReaction[] }) =>
+      setChannelMessages((prev) => ({ ...prev, [channelId]: (prev[channelId] || []).map((item) => item.id === messageId ? { ...item, reactions } : item) }));
     const onChannelMessage = ({ channelId, message }: { channelId: number; message: ChannelMessage }) => {
       setChannelMessages((prev) => appendUniqueChannelMessage(prev, channelId, message));
       if (message.author.id !== user.id) {
@@ -329,6 +334,7 @@ export function MessengerWorkspace({
     socket.on('message:new', onMessageNew);
     socket.on('message:ack', onMessageAck);
     socket.on('message:update', onMessageUpdate);
+    socket.on('message:reactions:update', onMessageReactionsUpdate);
     socket.on('message:delete', onMessageDelete);
     socket.on('typing', onTyping);
     socket.on('call:ring', onCallInvite);
@@ -340,6 +346,7 @@ export function MessengerWorkspace({
     socket.on('call:end', onCallEnd);
     socket.on('server:upsert', onServerUpsert);
     socket.on('channel:message:new', onChannelMessage);
+    socket.on('channel:reactions:update', onChannelReactionsUpdate);
     socket.on('server:message:update', onServerMessageUpdate);
     socket.on('channel:message:delete', onChannelMessageDelete);
     socket.on('channel:deleted', onChannelDeleted);
@@ -349,6 +356,7 @@ export function MessengerWorkspace({
       socket.off('message:new', onMessageNew);
       socket.off('message:ack', onMessageAck);
       socket.off('message:update', onMessageUpdate);
+      socket.off('message:reactions:update', onMessageReactionsUpdate);
       socket.off('message:delete', onMessageDelete);
       socket.off('typing', onTyping);
       socket.off('call:ring', onCallInvite);
@@ -360,6 +368,7 @@ export function MessengerWorkspace({
       socket.off('call:end', onCallEnd);
       socket.off('server:upsert', onServerUpsert);
       socket.off('channel:message:new', onChannelMessage);
+      socket.off('channel:reactions:update', onChannelReactionsUpdate);
       socket.off('server:message:update', onServerMessageUpdate);
       socket.off('channel:message:delete', onChannelMessageDelete);
       socket.off('channel:deleted', onChannelDeleted);
@@ -624,6 +633,36 @@ export function MessengerWorkspace({
       console.error(error);
     } finally {
       setLoadingChannelMessages(false);
+    }
+  }
+
+  async function toggleMessageReaction(message: Message | ChannelMessage, kind: 'dm' | 'channel', emoji: string) {
+    try {
+      const path = kind === 'dm' && 'conversation_id' in message
+        ? `/api/conversations/${message.conversation_id}/messages/${message.id}/reactions`
+        : `/api/servers/${(message as ChannelMessage).server_id}/channels/${(message as ChannelMessage).channel_id}/messages/${message.id}/reactions`;
+      const response = await apiFetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось добавить реакцию.');
+      if (kind === 'dm' && 'conversation_id' in message) {
+        setMessageStore((prev) => ({
+          ...prev,
+          [message.conversation_id]: (prev[message.conversation_id] || []).map((item) => item.id === message.id ? { ...item, reactions: payload.reactions || [] } : item)
+        }));
+      } else {
+        const channelId = (message as ChannelMessage).channel_id;
+        setChannelMessages((prev) => ({
+          ...prev,
+          [channelId]: (prev[channelId] || []).map((item) => item.id === message.id ? { ...item, reactions: payload.reactions || [] } : item)
+        }));
+      }
+      setMessageContext(null);
+    } catch (error) {
+      window.alert((error as Error).message);
     }
   }
 
@@ -1099,6 +1138,7 @@ export function MessengerWorkspace({
                             {message.edited_at && <small className="message-edited-label">изменено</small>}
                             {message.edited_at && <small className="message-edited-label">изменено</small>}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
+                            <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'dm', emoji)} />
                             {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) &&
                               (activeConversation.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0) >= message.id &&
                               <small className="message-read-receipt">Прочитано</small>}
@@ -1224,6 +1264,7 @@ export function MessengerWorkspace({
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.content && <MessageContent content={message.content} />}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
+                            <MessageReactions reactions={message.reactions || []} userId={user.id} onToggle={(emoji) => void toggleMessageReaction(message, 'channel', emoji)} />
                           </div>
                         </article>
                       </Fragment>
@@ -1324,6 +1365,11 @@ export function MessengerWorkspace({
             left: Math.min(messageContext.x, window.innerWidth - 220),
             top: Math.min(messageContext.y, window.innerHeight - 150)
           }} onPointerDown={(event) => event.stopPropagation()}>
+            <div className="message-context-reactions" aria-label="Добавить реакцию">
+              {['👍', '❤️', '😂', '😮', '😢', '🔥', '🎉', '👀'].map((emoji) => (
+                <button key={emoji} type="button" title={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
+              ))}
+            </div>
             <button type="button" onClick={() => {
               const value = messageContext.message.content || messageContext.message.attachment?.name || '';
               void copyText(value);
@@ -1522,6 +1568,26 @@ function InlineContent({ text }: { text: string }) {
   }
   if (last < text.length) parts.push(text.slice(last));
   return <>{parts}</>;
+}
+
+function MessageReactions({ reactions, userId, onToggle }: {
+  reactions: MessageReaction[];
+  userId: number;
+  onToggle: (emoji: string) => void;
+}) {
+  if (!reactions.length) return null;
+  return (
+    <div className="message-reactions" aria-label="Реакции на сообщение">
+      {reactions.map((reaction) => (
+        <button key={reaction.emoji} type="button"
+          className={reaction.user_ids.includes(userId) ? 'message-reaction active' : 'message-reaction'}
+          title={reaction.user_ids.includes(userId) ? 'Убрать реакцию' : 'Добавить реакцию'}
+          onClick={() => onToggle(reaction.emoji)}>
+          <span>{reaction.emoji}</span><small>{reaction.count}</small>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function MessageContent({ content }: { content: string }) {
