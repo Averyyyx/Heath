@@ -101,6 +101,8 @@ export type MessageReply = {
   author: Pick<MessageAuthor, 'id' | 'username' | 'display_name'>;
 };
 
+export type MessageDelivery = { delivered_count: number; recipient_count: number };
+
 export type Message = {
   id: number;
   conversation_id: number;
@@ -112,6 +114,7 @@ export type Message = {
   reactions?: MessageReaction[];
   reply_to?: MessageReply | null;
   pin?: MessagePin | null;
+  delivery?: MessageDelivery | null;
 };
 
 export type Conversation = {

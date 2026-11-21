@@ -399,6 +399,19 @@ db.prepare(`
   )
 `).run();
 
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS message_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    delivered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(message_id, user_id),
+    FOREIGN KEY(conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  )
+`).run();
+
 if (!db.prepare('PRAGMA table_info(messages)').all().some((column) => column.name === 'edited_at')) {
   db.prepare('ALTER TABLE messages ADD COLUMN edited_at DATETIME').run();
 }
@@ -746,6 +759,12 @@ const listConversationsForUser = db.prepare(`
   WHERE cp.user_id = ?
   GROUP BY c.id
   ORDER BY datetime(COALESCE(last_activity, c.updated_at)) DESC
+`);
+const insertMessageDelivery = db.prepare('INSERT OR IGNORE INTO message_deliveries (conversation_id, message_id, user_id) VALUES (?, ?, ?)');
+const selectMessageDeliverySummary = db.prepare(`
+  SELECT
+    (SELECT COUNT(*) FROM message_deliveries WHERE conversation_id = ? AND message_id = ?) AS delivered_count,
+    (SELECT COUNT(*) FROM conversation_participants WHERE conversation_id = ? AND user_id != ?) AS recipient_count
 `);
 const insertMessage = db.prepare('INSERT INTO messages (conversation_id, author_id, content, attachment, reply_to_message_id) VALUES (?, ?, ?, ?, ?)');
 const selectMessageById = db.prepare('SELECT * FROM messages WHERE id = ?');
@@ -1652,6 +1671,12 @@ function getMessageReactions(scope, messageId) {
   }));
 }
 
+function getMessageDelivery(row) {
+  if (!row?.conversation_id || !row?.id || !row?.author_id) return null;
+  const result = selectMessageDeliverySummary.get(row.conversation_id, row.id, row.conversation_id, row.author_id);
+  return { delivered_count: Number(result?.delivered_count || 0), recipient_count: Number(result?.recipient_count || 0) };
+}
+
 function serializeMessage(row) {
   if (!row) return null;
   return {
@@ -1671,7 +1696,8 @@ function serializeMessage(row) {
     edited_at: row.edited_at || null,
     reactions: getMessageReactions('dm', row.id),
     reply_to: getMessageReply('dm', row.reply_to_message_id),
-    pin: getMessagePin('dm', row.id)
+    pin: getMessagePin('dm', row.id),
+    delivery: getMessageDelivery(row)
   };
 }
 
@@ -3512,6 +3538,36 @@ app.get('/api/conversations/:id/messages', ensureAuthenticated, (req, res) => {
   res.json({ messages });
 });
 
+app.post('/api/conversations/:id/delivered', ensureAuthenticated, messageLimiter, (req, res) => {
+  const conversationId = Number(req.params.id);
+  const messageIds = Array.isArray(req.body?.messageIds) ? req.body.messageIds : [];
+  if (!Number.isInteger(conversationId) || messageIds.length < 1 || messageIds.length > 100 ||
+      messageIds.some((id) => !Number.isInteger(Number(id)) || Number(id) <= 0)) {
+    return res.status(400).json({ message: 'Некорректный список доставленных сообщений.' });
+  }
+  try {
+    ensureConversationAccess(conversationId, req.user.id);
+    const ids = [...new Set(messageIds.map(Number))];
+    const delivered = [];
+    const deliver = db.transaction(() => {
+      ids.forEach((messageId) => {
+        const message = db.prepare('SELECT id, author_id FROM messages WHERE id = ? AND conversation_id = ?').get(messageId, conversationId);
+        if (!message || message.author_id === req.user.id) return;
+        const result = insertMessageDelivery.run(conversationId, messageId, req.user.id);
+        if (result.changes > 0) {
+          delivered.push(messageId);
+          const delivery = getMessageDelivery({ conversation_id: conversationId, id: messageId, author_id: message.author_id });
+          io.to(getUserRoom(message.author_id)).emit('message:delivery:update', { conversationId, messageId, delivery });
+        }
+      });
+    });
+    deliver();
+    return res.json({ conversationId, deliveredMessageIds: delivered });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось подтвердить доставку.' });
+  }
+});
+
 app.patch('/api/conversations/:id/messages/:messageId', ensureAuthenticated, messageLimiter, (req, res) => {
   const conversationId = Number(req.params.id);
   const messageId = Number(req.params.messageId);
@@ -3630,6 +3686,7 @@ app.delete('/api/conversations/:id/messages/:messageId', ensureAuthenticated, me
     db.transaction(() => {
       db.prepare("DELETE FROM message_reactions WHERE scope = 'dm' AND message_id = ?").run(messageId);
       db.prepare("DELETE FROM message_pins WHERE scope = 'dm' AND message_id = ?").run(messageId);
+      db.prepare('DELETE FROM message_deliveries WHERE conversation_id = ? AND message_id = ?').run(conversationId, messageId);
       db.prepare('DELETE FROM attachments WHERE message_id = ?').run(messageId);
       db.prepare('DELETE FROM messages WHERE id = ? AND conversation_id = ?').run(messageId, conversationId);
       db.prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(conversationId);

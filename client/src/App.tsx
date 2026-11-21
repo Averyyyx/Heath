@@ -463,6 +463,13 @@ export default function App() {
     const socket = getSocket();
     const onMessage = ({ conversationId, message }: { conversationId: number; message?: Message }) => {
       if (message?.author?.id === user.id) return;
+      if (message?.id) {
+        void apiFetch(`/api/conversations/${conversationId}/delivered`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messageIds: [message.id] })
+        }).catch(() => {});
+      }
       const id = `dm:${conversationId}`;
       const isVisibleConversation = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
       if (!isVisibleConversation) {
