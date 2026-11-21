@@ -708,6 +708,9 @@ db.prepare(`
   )
 `).run();
 
+// Voice sessions are ephemeral: never restore ghost participants after a process restart.
+db.prepare('DELETE FROM voice_sessions').run();
+
 const selectUserByEmail = db.prepare('SELECT * FROM users WHERE email = ?');
 const selectUserById = db.prepare('SELECT * FROM users WHERE id = ?');
 const insertUser = db.prepare('INSERT INTO users (email, username, password_hash, avatar_url, email_verified, twofa_enabled, twofa_secret) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -1469,11 +1472,49 @@ io.on('connection', (socket) => {
 
   socket.on('channel:join', ({ serverId, channelId }) => {
     try {
-      ensureChannelAccess(Number(serverId), Number(channelId), socket.user.id);
+      const { channel } = ensureChannelAccess(Number(serverId), Number(channelId), socket.user.id);
       socket.join(getChannelRoom(channelId));
+      if (channel.type === 'voice') {
+        const session = db.prepare('SELECT id FROM voice_sessions WHERE channel_id = ? AND user_id = ?').get(Number(channelId), socket.user.id);
+        if (session) socket.emit('voice:peers', {
+          channelId: Number(channelId),
+          peers: listVoiceParticipants(Number(channelId)).filter((participant) => participant.user.id !== socket.user.id)
+        });
+      }
     } catch (error) {
       socket.emit('error', { message: error.message });
     }
+  });
+
+  socket.on('voice:signal', ({ channelId, to, payload }) => {
+    const safeChannelId = Number(channelId);
+    const recipientId = Number(to);
+    if (!Number.isInteger(safeChannelId) || !Number.isInteger(recipientId) || !payload) return;
+    try {
+      const { server } = ensureChannelAccess(
+        Number(db.prepare('SELECT server_id FROM channels WHERE id = ?').get(safeChannelId)?.server_id),
+        safeChannelId,
+        socket.user.id
+      );
+      const sender = db.prepare('SELECT id FROM voice_sessions WHERE channel_id = ? AND user_id = ?').get(safeChannelId, socket.user.id);
+      const recipient = db.prepare('SELECT id FROM voice_sessions WHERE channel_id = ? AND user_id = ?').get(safeChannelId, recipientId);
+      if (!sender || !recipient) return socket.emit('error', { message: 'Участник больше не находится в голосовом канале.' });
+      const encodedSize = Buffer.byteLength(JSON.stringify(payload), 'utf8');
+      if (encodedSize > 256 * 1024) return socket.emit('error', { message: 'Слишком большой сигнал WebRTC.' });
+      io.to(getUserRoom(recipientId)).emit('voice:signal', { channelId: safeChannelId, from: socket.user.id, payload });
+    } catch (error) {
+      socket.emit('error', { message: error.message });
+    }
+  });
+
+  socket.on('disconnect', () => {
+    const sessions = db.prepare('SELECT channel_id FROM voice_sessions WHERE user_id = ?').all(socket.user.id);
+    if (!sessions.length) return;
+    deleteVoiceSessionsForUser.run(socket.user.id);
+    sessions.forEach(({ channel_id }) => {
+      io.to(getChannelRoom(channel_id)).emit('voice:left', { channelId: channel_id, userId: socket.user.id });
+      broadcastVoiceState(channel_id);
+    });
   });
 
   socket.on('channel:leave', (channelId) => {
