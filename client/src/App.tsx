@@ -729,18 +729,19 @@ export default function App() {
     }, background);
   }
 
-  function openVoiceTab(server: Server, channelId: number) {
+  function openVoiceTab(server: Server, channelId: number): boolean {
     const channel = server.channels.find((item) => item.id === channelId && item.type === 'voice');
-    if (!channel) return;
-    if (activeCallInfo && !window.confirm('Выйти из личного звонка и подключиться к голосовому каналу?')) return;
+    if (!channel) return false;
+    if (activeCallInfo && !window.confirm('Выйти из личного звонка и подключиться к голосовому каналу?')) return false;
     if (activeCallInfo) window.dispatchEvent(new CustomEvent('nexo-end-call'));
     if (activeVoiceInfo && activeVoiceInfo.channelId !== channelId) {
-      if (!window.confirm('Выйти из текущего голосового канала и подключиться к другому?')) return;
+      if (!window.confirm('Выйти из текущего голосового канала и подключиться к другому?')) return false;
       window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }));
       window.setTimeout(() => openTab({ id: `voice:${channel.id}`, kind: 'voice', title: `Голосовой · ${channel.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id }), 140);
-      return;
+      return true;
     }
     openTab({ id: `voice:${channel.id}`, kind: 'voice', title: `Голосовой · ${channel.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id });
+    return true;
   }
 
   function selectServer(server: Server) {
@@ -1451,7 +1452,8 @@ export default function App() {
             }}>Отклонить</button>
             <button type="button" className="primary" onClick={() => {
               const server = servers.find((item) => item.id === pendingVoiceInvite.serverId);
-              if (server) openVoiceTab(server, pendingVoiceInvite.channelId);
+              const accepted = server ? openVoiceTab(server, pendingVoiceInvite.channelId) : false;
+              if (!accepted) return;
               getSocket().emit('voice:invite-response', { to: pendingVoiceInvite.from, channelId: pendingVoiceInvite.channelId, accepted: true });
               setPendingVoiceInvite(null);
             }}>Принять</button>
