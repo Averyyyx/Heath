@@ -293,10 +293,10 @@ export function MessengerWorkspace({
     socket.on('message:ack', onMessageAck);
     socket.on('message:delete', onMessageDelete);
     socket.on('typing', onTyping);
-    socket.on('call:invite', onCallInvite);
+    socket.on('call:ring', onCallInvite);
     socket.on('call:signal', onCallSignal);
     socket.on('call:accept', onCallAccept);
-    socket.on('call:reject', onCallReject);
+    socket.on('call:decline', onCallReject);
     socket.on('call:timeout', onCallTimeout);
     socket.on('call:end', onCallEnd);
     socket.on('server:upsert', onServerUpsert);
@@ -310,10 +310,10 @@ export function MessengerWorkspace({
       socket.off('message:ack', onMessageAck);
       socket.off('message:delete', onMessageDelete);
       socket.off('typing', onTyping);
-      socket.off('call:invite', onCallInvite);
+      socket.off('call:ring', onCallInvite);
       socket.off('call:signal', onCallSignal);
       socket.off('call:accept', onCallAccept);
-      socket.off('call:reject', onCallReject);
+      socket.off('call:decline', onCallReject);
       socket.off('call:timeout', onCallTimeout);
       socket.off('call:end', onCallEnd);
       socket.off('server:upsert', onServerUpsert);
@@ -706,7 +706,7 @@ export function MessengerWorkspace({
       };
       callStateRef.current = state;
       setCallState(state);
-      if (options?.initiator !== false) socketRef.current.emit('call:invite', { conversationId, mediaType });
+      if (options?.initiator !== false) socketRef.current.emit('call:ring', { conversationId, mediaType });
 
       peer.on('signal', (payload) => {
         if (awaitingCallAcceptRef.current === conversationId) {
@@ -762,7 +762,7 @@ export function MessengerWorkspace({
     setIncomingCall(null);
     const started = await startCall(call.conversationId, { initiator: false }, acceptedMediaType || call.mediaType);
     if (!started) {
-      socketRef.current?.emit('call:reject', { conversationId: call.conversationId });
+      socketRef.current?.emit('call:decline', { conversationId: call.conversationId });
       onIncomingCallHandled?.();
       return;
     }
@@ -773,7 +773,7 @@ export function MessengerWorkspace({
 
   function rejectIncomingCall() {
     if (!incomingCall) return;
-    socketRef.current?.emit('call:reject', { conversationId: incomingCall.conversationId });
+    socketRef.current?.emit('call:decline', { conversationId: incomingCall.conversationId });
     pendingIncomingSignalRef.current = null;
     setIncomingCall(null);
     onIncomingCallHandled?.();
