@@ -36,6 +36,7 @@ import type {
   Message,
   MessageReaction,
   MessageReply,
+  MessageDelivery,
   MessagePin,
   Server,
   User
@@ -251,6 +252,8 @@ export function MessengerWorkspace({
     };
     const onMessageAck = ({ conversationId, message }: { conversationId: number; message: Message }) =>
       setMessageStore((prev) => appendUniqueMessage(prev, conversationId, message));
+    const onMessageDeliveryUpdate = ({ conversationId, messageId, delivery }: { conversationId: number; messageId: number; delivery: MessageDelivery }) =>
+      setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).map((item) => item.id === messageId ? { ...item, delivery } : item) }));
     const onMessageUpdate = ({ conversationId, message }: { conversationId: number; message: Message }) =>
       setMessageStore((prev) => ({ ...prev, [conversationId]: (prev[conversationId] || []).map((item) => item.id === message.id ? message : item) }));
     const onMessagePinUpdate = ({ conversationId, messageId, pin }: { conversationId: number; messageId: number; pin: MessagePin | null }) => {
@@ -366,6 +369,7 @@ export function MessengerWorkspace({
     socket.on('conversation:upsert', onConversationUpsert);
     socket.on('message:new', onMessageNew);
     socket.on('message:ack', onMessageAck);
+    socket.on('message:delivery:update', onMessageDeliveryUpdate);
     socket.on('message:update', onMessageUpdate);
     socket.on('message:reactions:update', onMessageReactionsUpdate);
     socket.on('message:pin:update', onMessagePinUpdate);
@@ -391,6 +395,7 @@ export function MessengerWorkspace({
       socket.off('conversation:upsert', onConversationUpsert);
       socket.off('message:new', onMessageNew);
       socket.off('message:ack', onMessageAck);
+      socket.off('message:delivery:update', onMessageDeliveryUpdate);
       socket.off('message:update', onMessageUpdate);
       socket.off('message:reactions:update', onMessageReactionsUpdate);
       socket.off('message:pin:update', onMessagePinUpdate);
@@ -681,6 +686,12 @@ export function MessengerWorkspace({
       if (!response.ok) throw new Error('Failed to load messages');
       const data = await response.json();
       setMessageStore((prev) => ({ ...prev, [conversationId]: data.messages || [] }));
+      const incomingIds = (data.messages || []).filter((message: Message) => message.author.id !== user.id).map((message: Message) => message.id);
+      if (incomingIds.length) {
+        void apiFetch(`/api/conversations/${conversationId}/delivered`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageIds: incomingIds })
+        }).catch(() => {});
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -1280,6 +1291,7 @@ export function MessengerWorkspace({
                             {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) &&
                               (activeConversation.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0) >= message.id &&
                               <small className="message-read-receipt">Прочитано</small>}
+                            {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) && !(activeConversation.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0 >= message.id) && <small className="message-delivery-state">{(message.delivery?.delivered_count || 0) > 0 ? `Доставлено ${message.delivery?.delivered_count}/${message.delivery?.recipient_count}` : 'Отправлено'}</small>}
                           </div>
                         </article>
                       </Fragment>
