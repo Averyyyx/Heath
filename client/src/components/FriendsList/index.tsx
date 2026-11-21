@@ -76,8 +76,8 @@ export const FriendsList: FC<FriendsListProps> = ({ onSelectFriend }) => {
               <FriendAvatar record={request} />
               <div className="friends-quick-person"><strong>{request.user.display_name || request.user.username}</strong><span>@{request.user.username} · {request.direction === 'incoming' ? 'Входящий запрос' : 'Ожидает ответа'}</span></div>
               {request.direction === 'incoming' && <div className="friends-quick-actions">
-                <button type="button" aria-label="Принять запрос" title="Принять" onClick={() => void respondToRequest(request.id, 'accept')}><Check size={15} /></button>
-                <button type="button" aria-label="Отклонить запрос" title="Отклонить" onClick={() => void respondToRequest(request.id, 'reject')}><X size={15} /></button>
+                <button type="button" aria-label="Принять запрос" data-tooltip="Принять" onClick={() => void respondToRequest(request.id, 'accept')}><Check size={15} /></button>
+                <button type="button" aria-label="Отклонить запрос" data-tooltip="Отклонить" onClick={() => void respondToRequest(request.id, 'reject')}><X size={15} /></button>
               </div>}
             </article>
           )) : <div className="friends-quick-empty">Нет ожидающих запросов</div>
