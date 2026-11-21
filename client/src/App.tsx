@@ -1245,18 +1245,18 @@ export default function App() {
                       <div className="dock-actions">
                         <button type="button" className={micMuted ? 'dock-icon danger' : 'dock-icon'}
                           aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}
-                          title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => setMic(!micMuted)}>
+                          data-tooltip={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => setMic(!micMuted)}>
                           {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
                         </button>
                         <button type="button" className={deafened ? 'dock-icon danger' : 'dock-icon'}
                           aria-label={deafened ? 'Включить звук' : 'Отключить звук'}
-                          title={deafened ? 'Включить звук' : 'Отключить звук'} onClick={() => {
+                          data-tooltip={deafened ? 'Включить звук' : 'Отключить звук'} onClick={() => {
                             if (!deafened) { playNexoSound('headphones-off'); setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
                             else { playNexoSound('headphones-on'); setDeafened(false); setMic(savedMicMuted); }
                           }}>
                           {deafened ? <HeadphoneOff size={17} /> : <Headphones size={17} />}
                         </button>
-                        <button type="button" className="dock-icon" aria-label="Настройки" title="Настройки"
+                        <button type="button" className="dock-icon" aria-label="Настройки" data-tooltip="Настройки"
                           onClick={() => openSettingsTab('account')}><Settings size={17} /></button>
                       </div>
                     </div>                  </div>
