@@ -158,5 +158,6 @@ export type ChannelMessage = {
   content: string | null;
   attachment: Attachment | null;
   created_at: string;
+  edited_at?: string | null;
 };
 
