@@ -3104,3 +3104,5 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .message-search-results span { display: -webkit-box; max-width: 100%; overflow: hidden; color: var(--text-muted); font-size: 12px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .message-search-results time { color: var(--text-faint); font-size: 12px; }
 .message-search-results > p { margin: 8px; color: var(--text-muted); font-size: 12px; }
+
+.nexo-workbench.settings-active .nexo-sidebar { display: none; }
