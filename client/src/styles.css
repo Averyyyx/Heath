@@ -3007,3 +3007,57 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   border-radius: 7px; background: transparent; color: var(--text-muted); cursor: pointer;
 }
 .sidebar-toggle-button:hover { border-color: var(--border); background: var(--surface-hover); color: var(--text); }
+
+
+/* Nexo 0.0.7 — compact dock and distinct unread / mention signals */
+.nexo-user-dock {
+  min-height: 52px;
+  gap: 6px;
+  padding: 7px 8px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: none;
+}
+.dock-user { flex: 1 1 auto; min-width: 0; gap: 8px; }
+.dock-user-copy strong { max-width: 112px; font-size: 13px; font-weight: 650; }
+.dock-user-copy small { font-size: 12px; }
+.dock-actions { flex: 0 0 auto; gap: 2px; }
+.dock-device-wrap { flex: 0 0 32px; width: 32px; }
+.dock-icon { width: 32px; height: 32px; border-radius: 8px; }
+.dock-device-arrow { display: none; }
+.dock-icon.danger { background: var(--danger-soft); color: var(--danger); }
+.sidebar-row { position: relative; }
+.sidebar-row.has-unread::before {
+  content: ''; position: absolute; left: -1px; top: 7px; bottom: 7px;
+  width: 2px; border-radius: 2px; background: #4B9BE8;
+}
+.sidebar-row.active.has-unread::before { background: #4B9BE8; }
+.sidebar-count-badge {
+  min-width: 19px; height: 19px; border-radius: 10px;
+  background: #347FC4; color: #fff; font-size: 12px; font-weight: 650;
+}
+.sidebar-mention-badge {
+  display: inline-grid; min-width: 22px; height: 19px; place-items: center;
+  margin-left: 3px; padding: 0 5px; border-radius: 10px;
+  background: #C94D52; color: #fff; font-size: 12px; font-weight: 700;
+}
+.sidebar-row.has-mention::after {
+  content: ''; position: absolute; left: -1px; top: 7px; bottom: 7px;
+  width: 2px; border-radius: 2px; background: #D45156;
+}
+.sidebar-row.active.has-mention::after { display: none; }
+.sidebar-row-text strong, .sidebar-server-head strong { font-size: 13px; }
+.sidebar-row-text small, .sidebar-row.disabled small { font-size: 12px; }
+.sidebar-section-toggle small { font-size: 12px; }
+.message-row.message-arrived { animation: nexo-message-arrive .22s cubic-bezier(.2,.75,.25,1) both; }
+.message-row.message-arrived .message-body {
+  animation: nexo-message-glow .52s ease-out both;
+}
+@keyframes nexo-message-arrive {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes nexo-message-glow {
+  0% { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 8px; }
+  100% { background: transparent; }
+}
