@@ -1331,7 +1331,7 @@ export function MessengerWorkspace({
                     }}
                   />
                 </label>
-                <button type="button" className="composer-code-button" title="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(false)}><Code size={16} /></button>
+                <button type="button" className="composer-code-button" data-tooltip="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(false)}><Code size={16} /></button>
                 <Textarea
                   ref={composerRef}
                   placeholder="Напишите сообщение..."
@@ -1406,7 +1406,7 @@ export function MessengerWorkspace({
                   <button type="button" className={showMembersPanel ? 'ghost active' : 'ghost'} onClick={() => setShowMembersPanel((value) => !value)} title="Показать участников" aria-label="Показать участников">
                     <Users size={16} />Участники
                   </button>
-                  {onEditChannel && <button type="button" className="ghost" onClick={onEditChannel} title="Настройки канала" aria-label="Настройки канала"><Settings size={16} />Канал</button>}
+                  {onEditChannel && <button type="button" className="ghost" onClick={onEditChannel} data-tooltip="Настройки канала" aria-label="Настройки канала"><Settings size={16} />Канал</button>}
                 </div>
               </header>
               {pinnedPanelOpen && <div className="pinned-messages-panel">
@@ -1431,7 +1431,7 @@ export function MessengerWorkspace({
                           onContextMenu={(event) => openMessageMenu(event, message, 'channel')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
-                            {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                            {!grouped && <header><strong>{authorName}</strong><time data-tooltip={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-channel-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.pin && <small className="message-pinned-label"><Pin size={11} />Закреплено</small>}
@@ -1469,7 +1469,7 @@ export function MessengerWorkspace({
                     }}
                   />
                 </label>
-                <button type="button" className="composer-code-button" title="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(true)}><Code size={16} /></button>
+                <button type="button" className="composer-code-button" data-tooltip="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(true)}><Code size={16} /></button>
                 <Textarea
                   ref={channelComposerRef}
                   placeholder={`Сообщение #${activeChannel.name}`}
@@ -1497,7 +1497,7 @@ export function MessengerWorkspace({
         </section>
         {showMembersPanel && (
           <aside className="channel-members-panel">
-            <header><strong>Участники</strong><button type="button" className="ghost-icon" aria-label="Закрыть участников" title="Закрыть" onClick={() => setShowMembersPanel(false)}><X size={15} /></button></header>
+            <header><strong>Участники</strong><button type="button" className="ghost-icon" aria-label="Закрыть участников" data-tooltip="Закрыть" onClick={() => setShowMembersPanel(false)}><X size={15} /></button></header>
             {membersLoading && <p className="muted">Загружаем участников…</p>}
             {membersError && <p className="status error">{membersError}</p>}
             {!membersLoading && !membersError && <div className="channel-member-list">
@@ -1541,7 +1541,7 @@ export function MessengerWorkspace({
           }} onPointerDown={(event) => event.stopPropagation()}>
             <div className="message-context-reactions" aria-label="Добавить реакцию">
               {['👍', '❤️', '😂', '😮', '😢', '🔥', '🎉', '👀'].map((emoji) => (
-                <button key={emoji} type="button" title={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
+                <button key={emoji} type="button" data-tooltip={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
               ))}
             </div>
             <button type="button" onClick={() => void toggleMessagePin(messageContext.message, messageContext.kind)}>
@@ -1598,7 +1598,7 @@ export function MessengerWorkspace({
               {ringtoneMuted ? 'Включить звук звонка' : 'Отключить звук звонка'}
             </button>
             <div className="incoming-call-actions">
-              <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" title="Отклонить"><PhoneOff size={18} /><span>Отклонить</span></button>
+              <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" data-tooltip="Отклонить"><PhoneOff size={18} /><span>Отклонить</span></button>
               {incomingCall.mediaType === 'video' && <button type="button" className="call-accept call-accept-audio" onClick={() => void acceptIncomingCall('audio')} aria-label="Принять без видео" title="Принять без видео"><Phone size={18} /><span>Без видео</span></button>}
               <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title={callState ? 'Принять и завершить текущий' : 'Принять'}><Phone size={18} /><span>Принять</span></button>
             </div>
@@ -1641,8 +1641,7 @@ function ServersRail({
           {server.icon ? <img src={server.icon} alt="" /> : (server.name[0] || '?').toUpperCase()}
         </button>
       ))}
-      <button type="button" className="server-circle ghost" onClick={onCreateServer}
-        title="Создать пространство" aria-label="Создать пространство"><Plus size={18} /></button>
+      <button type="button" className="server-circle ghost" onClick={onCreateServer} data-tooltip="Создать пространство" aria-label="Создать пространство"><Plus size={18} /></button>
     </aside>
   );
 }
@@ -1664,7 +1663,7 @@ function ServerSidebar({
     <>
       <div className="channel-header">
         {server.name}
-        <button type="button" className="ghost-icon" title="Настройки пространства" onClick={onOpenSettings}>
+        <button type="button" className="ghost-icon" data-tooltip="Настройки пространства" onClick={onOpenSettings}>
           <Settings size={16} />
         </button>
       </div>
@@ -1685,7 +1684,7 @@ function ServerSidebar({
       <div className="channel-group">
         <p className="group-title">голосовые</p>
         {voiceChannels.map((channel) => (
-          <div key={channel.id} className="channel voice channel-unavailable" title="Голосовая связь в сообществах ещё не подключена">
+          <div key={channel.id} className="channel voice channel-unavailable" data-tooltip="Голосовая связь в сообществах ещё не подключена">
             <Volume2 size={14} />{channel.name}<small>позже</small>
           </div>
         ))}
@@ -1760,8 +1759,7 @@ function MessageReactions({ reactions, userId, onToggle }: {
     <div className="message-reactions" aria-label="Реакции на сообщение">
       {reactions.map((reaction) => (
         <button key={reaction.emoji} type="button"
-          className={reaction.user_ids.includes(userId) ? 'message-reaction active' : 'message-reaction'}
-          title={reaction.user_ids.includes(userId) ? 'Убрать реакцию' : 'Добавить реакцию'}
+          className={reaction.user_ids.includes(userId) ? 'message-reaction active' : 'message-reaction'} data-tooltip={reaction.user_ids.includes(userId) ? 'Убрать реакцию' : 'Добавить реакцию'}
           onClick={() => onToggle(reaction.emoji)}>
           <span>{reaction.emoji}</span><small>{reaction.count}</small>
         </button>
@@ -1772,7 +1770,7 @@ function MessageReactions({ reactions, userId, onToggle }: {
 
 function MessageReplyPreview({ replyTo, onClick }: { replyTo: MessageReply; onClick: () => void }) {
   return (
-    <button type="button" className="message-reply-preview" onClick={onClick} title="Перейти к исходному сообщению">
+    <button type="button" className="message-reply-preview" onClick={onClick} data-tooltip="Перейти к исходному сообщению">
       <span className="message-reply-author">{replyTo.author.display_name || replyTo.author.username}</span>
       <span className="message-reply-content">{replyTo.content || 'Сообщение без текста'}</span>
     </button>
@@ -1791,7 +1789,7 @@ function MessageContent({ content }: { content: string }) {
     const code = blocks[index + 2];
     if (code !== undefined) {
       result.push(<div className="message-code-block" key={`code-${index}`}>
-        <header><span>{language || 'CODE'}</span><button type="button" title="Копировать код" aria-label="Копировать код"
+        <header><span>{language || 'CODE'}</span><button type="button" data-tooltip="Копировать код" aria-label="Копировать код"
           onClick={() => void copyText(code.trimEnd())}><Copy size={13} />Копировать</button></header>
         <pre><code>{code.replace(/\n$/, '')}</code></pre>
       </div>);
@@ -1880,16 +1878,16 @@ function CallOverlay({
       </div> : null}
       <div className="call-banner-controls">
         <div className="call-control-group">
-          <button type="button" className={micMuted ? 'call-control danger' : 'call-control'} onClick={onToggleMic} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
+          <button type="button" className={micMuted ? 'call-control danger' : 'call-control'} onClick={onToggleMic} data-tooltip={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
             {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
           </button>
           <button type="button" className={cameraEnabled ? 'call-control' : 'call-control danger'} onClick={onToggleCamera}
-            disabled={!cameraTrack || state.isScreenSharing} title={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'} aria-label={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'}>
+            disabled={!cameraTrack || state.isScreenSharing} data-tooltip={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'} aria-label={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'}>
             {cameraEnabled ? <Camera size={17} /> : <CameraOff size={17} />}
           </button>
         </div>
         <div className="call-control-group">
-          <button type="button" className="call-control" onClick={onShareScreen} title="Поделиться экраном" aria-label="Поделиться экраном"><Monitor size={17} /></button>
+          <button type="button" className="call-control" onClick={onShareScreen} data-tooltip="Поделиться экраном" aria-label="Поделиться экраном"><Monitor size={17} /></button>
           <button type="button" className="call-control" onClick={() => setCollapsed(true)} title="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
         </div>
         <button type="button" className="call-control call-hangup" onClick={() => onHangUp(true)} title="Завершить звонок" aria-label="Завершить звонок"><PhoneOff size={17} /></button>
