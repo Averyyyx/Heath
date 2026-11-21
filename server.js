@@ -1264,7 +1264,7 @@ io.on('connection', (socket) => {
         return;
       }
       const invitation = {
-        conversationId: Number(conversationId), from: socket.user.id, user: socket.user,
+        conversationId: Number(conversationId), from: socket.user.id, user: sanitizeUser(socket.user),
         mediaType: mediaType === 'video' ? 'video' : 'audio',
         participants
       };
