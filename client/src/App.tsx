@@ -1157,8 +1157,7 @@ export default function App() {
         <>
           <div className="nexo-tabbar">
             <button type="button" className="sidebar-toggle-button"
-              aria-label={sidebarCollapsed ? 'Показать боковую панель' : 'Скрыть боковую панель'}
-              title={sidebarCollapsed ? 'Показать боковую панель (Ctrl+B)' : 'Скрыть боковую панель (Ctrl+B)'}
+              aria-label={sidebarCollapsed ? 'Показать боковую панель' : 'Скрыть боковую панель'} data-tooltip={sidebarCollapsed ? 'Показать боковую панель (Ctrl+B)' : 'Скрыть боковую панель (Ctrl+B)'}
               onClick={() => setSidebarCollapsed((value) => !value)}>
               {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
             </button>
@@ -1180,14 +1179,14 @@ export default function App() {
                   {tab.kind === 'home' ? <Home size={14} /> : tab.kind === 'friends' ? <Users size={14} /> : tab.kind === 'dm' ? <Avatar user={conversations.find((conversation) => conversation.id === tab.targetId)?.counterpart || conversations.find((conversation) => conversation.id === tab.targetId)?.participants.find((participant) => participant.id !== user?.id)} size={19} /> : tab.kind === 'channel' ? <HashIcon /> : tab.kind === 'voice' ? <Volume2 size={14} /> : <Settings size={14} />}
                   {!tab.pinned && <span className="tab-title">{tab.title}</span>}
                   {tab.unread ? <span className="tab-unread">{tab.unread > 9 ? '9+' : tab.unread}</span> : null}
-                  {tab.pinned ? null : <span className="tab-close" role="button" title="Закрыть вкладку (Ctrl+W)"
+                  {tab.pinned ? null : <span className="tab-close" role="button" data-tooltip="Закрыть вкладку (Ctrl+W)"
                     onClick={(event) => { event.stopPropagation(); closeTab(tab.id); }}><X size={12} /></span>}
                   {activeTabId === tab.id && <motion.i layoutId="active-tab-indicator" className="tab-indicator" />}
                 </motion.button>
               ))}
               </AnimatePresence>
             </div>
-            <button type="button" className="tab-add" aria-label="Новая вкладка" title="Новая вкладка (Ctrl+T)" onClick={() => openPalette()}>
+            <button type="button" className="tab-add" aria-label="Новая вкладка" data-tooltip="Новая вкладка (Ctrl+T)" onClick={() => openPalette()}>
               <Plus size={16} />
             </button>
             <div className="tab-scroll-arrow"><button aria-label="Прокрутить вкладки вправо" onClick={() => tabStripRef.current?.scrollBy({ left: 240, behavior: 'smooth' })}><ChevronRightIcon size={15} /></button></div>
@@ -1214,7 +1213,7 @@ export default function App() {
 
                   <SidebarSection title="Диалоги" count={conversations.length} collapsed={collapsedSections.includes('dms')}
                     onToggle={() => setCollapsedSections((current) => current.includes('dms') ? current.filter((item) => item !== 'dms') : [...current, 'dms'])}
-                    action={<button type="button" aria-label="Новое сообщение" title="Новое сообщение" onClick={() => openPalette('new-message')}><Plus size={14} /></button>}>
+                    action={<button type="button" aria-label="Новое сообщение" data-tooltip="Новое сообщение" onClick={() => openPalette('new-message')}><Plus size={14} /></button>}>
                     {conversations.map((conversation) => {
                       const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
                       const item: SidebarPin = { id: `dm:${conversation.id}`, kind: 'dm', title: person?.display_name || person?.username || 'Диалог', targetId: conversation.id };
@@ -1224,8 +1223,8 @@ export default function App() {
                         onContextMenu={(event) => contextTargetClick(event, item)}>
                         <Avatar user={person} size={27} showStatus />
                         <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Откройте, чтобы продолжить разговор</small></span>
-                        {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge" title={`${unreadDmCounts[conversation.id]} новых сообщений`}>{unreadDmCounts[conversation.id] > 99 ? '99+' : unreadDmCounts[conversation.id]}</span>}
-                        {unreadDmMentionCounts[conversation.id] > 0 && <span className="sidebar-mention-badge" title={`${unreadDmMentionCounts[conversation.id]} упоминаний`}>@{unreadDmMentionCounts[conversation.id] > 99 ? '99+' : unreadDmMentionCounts[conversation.id]}</span>}
+                        {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge" data-tooltip={`${unreadDmCounts[conversation.id]} новых сообщений`}>{unreadDmCounts[conversation.id] > 99 ? '99+' : unreadDmCounts[conversation.id]}</span>}
+                        {unreadDmMentionCounts[conversation.id] > 0 && <span className="sidebar-mention-badge" data-tooltip={`${unreadDmMentionCounts[conversation.id]} упоминаний`}>@{unreadDmMentionCounts[conversation.id] > 99 ? '99+' : unreadDmMentionCounts[conversation.id]}</span>}
                       </button>;
                     })}
                     {conversations.length === 0 && <button type="button" className="sidebar-empty-action" onClick={() => openFriendsTab()}>Диалогов пока нет — найдите друга</button>}
@@ -1233,7 +1232,7 @@ export default function App() {
 
                   <SidebarSection title="Пространства" count={servers.length} collapsed={collapsedSections.includes('servers')}
                     onToggle={() => setCollapsedSections((current) => current.includes('servers') ? current.filter((item) => item !== 'servers') : [...current, 'servers'])}
-                    action={<button type="button" aria-label="Создать пространство" title="Создать пространство" onClick={() => setCreateSpaceOpen(true)}><Plus size={14} /></button>}>
+                    action={<button type="button" aria-label="Создать пространство" data-tooltip="Создать пространство" onClick={() => setCreateSpaceOpen(true)}><Plus size={14} /></button>}>
                     {servers.map((server) => (
                       <div className="sidebar-server" key={server.id}>
                         <button type="button" className="sidebar-server-head" onClick={() => setExpandedServers((current) => current.includes(server.id) ? current.filter((id) => id !== server.id) : [...current, server.id])}
@@ -1268,8 +1267,8 @@ export default function App() {
                             onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openChannelTab(server, channel.id, true); } }}
                             onContextMenu={(event) => contextTargetClick(event, item)}>
                             <HashIcon /><span className="sidebar-row-text"><strong>{channel.name}</strong></span>
-                            {unreadChannelCounts[channel.id] > 0 && <span className="sidebar-count-badge" title={`${unreadChannelCounts[channel.id]} новых сообщений`}>{unreadChannelCounts[channel.id] > 99 ? '99+' : unreadChannelCounts[channel.id]}</span>}
-                            {unreadChannelMentionCounts[channel.id] > 0 && <span className="sidebar-mention-badge" title={`${unreadChannelMentionCounts[channel.id]} упоминаний`}>@{unreadChannelMentionCounts[channel.id] > 99 ? '99+' : unreadChannelMentionCounts[channel.id]}</span>}
+                            {unreadChannelCounts[channel.id] > 0 && <span className="sidebar-count-badge" data-tooltip={`${unreadChannelCounts[channel.id]} новых сообщений`}>{unreadChannelCounts[channel.id] > 99 ? '99+' : unreadChannelCounts[channel.id]}</span>}
+                            {unreadChannelMentionCounts[channel.id] > 0 && <span className="sidebar-mention-badge" data-tooltip={`${unreadChannelMentionCounts[channel.id]} упоминаний`}>@{unreadChannelMentionCounts[channel.id] > 99 ? '99+' : unreadChannelMentionCounts[channel.id]}</span>}
                           </button>;
                         })}
                       </div>
@@ -1284,13 +1283,13 @@ export default function App() {
                           <span className="active-voice-dot" />
                           <span><strong>Голосовая связь</strong><small>{activeVoiceInfo.channelName} · {activeVoiceInfo.serverName} · {formatCallDuration(voiceClock - activeVoiceInfo.joinedAt)}</small></span>
                         </button>
-                        <button type="button" className="hangup" aria-label="Выйти из голосового канала" title="Выйти из голосового канала" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }))}><PhoneOff size={15} /></button>
+                        <button type="button" className="hangup" aria-label="Выйти из голосового канала" data-tooltip="Выйти из голосового канала" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }))}><PhoneOff size={15} /></button>
                       </div>
                       <div className="active-voice-actions">
-                        <button type="button" className={micMuted ? 'is-off' : ''} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => { if (deafened) setSavedMicMuted(!savedMicMuted); else setMic(!micMuted); }}>{micMuted ? <MicOff size={15} /> : <Mic size={15} />}</button>
-                        <button type="button" className={deafened ? 'is-off' : ''} title={deafened ? 'Включить звук' : 'Выключить звук'} onClick={() => { if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); } else { setDeafened(false); setMic(savedMicMuted); } }}>{deafened ? <HeadphoneOff size={15} /> : <Headphones size={15} />}</button>
-                        <button type="button" title="Камера" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Camera size={15} /></button>
-                        <button type="button" title="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><MonitorUp size={15} /></button>
+                        <button type="button" className={micMuted ? 'is-off' : ''} data-tooltip={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => { if (deafened) setSavedMicMuted(!savedMicMuted); else setMic(!micMuted); }}>{micMuted ? <MicOff size={15} /> : <Mic size={15} />}</button>
+                        <button type="button" className={deafened ? 'is-off' : ''} data-tooltip={deafened ? 'Включить звук' : 'Выключить звук'} onClick={() => { if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); } else { setDeafened(false); setMic(savedMicMuted); } }}>{deafened ? <HeadphoneOff size={15} /> : <Headphones size={15} />}</button>
+                        <button type="button" data-tooltip="Камера" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Camera size={15} /></button>
+                        <button type="button" data-tooltip="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><MonitorUp size={15} /></button>
                       </div>
                     </div>}
                     {activeCallInfo && <div className="active-call-strip">
@@ -1301,7 +1300,7 @@ export default function App() {
                           <small>{formatCallDuration(callClock - activeCallInfo.startedAt)} · Личный диалог</small>
                         </span>
                       </button>
-                      <button type="button" className="hangup" title="Завершить звонок" aria-label="Завершить звонок" onClick={() => window.dispatchEvent(new CustomEvent('nexo-end-call'))}><PhoneOff size={15} /></button>
+                      <button type="button" className="hangup" data-tooltip="Завершить звонок" aria-label="Завершить звонок" onClick={() => window.dispatchEvent(new CustomEvent('nexo-end-call'))}><PhoneOff size={15} /></button>
                     </div>}
                     
                     <div className="nexo-user-dock">
