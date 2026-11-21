@@ -3454,3 +3454,18 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .nexo-input[type="range"] { width: 100%; min-height: 4px; height: 4px; padding: 0; border: 0; border-radius: 99px; background: var(--border); accent-color: var(--accent); }
 .nexo-input[type="color"] { width: 44px; min-height: 32px; height: 32px; padding: 2px; }
 .nexo-field .nexo-field-control .nexo-input, .nexo-field .nexo-field-control .nexo-textarea { width: 100%; }
+
+
+/* Unified Nexo tooltips (replaces browser-native title popups). */
+[data-tooltip]:not(.dock-icon):not(.message-time) { position: relative; }
+[data-tooltip]:not(.dock-icon):not(.message-time)::after {
+  position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: 1800;
+  max-width: min(280px, calc(100vw - 24px)); padding: 6px 9px;
+  border: 1px solid rgba(255,255,255,.08); border-radius: 8px;
+  background: var(--text); color: var(--bg); content: attr(data-tooltip);
+  font: 500 12px/1.25 var(--font-sans); text-align: center; white-space: nowrap;
+  opacity: 0; pointer-events: none; transform: translate(-50%, 3px);
+  transition: opacity 120ms ease 400ms, transform 120ms ease 400ms;
+}
+[data-tooltip]:not(.dock-icon):not(.message-time):hover::after,
+[data-tooltip]:not(.dock-icon):not(.message-time):focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
