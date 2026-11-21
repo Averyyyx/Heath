@@ -7,6 +7,7 @@ const { Readable, Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const crypto = require('crypto');
 const { compareReleaseVersions } = require('./version');
+const { parseNexoDeepLink } = require('./deeplink');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -368,17 +369,9 @@ function setNotificationCount(count) {
 }
 
 function dispatchDeepLink(rawUrl) {
+  const payload = parseNexoDeepLink(rawUrl);
+  if (!payload) return false;
   try {
-    const url = new URL(rawUrl);
-    if (url.protocol !== 'nexo:') return false;
-    const parts = url.pathname.split('/').filter(Boolean);
-    let payload = null;
-    if (url.hostname === 'dm' && /^\\d+$/.test(parts[0] || '') && parts[1] === 'message' && /^\\d+$/.test(parts[2] || '')) {
-      payload = { type: 'dm', conversationId: Number(parts[0]), messageId: Number(parts[2]) };
-    } else if (url.hostname === 'channel' && /^\\d+$/.test(parts[0] || '') && /^\\d+$/.test(parts[1] || '') && parts[2] === 'message' && /^\\d+$/.test(parts[3] || '')) {
-      payload = { type: 'channel', serverId: Number(parts[0]), channelId: Number(parts[1]), messageId: Number(parts[3]) };
-    }
-    if (!payload) return false;
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.getURL().startsWith(SERVER_URL)) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -387,7 +380,7 @@ function dispatchDeepLink(rawUrl) {
     } else queuedDeepLink = payload;
     return true;
   } catch (error) {
-    console.warn('Rejected invalid Nexo deep link:', error.message);
+    console.warn('Failed to dispatch Nexo deep link:', error.message);
     return false;
   }
 }
