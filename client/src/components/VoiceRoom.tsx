@@ -125,7 +125,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       setLocalStream(new MediaStream(currentStream.getTracks()));
     }).catch((reason) => setError((reason as Error).message || 'Не удалось переключить микрофон.'));
     return () => { cancelled = true; };
-  }, [audioInputId]);
+  }, [audioInputId, joinedAt]);
 
 
 
