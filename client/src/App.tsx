@@ -454,7 +454,7 @@ export default function App() {
         const mentions = countUserMentions(message?.content || '', user.username);
         if (mentions > 0) setUnreadDmMentionCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + mentions) }));
         playNexoSound(mentions > 0 ? 'notification' : 'message');
-        if (user.status !== 'dnd' && message) {
+        if (user.status !== 'dnd' && message && (!document.hasFocus() || document.visibilityState !== 'visible')) {
           const conversation = conversations.find((item) => item.id === conversationId);
           const title = conversation?.counterpart?.display_name || conversation?.counterpart?.username || 'Новое сообщение';
           void desktopApi?.showNotification?.({
