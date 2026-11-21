@@ -3075,3 +3075,9 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .dock-menu-hint { margin: 0 7px 3px; color: var(--text-faint); font-size: 12px; line-height: 1.4; }
 .nexo-context-menu .dock-account-menu > button { min-height: 34px; font-size: 12px; }
 .sidebar-row.has-mention::after { left: 3px; }
+
+.nexo-default-avatar { display: grid; place-items: center; overflow: hidden; border-radius: 50%; color: rgba(255,255,255,.94); }
+.avatar-preset-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; max-width: 420px; }
+.avatar-preset-grid button { display: grid; min-height: 64px; place-items: center; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); cursor: pointer; transition: border-color .14s ease, background .14s ease, transform .14s ease; }
+.avatar-preset-grid button:hover { background: var(--surface-hover); transform: translateY(-1px); }
+.avatar-preset-grid button.selected { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent); }
