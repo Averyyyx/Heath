@@ -1505,8 +1505,12 @@ io.on('connection', (socket) => {
       if (!activeSession) return socket.emit('error', { message: 'Сначала подключитесь к голосовому каналу.' });
       const recipient = selectServerMember.get(safeServerId, recipientId);
       if (!recipient) return socket.emit('error', { message: 'Пригласить можно только участника этого пространства.' });
-      try { ensureChannelAccess(safeServerId, safeChannelId, recipientId); }
-      catch { return socket.emit('error', { message: 'У участника нет доступа к этому каналу.' }); }
+      try {
+        const recipientAccess = ensureChannelAccess(safeServerId, safeChannelId, recipientId);
+        if (!hasPermission(recipientAccess.permissions, PERMISSIONS.VIEW_CHANNEL | PERMISSIONS.CONNECT_VOICE)) {
+          return socket.emit('error', { message: 'У участника нет доступа к этому голосовому каналу.' });
+        }
+      } catch { return socket.emit('error', { message: 'У участника нет доступа к этому каналу.' }); }
       io.to(getUserRoom(recipientId)).emit('voice:invite', {
         serverId: safeServerId, channelId: safeChannelId, serverName: server.name,
         channelName: channel.name, from: socket.user.id, user: sanitizeUser(socket.user)
