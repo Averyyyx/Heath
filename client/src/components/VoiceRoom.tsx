@@ -100,6 +100,11 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
   }, [channel.id, participants]);
 
   useEffect(() => {
+    const ids = [...remoteSpeakingIds, ...(speaking ? [user.id] : [])];
+    window.dispatchEvent(new CustomEvent('nexo-voice-speaking', { detail: { channelId: channel.id, userIds: ids } }));
+  }, [channel.id, remoteSpeakingIds, speaking, user.id]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
