@@ -1204,34 +1204,30 @@ export default function App() {
                     </div>}
                     
                     <div className="nexo-user-dock">
-              <button type="button" className="dock-user" onClick={() => setStatusMenuOpen((value) => !value)} title="Изменить статус">
-                <Avatar user={user} size={36} showStatus />
-                <span className="dock-user-copy"><strong>{user.display_name || user.username}</strong><small>{user.custom_status || `@${user.username}`}</small></span>
-              </button>
-              <div className="dock-actions">
-                <div className="dock-device-wrap">
-                  <button type="button" className={micMuted ? 'dock-icon danger' : 'dock-icon'} aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}
-                    title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => setMic(!micMuted)}>
-                    {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
-                  </button>
-                  <button type="button" className="dock-device-arrow" title="Выбрать микрофон" onClick={() => setDeviceMenu(deviceMenu === 'input' ? null : 'input')}><ChevronDown size={11} /></button>
-                  {deviceMenu === 'input' && <DeviceMenu devices={audioInputs} selected={audioInputId} onSelect={(id) => { setAudioInputId(id); localStorage.setItem(`nexo.audio-input.${user.id}`, id); setDeviceMenu(null); }} />}
-                </div>
-                <div className="dock-device-wrap">
-                  <button type="button" className={deafened ? 'dock-icon danger' : 'dock-icon'} aria-label={deafened ? 'Включить звук' : 'Отключить звук'}
-                    title={deafened ? 'Включить звук' : 'Отключить звук'} onClick={() => {
-                      if (!deafened) { playNexoSound('headphones-off'); setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
-                      else { playNexoSound('headphones-on'); setDeafened(false); setMic(savedMicMuted); }
-                    }}>
-                    {deafened ? <HeadphoneOff size={17} /> : <Headphones size={17} />}
-                  </button>
-                  <button type="button" className="dock-device-arrow" title="Выбрать устройство вывода" onClick={() => setDeviceMenu(deviceMenu === 'output' ? null : 'output')}><ChevronDown size={11} /></button>
-                  {deviceMenu === 'output' && <DeviceMenu devices={audioOutputs} selected={audioOutputId} onSelect={(id) => { setAudioOutputId(id); localStorage.setItem(`nexo.audio-output.${user.id}`, id); setDeviceMenu(null); }} />}
-                </div>
-                <button type="button" className="dock-icon" aria-label="Настройки" title="Настройки" onClick={() => openSettingsTab('account')}><Settings size={17} /></button>
-              </div>
-            </div>
-                  </div>
+                      <button type="button" className="dock-user"
+                        onClick={() => setStatusMenuOpen((value) => !value)}
+                        aria-haspopup="menu" aria-expanded={statusMenuOpen} title="Профиль и настройки">
+                        <Avatar user={user} size={36} showStatus />
+                        <span className="dock-user-copy"><strong>{user.display_name || user.username}</strong><small>{user.custom_status || `@${user.username}`}</small></span>
+                      </button>
+                      <div className="dock-actions">
+                        <button type="button" className={micMuted ? 'dock-icon danger' : 'dock-icon'}
+                          aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}
+                          title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => setMic(!micMuted)}>
+                          {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
+                        </button>
+                        <button type="button" className={deafened ? 'dock-icon danger' : 'dock-icon'}
+                          aria-label={deafened ? 'Включить звук' : 'Отключить звук'}
+                          title={deafened ? 'Включить звук' : 'Отключить звук'} onClick={() => {
+                            if (!deafened) { playNexoSound('headphones-off'); setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
+                            else { playNexoSound('headphones-on'); setDeafened(false); setMic(savedMicMuted); }
+                          }}>
+                          {deafened ? <HeadphoneOff size={17} /> : <Headphones size={17} />}
+                        </button>
+                        <button type="button" className="dock-icon" aria-label="Настройки" title="Настройки"
+                          onClick={() => openSettingsTab('account')}><Settings size={17} /></button>
+                      </div>
+                    </div>                  </div>
                 </>
               )}
               <div className="sidebar-resizer" onMouseDown={beginResize} onDoubleClick={() => { setSidebarWidth(264); if (user) localStorage.setItem(sidebarStorageKey(user.id), '264'); }} title="Перетащите, чтобы изменить ширину" />
@@ -1329,10 +1325,41 @@ export default function App() {
               </div>}
         </div>
       </motion.form></div>}
-      {statusMenuOpen && <ContextMenu x={12} y={window.innerHeight - 170} onClose={() => setStatusMenuOpen(false)}>
-        {statusChoices.map((choice) => <MenuAction key={choice.value} label={choice.label}
-          icon={<span className={`status-swatch ${choice.value}`} />} onClick={() => void changeStatus(choice.value)} />)}
-        <MenuAction icon={<MoreHorizontal size={14} />} label="Свой статус…" onClick={() => { setStatusMenuOpen(false); setCustomStatusDraft(user?.custom_status || ''); setCustomStatusOpen(true); }} />
+      {statusMenuOpen && <ContextMenu x={12} y={Math.max(12, window.innerHeight - 430)} onClose={() => setStatusMenuOpen(false)}>
+        <div className="dock-account-menu" role="menu">
+          <div className="dock-menu-profile">
+            <Avatar user={user} size={38} showStatus />
+            <span><strong>{user.display_name || user.username}</strong><small>@{user.username} · #{user.discriminator || '0001'}</small></span>
+          </div>
+          <div className="dock-menu-divider" />
+          <p className="dock-menu-label">Статус</p>
+          {statusChoices.map((choice) => <MenuAction key={choice.value} label={choice.label}
+            icon={<span className={`status-swatch ${choice.value}`} />} onClick={() => void changeStatus(choice.value)} />)}
+          <MenuAction icon={<MoreHorizontal size={14} />} label="Свой статус…" onClick={() => { setStatusMenuOpen(false); setCustomStatusDraft(user?.custom_status || ''); setCustomStatusOpen(true); }} />
+          <div className="dock-menu-divider" />
+          <p className="dock-menu-label">Устройства</p>
+          <label className="dock-menu-select"><span>Микрофон</span>
+            <select value={audioInputId} onChange={(event) => { setAudioInputId(event.target.value); localStorage.setItem(`nexo.audio-input.${user.id}`, event.target.value); }}>
+              <option value="">Устройство по умолчанию</option>
+              {audioInputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Микрофон ${index + 1}`}</option>)}
+            </select>
+          </label>
+          <label className="dock-menu-select"><span>Наушники</span>
+            <select value={audioOutputId} onChange={(event) => { setAudioOutputId(event.target.value); localStorage.setItem(`nexo.audio-output.${user.id}`, event.target.value); }}>
+              <option value="">Устройство по умолчанию</option>
+              {audioOutputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Устройство вывода ${index + 1}`}</option>)}
+            </select>
+          </label>
+          {!audioInputs.length && <p className="dock-menu-hint">Микрофоны появятся после разрешения доступа к аудио.</p>}
+          {!audioOutputs.length && <p className="dock-menu-hint">Устройства вывода не обнаружены.</p>}
+          <div className="dock-menu-divider" />
+          <MenuAction icon={<UserRoundPlus size={14} />} label="Профиль" onClick={() => { setStatusMenuOpen(false); openSettingsTab('profile'); }} />
+          <MenuAction icon={<Settings size={14} />} label="Настройки" onClick={() => { setStatusMenuOpen(false); openSettingsTab('account'); }} />
+          <MenuAction icon={<Keyboard size={14} />} label="Горячие клавиши" onClick={() => { setStatusMenuOpen(false); openSettingsTab('hotkeys'); }} />
+          <MenuAction icon={<RefreshCw size={14} />} label="Обновления" onClick={() => { setStatusMenuOpen(false); openSettingsTab('updates'); }} />
+          <div className="dock-menu-divider" />
+          <MenuAction icon={<LogOut size={14} />} label="Выйти из аккаунта" onClick={() => { setStatusMenuOpen(false); void handleLogout(); }} />
+        </div>
       </ContextMenu>}
       {customStatusOpen && <div className="modal-backdrop"><motion.form className="modal-panel" onSubmit={(event) => { event.preventDefault(); void saveCustomStatus(); }}
         initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }}>
