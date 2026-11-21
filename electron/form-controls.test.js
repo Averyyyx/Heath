@@ -13,11 +13,11 @@ function walk(directory) {
 test('application forms use the shared UI controls outside the UI primitives folder', () => {
   const root = path.join(__dirname, '..', 'client', 'src');
   const uiFolder = path.sep + 'components' + path.sep + 'ui' + path.sep;
-  const files = walk(root).filter((file) => /\\.(tsx|jsx)$/.test(file) && !file.includes(uiFolder));
+  const files = walk(root).filter((file) => /\.(tsx|jsx)$/.test(file) && !file.includes(uiFolder));
   const violations = [];
   for (const file of files) {
     const source = fs.readFileSync(file, 'utf8');
-    const matches = source.match(/<(?:input|select|textarea)\\b/g) || [];
+    const matches = source.match(/<(?:input|select|textarea)\b/g) || [];
     if (matches.length) violations.push({ file: path.relative(root, file), count: matches.length });
   }
   assert.deepEqual(violations, [], 'Replace raw form elements with the shared UI primitives.');
