@@ -1009,8 +1009,8 @@ export function MessengerWorkspace({
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.content && <MessageContent content={message.content} />}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
-                            {message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) &&
-                              (activeConversation?.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0) >= message.id &&
+                            {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) &&
+                              (activeConversation.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0) >= message.id &&
                               <small className="message-read-receipt">Прочитано</small>}
                           </div>
                         </article>
