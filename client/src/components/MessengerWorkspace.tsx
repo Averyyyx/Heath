@@ -242,7 +242,17 @@ export function MessengerWorkspace({
       const current = callStateRef.current;
       if (current?.conversationId === conversationId) current.peer?.signal(payload);
     };
-    const onCallAccept = ({ conversationId }: { conversationId: number }) => {
+    const onCallAccept = ({ conversationId, mediaType }: { conversationId: number; mediaType?: 'audio' | 'video' }) => {
+      if (mediaType === 'audio' && callStateRef.current?.conversationId === conversationId) {
+        const current = callStateRef.current;
+        const videoTrack = current.localStream?.getVideoTracks()[0];
+        if (videoTrack) {
+          current.peer.removeTrack(videoTrack, current.localStream!);
+          current.localStream?.removeTrack(videoTrack);
+          videoTrack.stop();
+          setCallState({ ...current });
+        }
+      }
       if (awaitingCallAcceptRef.current !== conversationId) return;
       awaitingCallAcceptRef.current = null;
       const queued = queuedCallSignalsRef.current.splice(0);
@@ -766,7 +776,7 @@ export function MessengerWorkspace({
       onIncomingCallHandled?.();
       return;
     }
-    socketRef.current?.emit('call:accept', { conversationId: call.conversationId });
+    socketRef.current?.emit('call:accept', { conversationId: call.conversationId, mediaType: acceptedMediaType || call.mediaType });
     playNexoSound('call-accepted');
     onIncomingCallHandled?.();
   }
@@ -776,6 +786,7 @@ export function MessengerWorkspace({
     socketRef.current?.emit('call:decline', { conversationId: incomingCall.conversationId });
     pendingIncomingSignalRef.current = null;
     setIncomingCall(null);
+    playNexoSound('call-ended');
     onIncomingCallHandled?.();
   }
 
