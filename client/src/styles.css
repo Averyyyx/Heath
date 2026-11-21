@@ -3076,3 +3076,5 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   .call-banner-media { min-width: 120px; }
   .call-banner-controls { margin-left: auto; }
 }
+
+.dock-status-icon { display: inline-flex; min-width: 26px; align-items: center; gap: 5px; }
