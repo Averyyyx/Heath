@@ -2904,6 +2904,8 @@ app.delete('/api/servers/:serverId/channels/:channelId', ensureAuthenticated, fr
   const attachments = db.prepare('SELECT path FROM server_attachments WHERE channel_id = ?').all(channelId);
   try {
     db.transaction(() => {
+      db.prepare("DELETE FROM message_reactions WHERE scope = 'channel' AND message_id IN (SELECT id FROM server_messages WHERE channel_id = ?)").run(channelId);
+      db.prepare("DELETE FROM message_pins WHERE scope = 'channel' AND channel_id = ?").run(channelId);
       db.prepare('DELETE FROM server_attachments WHERE channel_id = ?').run(channelId);
       db.prepare('DELETE FROM server_messages WHERE channel_id = ?').run(channelId);
       db.prepare('DELETE FROM voice_sessions WHERE channel_id = ?').run(channelId);
