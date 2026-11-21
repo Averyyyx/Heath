@@ -1232,7 +1232,7 @@ export default function App() {
                     showConversationList={false} openConversationId={tab.targetId || null} openMessageId={tab.messageId || null}
                     pendingIncomingCall={pendingIncomingCall?.conversationId === tab.targetId ? pendingIncomingCall : null}
                     onIncomingCallHandled={() => setPendingIncomingCall(null)}
-                    micMuted={micMuted} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
+                    micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
                   {tab.kind === 'channel' && <MessengerWorkspace key={tab.id} user={user} initialMode="servers" embedded
                     showChannelSidebar={false} openServerId={tab.serverId || null} openChannelId={tab.channelId || null} openMessageId={tab.messageId || null}
                     onEditChannel={() => {
@@ -1242,7 +1242,7 @@ export default function App() {
                         title: tab.title, targetId: tab.channelId, serverId: server.id, channelId: tab.channelId
                       });
                     }}
-                    micMuted={micMuted} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
+                    micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} />}
                   {tab.kind === 'settings' && <SettingsPanel key={tab.id} user={user} onUserUpdate={(nextUser) => setUser(nextUser)}
                     initialSection={tab.initialSection || 'account'} appVersion={appVersion} onCheckUpdates={handleCheckUpdates}
                     audioInputId={audioInputId} audioOutputId={audioOutputId}
