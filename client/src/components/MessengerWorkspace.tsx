@@ -1291,7 +1291,7 @@ export function MessengerWorkspace({
                             {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) &&
                               (activeConversation.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0) >= message.id &&
                               <small className="message-read-receipt">Прочитано</small>}
-                            {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) && !(activeConversation.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0 >= message.id) && <small className="message-delivery-state">{(message.delivery?.delivered_count || 0) > 0 ? `Доставлено ${message.delivery?.delivered_count}/${message.delivery?.recipient_count}` : 'Отправлено'}</small>}
+                            {activeConversation?.type === 'dm' && message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) && ((activeConversation.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0) < message.id) && <small className="message-delivery-state">{(message.delivery?.delivered_count || 0) > 0 ? `Доставлено ${message.delivery?.delivered_count}/${message.delivery?.recipient_count}` : 'Отправлено'}</small>}
                           </div>
                         </article>
                       </Fragment>
