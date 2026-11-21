@@ -3106,3 +3106,5 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .message-search-results > p { margin: 8px; color: var(--text-muted); font-size: 12px; }
 
 .nexo-workbench.settings-active .nexo-sidebar { display: none; }
+
+.dock-menu-select input[type='range'] { width: 100%; min-height: 16px; padding: 0; accent-color: var(--accent); }
