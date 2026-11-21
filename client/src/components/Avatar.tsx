@@ -26,7 +26,7 @@ export function Avatar({ user, name, size = 36, showStatus = false, className = 
     height: size,
     minWidth: size,
     backgroundColor: user?.avatar_color || 'var(--accent)',
-    fontSize: Math.max(11, Math.round(size * 0.38))
+    fontSize: Math.max(12, Math.round(size * 0.38))
   };
 
   return (
