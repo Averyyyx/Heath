@@ -165,6 +165,8 @@ function scheduleSoundPattern(audio: AudioContext, kind: SoundKind, volume: numb
 export function playNexoSound(kind: SoundKind): void {
   const preferences = getNexoSoundPreferences();
   if (!preferences.enabled || !preferences.events[kind]) return;
+  const isCallSound = kind === 'ring' || kind === 'outgoing-ring' || kind === 'call-accepted' || kind === 'call-ended';
+  if (typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true' && !(isCallSound && preferences.allowCallsInDnd)) return;
   const audio = getAudioContext();
   if (!audio) return;
   const volume = kind === 'ring' || kind === 'outgoing-ring'
@@ -198,6 +200,7 @@ export function startNexoRingtone(): () => void {
 export function startNexoOutgoingTone(): () => void {
   const preferences = getNexoSoundPreferences();
   if (!preferences.enabled || !preferences.events['outgoing-ring']) return () => {};
+  if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true') return () => {};
   let stopped = false;
   const play = () => { if (!stopped) playNexoSound('outgoing-ring'); };
   play();
