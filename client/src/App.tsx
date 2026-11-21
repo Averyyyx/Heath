@@ -855,6 +855,7 @@ export default function App() {
     setCreateChannelName('');
     setCreateChannelTopic('');
     setCreateChannelType('text');
+    setCreateChannelUserLimit(8);
     setCreateChannelStatus('');
   }
 
@@ -868,7 +869,7 @@ export default function App() {
     try {
       const response = await apiFetch(`/api/servers/${createChannelServerId}/channels`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: createChannelName.trim(), topic: createChannelTopic.trim(), type: createChannelType })
+        body: JSON.stringify({ name: createChannelName.trim(), topic: createChannelTopic.trim(), type: createChannelType, userLimit: createChannelUserLimit })
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Не удалось создать канал.');
@@ -878,6 +879,7 @@ export default function App() {
       const createdChannel = nextServer.channels.find((channel) => !servers.find((server) => server.id === nextServer.id)?.channels.some((old) => old.id === channel.id));
       setCreateChannelServerId(null);
       if (createdChannel?.type === 'text') openChannelTab(nextServer, createdChannel.id);
+      if (createdChannel?.type === 'voice') openVoiceTab(nextServer, createdChannel.id);
     } catch (error) {
       setCreateChannelStatus((error as Error).message);
     }
@@ -1278,6 +1280,21 @@ export default function App() {
                   </SidebarSection>
                   </div>
                   <div className="sidebar-user-area">
+                    {activeVoiceInfo && <div className="active-voice-panel">
+                      <div className="active-voice-heading">
+                        <button type="button" className="active-voice-return" onClick={() => setActiveTabId(`voice:${activeVoiceInfo.channelId}`)}>
+                          <span className="active-voice-dot" />
+                          <span><strong>Голосовая связь</strong><small>{activeVoiceInfo.channelName} · {activeVoiceInfo.serverName} · {formatCallDuration(voiceClock - activeVoiceInfo.joinedAt)}</small></span>
+                        </button>
+                        <button type="button" className="hangup" aria-label="Выйти из голосового канала" title="Выйти из голосового канала" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }))}><PhoneOff size={15} /></button>
+                      </div>
+                      <div className="active-voice-actions">
+                        <button type="button" className={micMuted ? 'is-off' : ''} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => { if (deafened) setSavedMicMuted(!savedMicMuted); else setMic(!micMuted); }}>{micMuted ? <MicOff size={15} /> : <Mic size={15} />}</button>
+                        <button type="button" className={deafened ? 'is-off' : ''} title={deafened ? 'Включить звук' : 'Выключить звук'} onClick={() => { if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); } else { setDeafened(false); setMic(savedMicMuted); } }}>{deafened ? <HeadphoneOff size={15} /> : <Headphones size={15} />}</button>
+                        <button type="button" title="Камера" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Monitor size={15} /></button>
+                        <button type="button" title="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><PanelLeftOpen size={15} /></button>
+                      </div>
+                    </div>}
                     {activeCallInfo && <div className="active-call-strip">
                       <button type="button" className="active-call-return" onClick={() => setActiveTabId(`dm:${activeCallInfo.conversationId}`)} aria-label="Вернуться к звонку">
                         <span className="status-dot" />
@@ -1400,7 +1417,8 @@ export default function App() {
         initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }}>
         <header><h2>Создать канал</h2><button type="button" className="ghost-icon" aria-label="Закрыть" onClick={() => setCreateChannelServerId(null)}><X size={16} /></button></header>
         <label><span>Название</span><input value={createChannelName} onChange={(event) => setCreateChannelName(event.target.value)} minLength={3} maxLength={32} required /></label>
-        <label><span>Тип</span><select value={createChannelType} onChange={(event) => setCreateChannelType(event.target.value as 'text' | 'voice')}><option value="text">Текстовый</option><option value="voice">Голосовой (пока недоступен)</option></select></label>
+        <label><span>Тип</span><select value={createChannelType} onChange={(event) => setCreateChannelType(event.target.value as 'text' | 'voice')}><option value="text">Текстовый</option><option value="voice">Голосовой</option></select></label>
+        {createChannelType === 'voice' && <label><span>Лимит участников</span><select value={createChannelUserLimit} onChange={(event) => setCreateChannelUserLimit(Number(event.target.value))}>{[2,3,4,5,6,7,8].map((limit) => <option key={limit} value={limit}>{limit} участников</option>)}</select></label>}
         <label><span>Тема</span><textarea value={createChannelTopic} onChange={(event) => setCreateChannelTopic(event.target.value)} maxLength={240} rows={3} /></label>
         {createChannelStatus && <p className="status error">{createChannelStatus}</p>}
         <button type="submit" className="primary" disabled={createChannelStatus === 'Создаём канал…'}>Создать канал</button>
