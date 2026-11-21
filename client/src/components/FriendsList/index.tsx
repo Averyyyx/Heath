@@ -58,7 +58,7 @@ export const FriendsList: FC<FriendsListProps> = ({ onSelectFriend }) => {
       </header>
       <label className="friends-search">
         <Search size={15} />
-        <input type="search" placeholder="Поиск друзей" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} aria-label="Поиск друзей" />
+        <Input type="search" placeholder="Поиск друзей" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} aria-label="Поиск друзей" />
         {searchQuery && <button type="button" onClick={() => setSearchQuery('')} aria-label="Очистить поиск"><X size={14} /></button>}
       </label>
       <div className="friends-filter-tabs" role="tablist" aria-label="Фильтр друзей">
