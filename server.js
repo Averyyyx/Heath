@@ -1063,7 +1063,7 @@ function seedDevAccount() {
       null
     );
     user = selectUserById.get(result.lastInsertRowid);
-    markProfile.run('Nexo Dev', user.username, '0001', '', '#D97757', 'Nexo Dev', user.username, user.id);
+    markProfile.run('Nexo Dev', user.username, '0001', '', '#D97757', 0, 0, 'Nexo Dev', user.username, user.id);
     user = selectUserById.get(user.id);
 
     if (configuredPassword) {
@@ -2316,7 +2316,7 @@ if (githubReady) {
               ? generateUniqueHandle(profile.username)
               : user.username;
             const preferredName = profile.displayName || profile.username || user.email.split('@')[0];
-            markProfile.run(preferredName, desiredHandle, randomDiscriminator(), user.bio || '', user.avatar_color && user.avatar_color !== '#D97757' ? user.avatar_color : defaultAvatarColor(desiredHandle), preferredName, desiredHandle, user.id);
+            markProfile.run(preferredName, desiredHandle, randomDiscriminator(), user.bio || '', user.avatar_color && user.avatar_color !== '#D97757' ? user.avatar_color : defaultAvatarColor(desiredHandle), Number.isInteger(user.avatar_preset) ? user.avatar_preset : 0, Number.isInteger(user.avatar_preset) ? user.avatar_preset : 0, preferredName, desiredHandle, user.id);
             user = selectUserById.get(user.id);
           }
 
