@@ -17,7 +17,7 @@ import {
   Keyboard
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
-import { getNexoSoundPreferences, playNexoSound, saveNexoSoundPreferences, type NexoSoundPreferences } from '../lib/sounds';
+import { getNexoSoundPreferences, NEXO_SOUND_EVENTS, playNexoSound, saveNexoSoundPreferences, type NexoSoundPreferences } from '../lib/sounds';
 import { Avatar } from './Avatar';
 import type { User } from '../types';
 import { applyTheme, isThemeChoice } from '../lib/theme';
@@ -1319,27 +1319,37 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       <div className="settings-section discord-settings-page">
         <p className="eyebrow">НАСТРОЙКИ ПРИЛОЖЕНИЯ</p>
         <h2>Уведомления и звуки</h2>
-        <p className="muted">Звуки Nexo используют одну музыкальную тему, но каждый тип события имеет собственный короткий сигнал.</p>
+        <p className="muted">Единая звуковая палитра Nexo. Каждый сигнал можно отдельно отключить и прослушать.</p>
         <div className="settings-group sound-settings-list">
           <label className="settings-toggle-row"><span><strong>Все звуки</strong><small>Главный переключатель звуков Nexo</small></span>
             <input type="checkbox" checked={soundPreferences.enabled} onChange={(event) => changeSoundPreference('enabled', event.target.checked)} /></label>
-          <label className="settings-toggle-row"><span><strong>Новые сообщения</strong><small>Сигнал при входящем сообщении</small></span>
-            <input type="checkbox" checked={soundPreferences.messages} onChange={(event) => changeSoundPreference('messages', event.target.checked)} disabled={!soundPreferences.enabled} /></label>
-          <label className="settings-toggle-row"><span><strong>Входящие звонки</strong><small>Мелодия до принятия или отклонения вызова</small></span>
-            <input type="checkbox" checked={soundPreferences.calls} onChange={(event) => changeSoundPreference('calls', event.target.checked)} disabled={!soundPreferences.enabled} /></label>
-          <label className="settings-toggle-row"><span><strong>Микрофон и наушники</strong><small>Сигналы включения и выключения устройств</small></span>
-            <input type="checkbox" checked={soundPreferences.devices} onChange={(event) => changeSoundPreference('devices', event.target.checked)} disabled={!soundPreferences.enabled} /></label>
+          <label className="settings-toggle-row"><span><strong>Разрешать звонки в режиме «Не беспокоить»</strong><small>Входящая мелодия будет звучать, если эта опция включена</small></span>
+            <input type="checkbox" checked={soundPreferences.allowCallsInDnd} onChange={(event) => changeSoundPreference('allowCallsInDnd', event.target.checked)} disabled={!soundPreferences.enabled} /></label>
         </div>
-        <div className="settings-group">
+        <div className="settings-group sound-volume-list">
           <label className="sound-volume"><span><strong>Громкость звуков</strong><small>{Math.round(soundPreferences.volume * 100)}%</small></span>
-            <input type="range" min="0" max="1" step="0.05" value={soundPreferences.volume}
+            <input type="range" min="0" max="1" step="0.02" value={soundPreferences.volume}
               onChange={(event) => changeSoundPreference('volume', Number(event.target.value))} disabled={!soundPreferences.enabled} /></label>
+          <label className="sound-volume"><span><strong>Громкость мелодии звонка</strong><small>{Math.round(soundPreferences.ringtoneVolume * 100)}%</small></span>
+            <input type="range" min="0" max="1" step="0.02" value={soundPreferences.ringtoneVolume}
+              onChange={(event) => changeSoundPreference('ringtoneVolume', Number(event.target.value))} disabled={!soundPreferences.enabled} /></label>
         </div>
-        <div className="settings-group sound-preview-grid">
-          <button type="button" className="ghost" onClick={() => playNexoSound('message')}>Проверить уведомление</button>
-          <button type="button" className="ghost" onClick={() => playNexoSound('mic-on')}>Проверить сигнал устройства</button>
-          <button type="button" className="ghost" onClick={() => playNexoSound('ring')}>Проверить мелодию звонка</button>
+        <div className="settings-group sound-event-list">
+          {NEXO_SOUND_EVENTS.map((event) => (
+            <div className="sound-event-row" key={event.key}>
+              <span><strong>{event.label}</strong><small>{event.description}</small></span>
+              <label className="sound-event-toggle" aria-label={`Включить звук: ${event.label}`}>
+                <input type="checkbox" checked={soundPreferences.events[event.key]}
+                  onChange={(change) => changeSoundPreference('events', { ...soundPreferences.events, [event.key]: change.target.checked })}
+                  disabled={!soundPreferences.enabled} />
+              </label>
+              <button type="button" className="ghost tiny" onClick={() => playNexoSound(event.key)} disabled={!soundPreferences.enabled || !soundPreferences.events[event.key]}>
+                Прослушать
+              </button>
+            </div>
+          ))}
         </div>
+        <p className="muted">Первый сигнал может появиться после первого нажатия в приложении — это ограничение безопасности браузерного аудио.</p>
       </div>
     );
   }
