@@ -3124,3 +3124,50 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .message-edited-label { display: inline-block; margin-left: 6px; color: var(--text-faint); font-size: 12px; }
 
 .composer.editing { flex-wrap: wrap; }
+
+
+/* Message reactions */
+.message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+}
+.message-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 25px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+.message-reaction:hover { border-color: var(--accent); background: var(--surface-hover); color: var(--text); }
+.message-reaction.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--surface)); color: var(--text); }
+.message-reaction small { color: inherit; font-size: 12px; }
+.message-context-reactions {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+  padding: 5px 6px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.message-context-reactions button {
+  display: grid;
+  place-items: center;
+  min-width: 25px;
+  min-height: 27px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+}
+.message-context-reactions button:hover { background: var(--surface-hover); }

@@ -478,6 +478,19 @@ db.prepare(`
   )
 `).run();
 
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS message_reactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope TEXT NOT NULL CHECK (scope IN ('dm', 'channel')),
+    message_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    emoji TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(scope, message_id, user_id, emoji),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  )
+`).run();
+
 if (!db.prepare('PRAGMA table_info(server_messages)').all().some((column) => column.name === 'edited_at')) {
   db.prepare('ALTER TABLE server_messages ADD COLUMN edited_at DATETIME').run();
 }
@@ -708,6 +721,14 @@ const selectMessageWithAuthor = db.prepare(`
   JOIN users u ON u.id = m.author_id
   WHERE m.id = ?
 `);
+const listMessageReactions = db.prepare(`
+  SELECT emoji, COUNT(*) AS count, GROUP_CONCAT(user_id) AS user_ids
+  FROM message_reactions WHERE scope = ? AND message_id = ?
+  GROUP BY emoji ORDER BY MIN(id) ASC
+`);
+const insertMessageReaction = db.prepare('INSERT OR IGNORE INTO message_reactions (scope, message_id, user_id, emoji) VALUES (?, ?, ?, ?)');
+const deleteMessageReaction = db.prepare('DELETE FROM message_reactions WHERE scope = ? AND message_id = ? AND user_id = ? AND emoji = ?');
+
 const listMessages = db.prepare(`
   SELECT m.*, u.username, u.display_name, u.avatar_url, u.avatar_color, u.avatar_preset
   FROM messages m
@@ -1546,6 +1567,14 @@ function serializeAttachment(raw) {
   }
 }
 
+function getMessageReactions(scope, messageId) {
+  return listMessageReactions.all(scope, messageId).map((row) => ({
+    emoji: row.emoji,
+    count: Number(row.count),
+    user_ids: row.user_ids ? row.user_ids.split(',').map(Number) : []
+  }));
+}
+
 function serializeMessage(row) {
   if (!row) return null;
   return {
@@ -1562,7 +1591,8 @@ function serializeMessage(row) {
     content: row.content,
     attachment: serializeAttachment(row.attachment),
     created_at: row.created_at,
-    edited_at: row.edited_at || null
+    edited_at: row.edited_at || null,
+    reactions: getMessageReactions('dm', row.id)
   };
 }
 
@@ -1583,7 +1613,8 @@ function serializeServerMessage(row) {
     content: row.content,
     attachment: serializeAttachment(row.attachment),
     created_at: row.created_at,
-    edited_at: row.edited_at || null
+    edited_at: row.edited_at || null,
+    reactions: getMessageReactions('channel', row.id)
   };
 }
 
@@ -2903,6 +2934,33 @@ app.get('/api/servers/:serverId/channels/:channelId/messages', ensureAuthenticat
   }
 });
 
+app.post('/api/servers/:serverId/channels/:channelId/messages/:messageId/reactions', ensureAuthenticated, messageLimiter, (req, res) => {
+  const serverId = Number(req.params.serverId);
+  const channelId = Number(req.params.channelId);
+  const messageId = Number(req.params.messageId);
+  const emoji = typeof req.body?.emoji === 'string' ? req.body.emoji : '';
+  const allowed = new Set(['👍', '❤️', '😂', '😮', '😢', '🔥', '🎉', '👀']);
+  if (![serverId, channelId, messageId].every(Number.isInteger) || !allowed.has(emoji)) {
+    return res.status(400).json({ message: 'Некорректная реакция.' });
+  }
+  try {
+    const { permissions } = ensureChannelAccess(serverId, channelId, req.user.id);
+    if (!hasPermission(permissions, PERMISSIONS.VIEW_CHANNEL)) return res.status(403).json({ message: 'Нет доступа к этому каналу.' });
+    const message = db.prepare('SELECT id FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?')
+      .get(messageId, serverId, channelId);
+    if (!message) return res.status(404).json({ message: 'Сообщение не найдено.' });
+    const existing = db.prepare('SELECT id FROM message_reactions WHERE scope = ? AND message_id = ? AND user_id = ? AND emoji = ?')
+      .get('channel', messageId, req.user.id, emoji);
+    if (existing) deleteMessageReaction.run('channel', messageId, req.user.id, emoji);
+    else insertMessageReaction.run('channel', messageId, req.user.id, emoji);
+    const reactions = getMessageReactions('channel', messageId);
+    io.to(getChannelRoom(channelId)).emit('channel:reactions:update', { channelId, messageId, reactions });
+    return res.json({ messageId, reactions });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось добавить реакцию.' });
+  }
+});
+
 app.patch('/api/servers/:serverId/channels/:channelId/messages/:messageId', ensureAuthenticated, messageLimiter, (req, res) => {
   const serverId = Number(req.params.serverId);
   const channelId = Number(req.params.channelId);
@@ -3245,6 +3303,7 @@ app.delete('/api/servers/:serverId/channels/:channelId/messages/:messageId', ens
   const attachments = db.prepare('SELECT path FROM server_attachments WHERE server_message_id = ?').all(messageId);
   try {
     db.transaction(() => {
+      db.prepare("DELETE FROM message_reactions WHERE scope = 'channel' AND message_id = ?").run(messageId);
       db.prepare('DELETE FROM server_attachments WHERE server_message_id = ?').run(messageId);
       db.prepare('DELETE FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?').run(messageId, serverId, channelId);
     })();
@@ -3298,6 +3357,30 @@ app.patch('/api/conversations/:id/messages/:messageId', ensureAuthenticated, mes
   }
 });
 
+app.post('/api/conversations/:id/messages/:messageId/reactions', ensureAuthenticated, messageLimiter, (req, res) => {
+  const conversationId = Number(req.params.id);
+  const messageId = Number(req.params.messageId);
+  const emoji = typeof req.body?.emoji === 'string' ? req.body.emoji : '';
+  const allowed = new Set(['👍', '❤️', '😂', '😮', '😢', '🔥', '🎉', '👀']);
+  if (!Number.isInteger(conversationId) || !Number.isInteger(messageId) || !allowed.has(emoji)) {
+    return res.status(400).json({ message: 'Некорректная реакция.' });
+  }
+  try {
+    ensureConversationAccess(conversationId, req.user.id);
+    const message = db.prepare('SELECT id FROM messages WHERE id = ? AND conversation_id = ?').get(messageId, conversationId);
+    if (!message) return res.status(404).json({ message: 'Сообщение не найдено.' });
+    const existing = db.prepare('SELECT id FROM message_reactions WHERE scope = ? AND message_id = ? AND user_id = ? AND emoji = ?')
+      .get('dm', messageId, req.user.id, emoji);
+    if (existing) deleteMessageReaction.run('dm', messageId, req.user.id, emoji);
+    else insertMessageReaction.run('dm', messageId, req.user.id, emoji);
+    const reactions = getMessageReactions('dm', messageId);
+    io.to(getConversationRoom(conversationId)).emit('message:reactions:update', { conversationId, messageId, reactions });
+    return res.json({ messageId, reactions });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось добавить реакцию.' });
+  }
+});
+
 app.post('/api/conversations/:id/read', ensureAuthenticated, (req, res) => {
   const conversationId = Number(req.params.id);
   const requestedMessageId = Number(req.body?.messageId);
@@ -3333,6 +3416,7 @@ app.delete('/api/conversations/:id/messages/:messageId', ensureAuthenticated, me
   const attachments = db.prepare('SELECT path FROM attachments WHERE message_id = ?').all(messageId);
   try {
     db.transaction(() => {
+      db.prepare("DELETE FROM message_reactions WHERE scope = 'dm' AND message_id = ?").run(messageId);
       db.prepare('DELETE FROM attachments WHERE message_id = ?').run(messageId);
       db.prepare('DELETE FROM messages WHERE id = ? AND conversation_id = ?').run(messageId, conversationId);
       db.prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(conversationId);
