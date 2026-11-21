@@ -14,6 +14,8 @@ import {
   Camera,
   CameraOff,
   ChevronUp,
+  Mic,
+  MicOff,
   Plus,
   SendHorizontal,
   Settings,
@@ -1419,7 +1421,8 @@ function CallOverlay({
         <div className="call-banner-person"><Avatar user={peer} size={54} showStatus /><small>{peerName}</small></div>
       </div>
       <div className="call-banner-media">
-        {state.remoteStream?.getVideoTracks().length ? <video ref={remoteVideoRef} autoPlay playsInline muted={deafened} /> : <span>{state.remoteStream ? 'На связи' : 'Подключаемся…'}</span>}
+        {state.remoteStream && <video ref={remoteVideoRef} className={state.remoteStream.getVideoTracks().length ? '' : 'call-audio-sink'} autoPlay playsInline muted={deafened} />}
+        {!state.remoteStream?.getVideoTracks().length && <span>{state.remoteStream ? 'На связи' : 'Подключаемся…'}</span>}
         {cameraTrack && <video ref={localVideoRef} className="call-local-preview" autoPlay playsInline muted />}
       </div>
       <div className="call-banner-controls">
