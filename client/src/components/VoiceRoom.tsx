@@ -359,8 +359,8 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       </div>
       {Object.entries(remoteStreams).map(([id, stream]) => <audio key={id} autoPlay ref={(element) => { if (element) { audioRefs.current[Number(id)] = element; element.srcObject = stream; element.muted = deafened; } }} />)}
       <footer className="voice-room-controls">
-        <button type="button" className={micMuted ? 'is-off' : ''} onClick={onToggleMic} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>{micMuted ? <MicOff /> : <Mic />}<span>Микрофон</span></button>
-        <button type="button" className={deafened ? 'is-off' : ''} onClick={onToggleDeafen} title={deafened ? 'Включить звук' : 'Выключить звук'}>{deafened ? <VolumeX /> : <Volume2 />}<span>Наушники</span></button>
+        <button type="button" className={micMuted ? 'is-off' : ''} onClick={onToggleMic} data-tooltip={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>{micMuted ? <MicOff /> : <Mic />}<span>Микрофон</span></button>
+        <button type="button" className={deafened ? 'is-off' : ''} onClick={onToggleDeafen} data-tooltip={deafened ? 'Включить звук' : 'Выключить звук'}>{deafened ? <VolumeX /> : <Volume2 />}<span>Наушники</span></button>
         <button type="button" className={cameraStream ? 'is-on' : ''} onClick={() => void toggleCamera()} title={cameraStream ? 'Выключить камеру' : 'Включить камеру'}>{cameraStream ? <CameraOff /> : <Camera />}<span>Камера</span></button>
         <button type="button" className={screenStream ? 'is-on' : ''} onClick={() => void toggleScreenShare()} title={screenStream ? 'Остановить демонстрацию' : 'Демонстрация экрана'}><MonitorUp /><span>Экран</span></button>
         <div className="voice-room-more-wrap">
