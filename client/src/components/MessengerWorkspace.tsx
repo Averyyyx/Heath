@@ -20,7 +20,7 @@ import {
   Volume2
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
-import { startNexoRingtone } from '../lib/sounds';
+import { playNexoSound, startNexoOutgoingTone, startNexoRingtone } from '../lib/sounds';
 import type {
   Channel,
   ChannelMessage,
@@ -241,6 +241,7 @@ export function MessengerWorkspace({
       awaitingCallAcceptRef.current = null;
       const queued = queuedCallSignalsRef.current.splice(0);
       queued.forEach((payload) => socket.emit('call:signal', { conversationId, payload }));
+      playNexoSound('call-accepted');
     };
     const onCallReject = ({ conversationId }: { conversationId: number }) => {
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
@@ -310,6 +311,11 @@ export function MessengerWorkspace({
     if (!incomingCall || ringtoneMuted) return;
     return startNexoRingtone();
   }, [incomingCall, ringtoneMuted]);
+
+  useEffect(() => {
+    if (!callState?.initiator || callState.remoteStream) return;
+    return startNexoOutgoingTone();
+  }, [callState?.conversationId, callState?.initiator, Boolean(callState?.remoteStream)]);
 
   useEffect(() => {
     if (!activeConversationId || !socketRef.current) return;
@@ -552,9 +558,14 @@ export function MessengerWorkspace({
       }
       const data = await response.json();
       setMessageStore((prev) => appendUniqueMessage(prev, activeConversationId, data.message));
+      const sentKey = `dm:${data.message.id}`;
+      setAnimatedMessageIds((current) => [...current.filter((item) => item !== sentKey), sentKey]);
+      window.setTimeout(() => setAnimatedMessageIds((current) => current.filter((item) => item !== sentKey)), 850);
+      playNexoSound('send');
       setComposerText('');
       setUploadFile(null);
     } catch (error) {
+      playNexoSound('error');
       console.error(error);
     }
   }
@@ -583,9 +594,14 @@ export function MessengerWorkspace({
       }
       const data = await response.json();
       setChannelMessages((prev) => appendUniqueChannelMessage(prev, activeChannelId, data.message));
+      const sentKey = `channel:${data.message.id}`;
+      setAnimatedMessageIds((current) => [...current.filter((item) => item !== sentKey), sentKey]);
+      window.setTimeout(() => setAnimatedMessageIds((current) => current.filter((item) => item !== sentKey)), 850);
+      playNexoSound('send');
       setChannelComposer('');
       setChannelUpload(null);
     } catch (error) {
+      playNexoSound('error');
       console.error(error);
     }
   }
@@ -707,6 +723,7 @@ export function MessengerWorkspace({
       return;
     }
     socketRef.current?.emit('call:accept', { conversationId: call.conversationId });
+    playNexoSound('call-accepted');
     onIncomingCallHandled?.();
   }
 
@@ -736,6 +753,7 @@ export function MessengerWorkspace({
     callStateRef.current = null;
     setCallState(null);
     if (notifyRemote) socketRef.current?.emit('call:end', { conversationId: current.conversationId });
+    playNexoSound('call-ended');
     current.peer?.destroy();
     current.localStream?.getTracks().forEach((track) => track.stop());
     current.remoteStream?.getTracks().forEach((track) => track.stop());
