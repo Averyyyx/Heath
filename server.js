@@ -478,6 +478,10 @@ db.prepare(`
   )
 `).run();
 
+if (!db.prepare('PRAGMA table_info(server_messages)').all().some((column) => column.name === 'edited_at')) {
+  db.prepare('ALTER TABLE server_messages ADD COLUMN edited_at DATETIME').run();
+}
+
 db.prepare(`
   CREATE TABLE IF NOT EXISTS server_attachments (
     id TEXT PRIMARY KEY,
@@ -1578,7 +1582,8 @@ function serializeServerMessage(row) {
     },
     content: row.content,
     attachment: serializeAttachment(row.attachment),
-    created_at: row.created_at
+    created_at: row.created_at,
+    edited_at: row.edited_at || null
   };
 }
 
@@ -2895,6 +2900,33 @@ app.get('/api/servers/:serverId/channels/:channelId/messages', ensureAuthenticat
     return res.json({ messages });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ message: error.message });
+  }
+});
+
+app.patch('/api/servers/:serverId/channels/:channelId/messages/:messageId', ensureAuthenticated, messageLimiter, (req, res) => {
+  const serverId = Number(req.params.serverId);
+  const channelId = Number(req.params.channelId);
+  const messageId = Number(req.params.messageId);
+  const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
+  if (!Number.isInteger(serverId) || !Number.isInteger(channelId) || !Number.isInteger(messageId) || !content || content.length > 4000) {
+    return res.status(400).json({ message: 'Сообщение должно содержать от 1 до 4000 символов.' });
+  }
+  try {
+    ensureChannelAccess(serverId, channelId, req.user.id);
+    const existing = db.prepare('SELECT id, author_id FROM server_messages WHERE id = ? AND server_id = ? AND channel_id = ?').get(messageId, serverId, channelId);
+    if (!existing) return res.status(404).json({ message: 'Сообщение не найдено.' });
+    if (existing.author_id !== req.user.id) return res.status(403).json({ message: 'Можно редактировать только свои сообщения.' });
+    db.prepare('UPDATE server_messages SET content = ?, edited_at = CURRENT_TIMESTAMP WHERE id = ? AND server_id = ? AND channel_id = ?').run(content, messageId, serverId, channelId);
+    const row = db.prepare(`
+      SELECT sm.*, u.username, u.display_name, u.avatar_url, u.avatar_color
+      FROM server_messages sm JOIN users u ON u.id = sm.author_id
+      WHERE sm.id = ?
+    `).get(messageId);
+    const message = serializeServerMessage(row);
+    io.to(`channel:${channelId}`).emit('server:message:update', { serverId, channelId, message });
+    return res.json({ message });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ message: error.message || 'Не удалось изменить сообщение.' });
   }
 });
 
