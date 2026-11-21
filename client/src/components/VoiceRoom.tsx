@@ -211,6 +211,10 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
 
     async function join() {
       try {
+        const accessResponse = await apiFetch(`/api/servers/${server.id}/channels/${channel.id}/voice`);
+        const accessPayload = await accessResponse.json().catch(() => ({}));
+        if (!accessResponse.ok) throw new Error(accessPayload.message || 'У вас нет доступа к голосовому каналу.');
+        if (!accessPayload.canConnect) throw new Error('У вас нет права подключаться к этому голосовому каналу.');
         const audio = await navigator.mediaDevices.getUserMedia({
           audio: audioInputId ? { deviceId: { exact: audioInputId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true },
           video: false
@@ -362,6 +366,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
   const duration = `${Math.floor(elapsed / 60).toString().padStart(2, '0')}:${(elapsed % 60).toString().padStart(2, '0')}`;
   const visibleMembers = participants.length ? participants : [{ user: { id: user.id, username: user.username, display_name: user.display_name, avatar_url: user.avatar_url, avatar_color: user.avatar_color }, muted: micMuted, deafened, canSpeak: true, joined_at: new Date().toISOString() }];
   const localCanStream = participants.find((member) => member.user.id === user.id)?.canStream !== false;
+  const localCanSpeak = participants.find((member) => member.user.id === user.id)?.canSpeak !== false;
 
   return (
     <div className="voice-room">
