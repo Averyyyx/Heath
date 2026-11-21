@@ -3122,3 +3122,5 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 
 .composer-editing-banner { display: flex; flex: 1 0 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 8px 7px; color: var(--text-muted); font-size: 12px; }
 .message-edited-label { display: inline-block; margin-left: 6px; color: var(--text-faint); font-size: 12px; }
+
+.composer.editing { flex-wrap: wrap; }
