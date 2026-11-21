@@ -163,9 +163,9 @@ function getIconPath(iconName, size = 256) {
 function ensureDesktopShortcut() {
   if (process.platform !== 'win32' || !app.isPackaged) return;
   const shortcutPath = path.join(app.getPath('desktop'), 'Nexo.lnk');
-  if (fs.existsSync(shortcutPath)) return;
   try {
-    const created = shell.writeShortcutLink(shortcutPath, 'create', {
+    const shortcutAction = fs.existsSync(shortcutPath) ? 'update' : 'create';
+    const created = shell.writeShortcutLink(shortcutPath, shortcutAction, {
       target: process.execPath,
       args: [],
       cwd: path.dirname(process.execPath),
