@@ -180,6 +180,12 @@ export default function App() {
   }, [theme, desktopApi]);
 
   useEffect(() => {
+    const syncSoundVolume = () => setDockSoundVolume(getNexoSoundPreferences().volume);
+    window.addEventListener('nexo-sound-preferences-updated', syncSoundVolume);
+    return () => window.removeEventListener('nexo-sound-preferences-updated', syncSoundVolume);
+  }, []);
+
+  useEffect(() => {
     if (user?.status === 'dnd') document.documentElement.dataset.nexoDnd = 'true';
     else delete document.documentElement.dataset.nexoDnd;
     return () => { delete document.documentElement.dataset.nexoDnd; };
