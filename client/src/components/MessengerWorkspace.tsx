@@ -159,6 +159,7 @@ export function MessengerWorkspace({
   const previousChannelRef = useRef<number | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const lastTypingSentRef = useRef(0);
+  const lastReadSentRef = useRef<Record<number, number>>({});
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const channelComposerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -443,6 +444,29 @@ export function MessengerWorkspace({
   );
 
   const activeMessages = activeConversationId ? messageStore[activeConversationId] || [] : [];
+
+  useEffect(() => {
+    const latestMessage = activeMessages[activeMessages.length - 1];
+    if (!activeConversationId || !isActive || !latestMessage) return;
+    const previousReadId = lastReadSentRef.current[activeConversationId] || 0;
+    if (latestMessage.id <= previousReadId) return;
+
+    lastReadSentRef.current[activeConversationId] = latestMessage.id;
+    void apiFetch(`/api/conversations/${activeConversationId}/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId: latestMessage.id })
+    }).then((response) => {
+      if (!response.ok && lastReadSentRef.current[activeConversationId] === latestMessage.id) {
+        lastReadSentRef.current[activeConversationId] = previousReadId;
+      }
+    }).catch(() => {
+      if (lastReadSentRef.current[activeConversationId] === latestMessage.id) {
+        lastReadSentRef.current[activeConversationId] = previousReadId;
+      }
+    });
+  }, [activeConversationId, activeMessages, isActive]);
+
 
   useEffect(() => {
     const element = composerRef.current;
@@ -985,6 +1009,9 @@ export function MessengerWorkspace({
                             {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.content && <MessageContent content={message.content} />}
                             {message.attachment && <AttachmentPreview attachment={message.attachment} />}
+                            {message.author.id === user.id && index === activeMessages.map((item) => item.author.id === user.id).lastIndexOf(true) &&
+                              (activeConversation?.participants.find((participant) => participant.id !== user.id)?.last_read_message_id || 0) >= message.id &&
+                              <small className="message-read-receipt">Прочитано</small>}
                           </div>
                         </article>
                       </Fragment>
