@@ -3428,3 +3428,27 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   .call-overlay { min-height: 220px; }
   .call-banner-controls { width: 100%; justify-content: center; flex-wrap: wrap; }
 }
+
+
+.voice-room-header-actions { display: flex; align-items: center; gap: 8px; }
+.voice-room-invite { display: inline-flex; height: 36px; align-items: center; gap: 7px; padding: 0 11px; border: 1px solid rgba(255,255,255,.1); border-radius: 9px; background: #211f1e; color: #f4f0e9; cursor: pointer; font-size: 12px; }
+.voice-room-invite:hover { background: #302d2b; }
+.voice-invite-backdrop { position: fixed; inset: 0; z-index: 1500; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.5); }
+.voice-invite-modal { display: flex; width: min(420px, calc(100vw - 32px)); max-height: 70vh; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); }
+.voice-invite-modal > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 600 18px var(--font-serif); }
+.voice-invite-modal > header button { display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; }
+.voice-invite-list { display: flex; min-height: 0; flex-direction: column; gap: 4px; overflow: auto; }
+.voice-invite-list > div { display: flex; min-height: 42px; align-items: center; gap: 9px; padding: 5px 6px; border-radius: 8px; }
+.voice-invite-list > div:hover { background: var(--surface-hover); }
+.voice-invite-list > div > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.voice-invite-list > div > button { width: auto; height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--accent-soft); color: var(--accent); cursor: pointer; font-size: 12px; }
+.voice-invite-status { margin: 0; color: var(--text-muted); font-size: 12px; }
+.voice-incoming-invite { width: min(440px, calc(100vw - 32px)); }
+.voice-invite-from { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.voice-invite-from > span { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.voice-invite-from strong { font-size: 14px; }
+.voice-invite-from small { color: var(--text-muted); font-size: 12px; }
+.voice-invite-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.voice-invite-actions button { width: auto; min-width: 90px; height: 36px; padding: 0 13px; border-radius: 9px; }
+.modal-panel:has(.nexo-field) { width: min(560px, calc(100vw - 32px)); }
+.modal-panel:has(.nexo-field) > form { display: flex; flex-direction: column; gap: 16px; }
