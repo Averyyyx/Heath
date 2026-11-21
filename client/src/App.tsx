@@ -320,7 +320,7 @@ export default function App() {
       const saved = JSON.parse(localStorage.getItem(unreadStorageKey(user.id)) || '{}') as { dm?: Record<string, number>; channels?: Record<string, number>; dmMentions?: Record<string, number>; channelMentions?: Record<string, number> };
       const normalize = (value?: Record<string, number>): Record<number, number> => {
         const entries: Array<[string, number]> = Object.entries(value || {}).map(([key, count]) => [
-          key, Math.max(0, Math.min(9, Math.floor(Number(count) || 0)))
+          key, Math.max(0, Math.min(99, Math.floor(Number(count) || 0)))
         ]);
         return Object.fromEntries(entries.filter(([, count]) => count > 0)) as Record<number, number>;
       };
@@ -446,6 +446,7 @@ export default function App() {
     if (!user) return;
     const socket = getSocket();
     const onMessage = ({ conversationId, message }: { conversationId: number; message?: Message }) => {
+      if (message?.author?.id === user.id) return;
       const id = `dm:${conversationId}`;
       const isVisibleConversation = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
       if (!isVisibleConversation) {
@@ -461,6 +462,7 @@ export default function App() {
       if (existing) setConversations((current) => [existing, ...current.filter((item) => item.id !== conversationId)]);
     };
     const onChannelMessage = ({ channelId, message }: { channelId: number; message?: ChannelMessage }) => {
+      if (message?.author?.id === user.id) return;
       const id = `channel:${channelId}`;
       const isVisibleChannel = id === activeTabId && document.visibilityState === 'visible' && document.hasFocus();
       if (!isVisibleChannel) {
@@ -495,14 +497,14 @@ export default function App() {
         return tab?.serverId === serverId ? 'home' : current;
       });
     };
-    socket.on('message:new', onMessage);
-    socket.on('channel:message:new', onChannelMessage);
+    socket.on('message:notify', onMessage);
+    socket.on('channel:message:notify', onChannelMessage);
     socket.on('server:upsert', onServerUpsert);
     socket.on('channel:deleted', onChannelDeleted);
     socket.on('server:leave', onServerLeave);
     return () => {
-      socket.off('message:new', onMessage);
-      socket.off('channel:message:new', onChannelMessage);
+      socket.off('message:notify', onMessage);
+      socket.off('channel:message:notify', onChannelMessage);
       socket.off('server:upsert', onServerUpsert);
       socket.off('channel:deleted', onChannelDeleted);
       socket.off('server:leave', onServerLeave);
