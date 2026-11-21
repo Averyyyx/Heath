@@ -3484,3 +3484,6 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .call-overlay:fullscreen .call-banner-participants { gap: 32px; }
 .call-overlay:fullscreen .call-banner-media { max-height: 65vh; }
 .call-overlay:fullscreen .call-banner-controls { margin-top: auto; }
+
+.sidebar-voice-channel.locked .voice-channel-row { color: var(--text-faint); cursor: not-allowed; opacity: .62; }
+.sidebar-voice-channel.locked .voice-channel-row:hover { background: transparent; color: var(--text-faint); }
