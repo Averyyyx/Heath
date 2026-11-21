@@ -176,7 +176,10 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.message || 'Не удалось подключиться к голосовому каналу.');
-        if (disposed) return;
+        if (disposed) {
+          await apiFetch(`/api/servers/${server.id}/channels/${channel.id}/voice/leave`, { method: 'POST' }).catch(() => {});
+          return;
+        }
         joinedRef.current = true;
         setJoinedAt(Date.now());
         setParticipants(payload.participants || []);
@@ -212,7 +215,11 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       joinedRef.current = false;
       window.dispatchEvent(new CustomEvent('nexo-voice-state', { detail: { active: false, channelId: channel.id } }));
     };
-  }, [server.id, server.name, channel.id, channel.name, user.id, audioInputId, micMuted, deafened, createPeer, closePeer]);
+  }, [server.id, server.name, channel.id, channel.name, user.id, audioInputId, createPeer, closePeer]);
+
+  useEffect(() => {
+    if (joinedRef.current) void updateVoiceState(micMuted, deafened);
+  }, [micMuted, deafened]);
 
   async function updateVoiceState(nextMuted: boolean, nextDeafened: boolean) {
     try {
