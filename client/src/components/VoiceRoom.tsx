@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import SimplePeer from 'simple-peer';
-import { Camera, CameraOff, Mic, MicOff, MonitorUp, PhoneOff, Volume2, VolumeX } from 'lucide-react';
+import { Camera, CameraOff, Mic, MicOff, MonitorUp, PhoneOff, Volume2, VolumeX, UserPlus, X } from 'lucide-react';
 import type { Channel, Server, User, VoiceState } from '../types';
 import { apiFetch } from '../lib/api';
 import { getSocket } from '../lib/socket';
@@ -38,6 +38,9 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
   const [speaking, setSpeaking] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [serverMembers, setServerMembers] = useState<Array<{ id: number; user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string } }>>([]);
+  const [inviteStatus, setInviteStatus] = useState('');
   const peers = useRef(new Map<number, SimplePeer.Instance>());
   const localRef = useRef<MediaStream | null>(null);
   const screenRef = useRef<MediaStream | null>(null);
@@ -225,6 +228,23 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
     if (joinedRef.current) void updateVoiceState(micMuted, deafened);
   }, [micMuted, deafened]);
 
+  async function openInvite() {
+    setInviteOpen(true);
+    setInviteStatus('');
+    if (serverMembers.length) return;
+    try {
+      const response = await apiFetch(`/api/servers/${server.id}/members`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось загрузить участников.');
+      setServerMembers(payload.members || []);
+    } catch (reason) { setInviteStatus((reason as Error).message); }
+  }
+
+  function inviteMember(memberId: number) {
+    getSocket().emit('voice:invite', { serverId: server.id, channelId: channel.id, to: memberId });
+    setInviteStatus('Приглашение отправлено');
+  }
+
   async function updateVoiceState(nextMuted: boolean, nextDeafened: boolean) {
     try {
       const response = await apiFetch(`/api/servers/${server.id}/channels/${channel.id}/voice/state`, {
@@ -301,7 +321,10 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
     <div className="voice-room">
       <header className="voice-room-header">
         <div><span className="voice-room-indicator" /><div><strong>Голосовой · {channel.name}</strong><small>{server.name} · {duration}</small></div></div>
-        <button type="button" className="voice-room-leave" onClick={onLeave} aria-label="Выйти из канала"><PhoneOff size={16} />Выйти</button>
+        <div className="voice-room-header-actions">
+          <button type="button" className="voice-room-invite" onClick={() => void openInvite()}><UserPlus size={15} />Пригласить</button>
+          <button type="button" className="voice-room-leave" onClick={onLeave} aria-label="Выйти из канала"><PhoneOff size={16} />Выйти</button>
+        </div>
       </header>
       {error && <p className="voice-room-error">{error}</p>}
       {busy && <p className="voice-room-loading">Подключаемся к голосовому каналу…</p>}
@@ -328,6 +351,16 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
         <button type="button" className="voice-room-hangup" onClick={onLeave}><PhoneOff /><span>Выйти</span></button>
       </footer>
       {participants.length > 6 && <p className="voice-room-limit-note">Mesh-связь рассчитана на небольшие группы: комфортный предел — 5–6 участников.</p>}
+      {inviteOpen && <div className="voice-invite-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setInviteOpen(false); }}>
+        <section className="voice-invite-modal" role="dialog" aria-modal="true" aria-label="Пригласить в голосовой канал">
+          <header><strong>Пригласить в голосовой канал</strong><button type="button" aria-label="Закрыть" onClick={() => setInviteOpen(false)}><X size={16} /></button></header>
+          {inviteStatus && <p className="voice-invite-status">{inviteStatus}</p>}
+          <div className="voice-invite-list">{serverMembers.filter((member) => member.id !== user.id).map((member) => <div key={member.id}>
+            <Avatar user={member.user} size={30} /><span>{member.user.display_name || member.user.username}</span>
+            <button type="button" onClick={() => inviteMember(member.id)}>Позвать</button>
+          </div>)}</div>
+        </section>
+      </div>}
     </div>
   );
 }
