@@ -19,6 +19,7 @@ import {
 import { apiFetch } from '../lib/api';
 import { getNexoSoundPreferences, NEXO_SOUND_EVENTS, playNexoSound, saveNexoSoundPreferences, type NexoSoundPreferences } from '../lib/sounds';
 import { Avatar } from './Avatar';
+import { Field, Input, Select, Textarea, Switch, Slider, Button } from './ui';
 import type { User, UserStatus } from '../types';
 import { applyTheme, isThemeChoice } from '../lib/theme';
 import { t } from '../lib/strings';
@@ -1277,17 +1278,10 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         </div>
         <div className="settings-group">
           <h3>Статус</h3>
-          <label><span>Состояние</span>
-            <select value={profileStatusChoice} onChange={(event) => setProfileStatusChoice(event.target.value as UserStatus)}>
-              <option value="online">В сети</option>
-              <option value="idle">Отошёл</option>
-              <option value="dnd">Не беспокоить</option>
-              <option value="invisible">Невидимка</option>
-            </select>
-          </label>
-          <label><span>Свой статус</span>
-            <input value={profileCustomStatus} maxLength={60} placeholder="Над чем работаете?" onChange={(event) => setProfileCustomStatus(event.target.value)} />
-          </label>
+          <Field label="Состояние"><Select value={profileStatusChoice} onChange={(event) => setProfileStatusChoice(event.target.value as UserStatus)}>
+              <option value="online">В сети</option><option value="idle">Отошёл</option><option value="dnd">Не беспокоить</option><option value="invisible">Невидимка</option>
+            </Select></Field>
+          <Field label="Свой статус"><Input value={profileCustomStatus} maxLength={60} placeholder="Над чем работаете?" onChange={(event) => setProfileCustomStatus(event.target.value)} /></Field>
           <small className="muted">{profileCustomStatus.length}/60</small>
           <button type="button" className="secondary" onClick={() => void savePresence()} disabled={presenceBusy}>
             {presenceBusy ? 'Сохраняем…' : 'Сохранить статус'}
@@ -1295,14 +1289,11 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           {presenceStatus.message && <p className={`status ${presenceStatus.type}`}>{presenceStatus.message}</p>}
         </div>
         <div className="settings-group">
-          <label><span>Отображаемое имя</span><input value={accountName} maxLength={32}
-            onChange={(event) => setAccountName(event.target.value)} /></label>
-          <label><span>Логин @handle</span><input value={accountHandle} maxLength={24}
-            onChange={(event) => setAccountHandle(event.target.value.toLowerCase())} /></label>
+          <Field label="Отображаемое имя"><Input value={accountName} maxLength={32} onChange={(event) => setAccountName(event.target.value)} /></Field>
+          <Field label="Логин @handle"><Input value={accountHandle} maxLength={24} onChange={(event) => setAccountHandle(event.target.value.toLowerCase())} /></Field>
           <small className={`handle-availability ${handleState}`}>{handleState === 'checking' ? 'Проверяем…' : handleHint}</small>
           <small className="muted">Логин можно менять раз в 14 дней. Отображаемое имя — не чаще одного раза в минуту.</small>
-          <label><span>О себе</span><textarea value={profileBio} maxLength={200} rows={4}
-            onChange={(event) => setProfileBio(event.target.value)} placeholder="Расскажите о себе…" /></label>
+          <Field label="О себе"><Textarea value={profileBio} maxLength={200} rows={4} onChange={(event) => setProfileBio(event.target.value)} placeholder="Расскажите о себе…" /></Field>
           <small className="muted">{profileBio.length}/200</small>
         </div>
         <div className="settings-group">
@@ -1349,18 +1340,12 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         <h2>Устройства</h2>
         <p className="muted">Выберите устройства, которые Nexo будет использовать для микрофона и вывода звука. Список обновляется при подключении или отключении оборудования.</p>
         <div className="settings-group voice-device-list">
-          <label className="settings-device-row"><span><strong>Устройство ввода</strong><small>Микрофон для звонков</small></span>
-            <select value={audioInputId} onChange={(event) => onAudioInputChange?.(event.target.value)}>
-              <option value="">Системное устройство по умолчанию</option>
-              {audioInputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Микрофон ${index + 1}`}</option>)}
-            </select>
-          </label>
-          <label className="settings-device-row"><span><strong>Устройство вывода</strong><small>Наушники или колонки для звонков</small></span>
-            <select value={audioOutputId} onChange={(event) => onAudioOutputChange?.(event.target.value)}>
-              <option value="">Системное устройство по умолчанию</option>
-              {audioOutputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Устройство вывода ${index + 1}`}</option>)}
-            </select>
-          </label>
+          <div className="settings-device-row"><span><strong>Устройство ввода</strong><small>Микрофон для звонков</small></span>
+            <Select value={audioInputId} onChange={(event) => onAudioInputChange?.(event.target.value)}><option value="">Системное устройство по умолчанию</option>{audioInputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Микрофон ${index + 1}`}</option>)}</Select>
+          </div>
+          <div className="settings-device-row"><span><strong>Устройство вывода</strong><small>Наушники или колонки для звонков</small></span>
+            <Select value={audioOutputId} onChange={(event) => onAudioOutputChange?.(event.target.value)}><option value="">Системное устройство по умолчанию</option>{audioOutputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Устройство вывода ${index + 1}`}</option>)}</Select>
+          </div>
         </div>
         <p className="muted">Названия устройств могут появиться только после предоставления разрешения на доступ к микрофону.</p>
       </div>
