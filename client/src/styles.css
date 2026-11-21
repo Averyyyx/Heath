@@ -3239,3 +3239,42 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   color: var(--text-muted);
   font-size: 12px;
 }
+
+
+/* Nexo 0.0.8 — compact, pinned account dock and active call strip */
+.sidebar-user-area { margin-top: auto !important; padding-top: 8px; overflow: visible; }
+.sidebar-user-area .nexo-user-dock { height: 52px; min-height: 52px; flex: 0 0 52px; }
+.sidebar-user-area .dock-user { cursor: default; }
+.sidebar-user-area .dock-actions { gap: 2px; }
+.sidebar-user-area .dock-icon { position: relative; width: 32px; height: 32px; border-radius: 8px; }
+.sidebar-user-area .dock-icon.danger { color: var(--danger); background: var(--danger-soft); }
+.sidebar-user-area .dock-icon[data-tooltip]::after {
+  position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 100;
+  padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--text); color: var(--bg); content: attr(data-tooltip);
+  font-size: 12px; font-weight: 500; line-height: 1.2; white-space: nowrap;
+  opacity: 0; pointer-events: none; transform: translateY(3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.sidebar-user-area .dock-icon[data-tooltip]:hover::after,
+.sidebar-user-area .dock-icon[data-tooltip]:focus-visible::after { opacity: 1; transform: translateY(0); }
+.active-call-strip {
+  display: flex; width: 100%; min-width: 0; height: 40px; flex: 0 0 40px;
+  align-items: center; gap: 6px; padding: 4px 6px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+}
+.active-call-return {
+  display: flex; min-width: 0; flex: 1 1 auto; align-items: center; gap: 9px;
+  padding: 0 3px; border: 0; border-radius: 7px; background: transparent;
+  color: var(--text); cursor: pointer; text-align: left;
+}
+.active-call-return:hover { background: var(--surface-hover); }
+.active-call-return .status-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+.active-call-copy { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.active-call-copy strong { overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.active-call-copy small { color: var(--text-muted); font-size: 12px; }
+.active-call-strip .hangup {
+  display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center;
+  border: 0; border-radius: 8px; background: var(--danger-soft); color: var(--danger); cursor: pointer;
+}
+.active-call-strip .hangup:hover { background: var(--danger); color: white; }
