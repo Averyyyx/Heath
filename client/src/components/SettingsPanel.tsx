@@ -19,7 +19,7 @@ import {
 import { apiFetch } from '../lib/api';
 import { getNexoSoundPreferences, NEXO_SOUND_EVENTS, playNexoSound, saveNexoSoundPreferences, type NexoSoundPreferences } from '../lib/sounds';
 import { Avatar } from './Avatar';
-import type { User } from '../types';
+import type { User, UserStatus } from '../types';
 import { applyTheme, isThemeChoice } from '../lib/theme';
 import { t } from '../lib/strings';
 import type { Channel, Server, ServerRole } from '../types';
@@ -117,6 +117,10 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   const [accountName, setAccountName] = useState(user.display_name || '');
   const [accountHandle, setAccountHandle] = useState(user.username || '');
   const [profileBio, setProfileBio] = useState(user.bio || '');
+  const [profileStatusChoice, setProfileStatusChoice] = useState<UserStatus>(user.status || 'online');
+  const [profileCustomStatus, setProfileCustomStatus] = useState(user.custom_status || '');
+  const [presenceBusy, setPresenceBusy] = useState(false);
+  const [presenceStatus, setPresenceStatus] = useState<Status>({ type: 'idle' });
   const [profileColor, setProfileColor] = useState(user.avatar_color || '#D97757');
   const [profileAvatarPreset, setProfileAvatarPreset] = useState(user.avatar_preset ?? 0);
   const [handleState, setHandleState] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
@@ -1241,6 +1245,26 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
     );
   }
 
+  async function savePresence() {
+    setPresenceBusy(true);
+    setPresenceStatus({ type: 'loading', message: 'Сохраняем статус…' });
+    try {
+      const response = await apiFetch('/api/profile/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: profileStatusChoice, customStatus: profileCustomStatus.trim().slice(0, 60) })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Не удалось сохранить статус.');
+      onUserUpdate?.(payload.user);
+      setPresenceStatus({ type: 'success', message: 'Статус сохранён' });
+    } catch (error) {
+      setPresenceStatus({ type: 'error', message: (error as Error).message });
+    } finally {
+      setPresenceBusy(false);
+    }
+  }
+
   function renderProfileSettings() {
     return (
       <div className="settings-section profile-settings">
@@ -1250,6 +1274,25 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           <Avatar user={{ ...user, display_name: accountName, username: accountHandle, avatar_color: profileColor, avatar_preset: profileAvatarPreset, avatar_url: avatarPreview || (profileAvatarPreset !== (user.avatar_preset ?? 0) ? '' : user.avatar_url) }} size={58} />
           <div><strong>{accountName || 'Ваше имя'}</strong><small>@{accountHandle || 'username'} · #{user.discriminator || '0001'}</small>
             <p>{profileBio || 'Описание профиля пока пустое.'}</p></div>
+        </div>
+        <div className="settings-group">
+          <h3>Статус</h3>
+          <label><span>Состояние</span>
+            <select value={profileStatusChoice} onChange={(event) => setProfileStatusChoice(event.target.value as UserStatus)}>
+              <option value="online">В сети</option>
+              <option value="idle">Отошёл</option>
+              <option value="dnd">Не беспокоить</option>
+              <option value="invisible">Невидимка</option>
+            </select>
+          </label>
+          <label><span>Свой статус</span>
+            <input value={profileCustomStatus} maxLength={60} placeholder="Над чем работаете?" onChange={(event) => setProfileCustomStatus(event.target.value)} />
+          </label>
+          <small className="muted">{profileCustomStatus.length}/60</small>
+          <button type="button" className="secondary" onClick={() => void savePresence()} disabled={presenceBusy}>
+            {presenceBusy ? 'Сохраняем…' : 'Сохранить статус'}
+          </button>
+          {presenceStatus.message && <p className={`status ${presenceStatus.type}`}>{presenceStatus.message}</p>}
         </div>
         <div className="settings-group">
           <label><span>Отображаемое имя</span><input value={accountName} maxLength={32}
