@@ -249,7 +249,7 @@ async function openDm(page, otherName) {
     const serverHead = pageA.locator('.sidebar-server-head').filter({ hasText: serverName }).first();
     await serverHead.waitFor({ state: 'visible', timeout: 15000 });
     await pageA.locator('.sidebar-section').filter({ hasText: 'Пространства' }).locator('button[aria-label="Создать пространство"]').click();
-    const createSpaceModal = pageA.locator('.modal-panel').filter({ hasText: 'Новое пространство' });
+    const createSpaceModal = pageA.locator('.modal-panel').filter({ hasText: 'Создать пространство' });
     await createSpaceModal.waitFor({ state: 'visible' });
     await pageA.screenshot({ path: path.join(screenshotDir, 'create-space-light-1440x900.png'), fullPage: false });
     await createSpaceModal.locator('button[aria-label="Закрыть"]').click();
