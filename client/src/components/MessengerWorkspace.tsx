@@ -301,8 +301,8 @@ export function MessengerWorkspace({
         }
       } else if (!current.peerUserId || current.peerUserId === from) current.peer?.signal(payload);
     };
-    const onCallAccept = ({ conversationId, mediaType, acceptedParticipants }: {
-      conversationId: number; mediaType?: 'audio' | 'video'; acceptedParticipants?: number[]
+    const onCallAccept = ({ conversationId, from, mediaType, acceptedParticipants }: {
+      conversationId: number; from?: number; mediaType?: 'audio' | 'video'; acceptedParticipants?: number[]
     }) => {
       const groupCall = callStateRef.current;
       console.log('[call-ui] accept event', { conversationId, from: groupCall?.initiator ? 'caller-side' : 'callee-side', waiting: awaitingCallAcceptRef.current, acceptedParticipants });
