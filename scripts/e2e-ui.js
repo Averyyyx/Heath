@@ -89,6 +89,7 @@ async function openDm(page, otherName) {
     const channelResult = await expectOk(await apiA.post('/api/servers/' + server.id + '/channels', {
       data: { name: 'voice-lobby', type: 'voice', userLimit: 8 }
     }), 'Voice channel creation');
+    await expectOk(await apiA.post('/api/servers/' + server.id + '/channels', { data: { name: 'e2e-chat', type: 'text', topic: 'Temporary channel settings test' } }), 'Text channel creation');
     const channelList = await expectOk(await apiA.get('/api/servers/' + server.id + '/channels'), 'Voice channel list');
     const voiceChannel = channelList.channels.find((channel) => channel.type === 'voice' && channel.name === 'voice-lobby');
     if (!voiceChannel) throw new Error('The created voice channel was not returned by the server.');
