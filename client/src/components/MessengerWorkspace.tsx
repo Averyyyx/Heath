@@ -1159,38 +1159,70 @@ export function MessengerWorkspace({
     current.remoteStream?.getTracks().forEach((track) => track.stop());
   }
 
-  function toggleCamera() {
-    const track = callStateRef.current?.localStream?.getVideoTracks()[0];
-    if (!track || callStateRef.current?.isScreenSharing) return;
-    track.enabled = !track.enabled;
-    setCallState((current) => current ? { ...current } : current);
+  async function toggleCamera() {
+    const current = callStateRef.current;
+    if (!current || current.isScreenSharing || !current.peer || !current.localStream) return;
+    const existingTrack = current.localStream.getVideoTracks()[0];
+    if (existingTrack) {
+      existingTrack.enabled = !existingTrack.enabled;
+      setCallState({ ...current });
+      return;
+    }
+    try {
+      const camera = await navigator.mediaDevices.getUserMedia({
+        video: videoInputId ? { deviceId: { exact: videoInputId } } : true,
+        audio: false
+      });
+      const track = camera.getVideoTracks()[0];
+      if (!track || callStateRef.current !== current) {
+        camera.getTracks().forEach((item) => item.stop());
+        return;
+      }
+      current.localStream.addTrack(track);
+      current.peer.addTrack(track, current.localStream);
+      track.addEventListener('ended', () => {
+        if (current.localStream?.getTracks().includes(track)) current.localStream.removeTrack(track);
+        setCallState((state) => state ? { ...state } : state);
+      }, { once: true });
+      setCallState({ ...current });
+    } catch (error) {
+      setCallError((error as Error).message || 'Не удалось включить камеру.');
+    }
   }
 
   async function shareScreen() {
-    if (!callStateRef.current?.peer) return;
+    const current = callStateRef.current;
+    if (!current?.peer || !current.localStream || current.isScreenSharing) return;
     try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const screenTrack = screenStream.getVideoTracks()[0];
-      const localStream = callStateRef.current.localStream;
-      const currentVideo = localStream?.getVideoTracks()[0];
-
-      if (localStream && currentVideo) {
+      if (!screenTrack) return;
+      const localStream = current.localStream;
+      const currentVideo = localStream.getVideoTracks()[0] || null;
+      const peerWithReplace = current.peer as SimplePeer.Instance & {
+        replaceTrack?: (oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack, stream: MediaStream) => void;
+      };
+      if (currentVideo) {
         localStream.removeTrack(currentVideo);
         localStream.addTrack(screenTrack);
-        const peerWithReplace = callStateRef.current.peer as SimplePeer.Instance & {
-          replaceTrack?: (oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack, stream: MediaStream) => void;
-        };
-        peerWithReplace?.replaceTrack?.(currentVideo, screenTrack, localStream);
-        setCallState((prev) => (prev ? { ...prev, isScreenSharing: true } : prev));
-        screenTrack.onended = () => {
-          localStream.removeTrack(screenTrack);
-          localStream.addTrack(currentVideo);
-          peerWithReplace?.replaceTrack?.(screenTrack, currentVideo, localStream);
-          setCallState((prev) => (prev ? { ...prev, isScreenSharing: false } : prev));
-        };
+        peerWithReplace.replaceTrack?.(currentVideo, screenTrack, localStream);
+      } else {
+        localStream.addTrack(screenTrack);
+        current.peer.addTrack(screenTrack, localStream);
       }
+      setCallState((prev) => (prev ? { ...prev, isScreenSharing: true } : prev));
+      screenTrack.onended = () => {
+        if (localStream.getTracks().includes(screenTrack)) localStream.removeTrack(screenTrack);
+        if (currentVideo) {
+          localStream.addTrack(currentVideo);
+          peerWithReplace.replaceTrack?.(screenTrack, currentVideo, localStream);
+        } else {
+          try { current.peer?.removeTrack(screenTrack, localStream); } catch {}
+        }
+        setCallState((prev) => (prev ? { ...prev, isScreenSharing: false } : prev));
+      };
     } catch (error) {
-      console.error('Share screen failed', error);
+      setCallError((error as Error).message || 'Не удалось начать демонстрацию экрана.');
     }
   }
 
