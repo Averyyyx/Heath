@@ -356,10 +356,12 @@ async function openDm(page, otherName) {
     console.log('Two-account DM call, voice-channel join/leave, dock, form-control, and workspace screenshot checks passed. Screenshots: ' + screenshotDir);
     await contextA.close();
     await contextB.close();
+    await contextC.close();
   } finally {
     await browser?.close();
     await apiA.dispose();
     await apiB.dispose();
+    await apiC.dispose();
   }
 })().catch((error) => {
   console.error(error);
