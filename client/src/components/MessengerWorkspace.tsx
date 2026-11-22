@@ -84,6 +84,10 @@ type CallState = {
   peer: SimplePeer.Instance | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  peers?: Record<number, SimplePeer.Instance>;
+  remoteStreams?: Record<number, MediaStream>;
+  acceptedUserIds?: number[];
+  group?: boolean;
   isScreenSharing: boolean;
   initiator: boolean;
   mediaType?: 'audio' | 'video';
@@ -281,11 +285,21 @@ export function MessengerWorkspace({
       setRingtoneMuted(false);
       pendingIncomingSignalRef.current = null;
     };
-    const onCallSignal = ({ conversationId, payload }: { conversationId: number; payload: SignalData }) => {
+    const onCallSignal = ({ conversationId, from, payload }: { conversationId: number; from: number; payload: SignalData }) => {
       const current = callStateRef.current;
-      if (current?.conversationId === conversationId) current.peer?.signal(payload);
+      if (current?.conversationId !== conversationId) return;
+      if (current.group) current.peers?.[from]?.signal(payload);
+      else current.peer?.signal(payload);
     };
-    const onCallAccept = ({ conversationId, mediaType }: { conversationId: number; mediaType?: 'audio' | 'video' }) => {
+    const onCallAccept = ({ conversationId, mediaType, acceptedParticipants }: {
+      conversationId: number; mediaType?: 'audio' | 'video'; acceptedParticipants?: number[]
+    }) => {
+      const groupCall = callStateRef.current;
+      if (groupCall?.conversationId === conversationId && groupCall.group && acceptedParticipants) {
+        ensureGroupPeers(conversationId, acceptedParticipants);
+        playNexoSound('call-accepted');
+        return;
+      }
       if (mediaType === 'audio' && callStateRef.current?.conversationId === conversationId) {
         const current = callStateRef.current;
         const videoTrack = current.localStream?.getVideoTracks()[0];
@@ -1025,6 +1039,57 @@ export function MessengerWorkspace({
     }
   }
 
+  function ensureGroupPeers(conversationId: number, acceptedUserIds: number[]) {
+    const current = callStateRef.current;
+    if (!current || current.conversationId !== conversationId || !current.group || !current.localStream) return;
+    const peers = { ...(current.peers || {}) };
+    const remoteStreams = { ...(current.remoteStreams || {}) };
+    let changed = false;
+    for (const remoteId of acceptedUserIds) {
+      if (remoteId === user.id || peers[remoteId]) continue;
+      const peer = new SimplePeer({
+        initiator: user.id < remoteId,
+        trickle: false,
+        stream: current.localStream
+      });
+      peers[remoteId] = peer;
+      changed = true;
+      peer.on('signal', (payload) => {
+        socketRef.current?.emit('call:signal', { conversationId, to: remoteId, payload });
+      });
+      peer.on('stream', (stream) => {
+        const latest = callStateRef.current;
+        if (!latest || latest.conversationId !== conversationId || !latest.group) return;
+        const nextStreams = { ...(latest.remoteStreams || {}), [remoteId]: stream };
+        const nextPeers = latest.peers || {};
+        const next = { ...latest, remoteStreams: nextStreams, remoteStream: latest.remoteStream || stream, peers: nextPeers };
+        callStateRef.current = next;
+        setCallState(next);
+      });
+      peer.on('close', () => {
+        const latest = callStateRef.current;
+        if (!latest || latest.conversationId !== conversationId || !latest.group) return;
+        const nextPeers = { ...(latest.peers || {}) };
+        const nextStreams = { ...(latest.remoteStreams || {}) };
+        delete nextPeers[remoteId];
+        delete nextStreams[remoteId];
+        const firstStream = Object.values(nextStreams)[0] || null;
+        const next = { ...latest, peers: nextPeers, remoteStreams: nextStreams, remoteStream: firstStream };
+        callStateRef.current = next;
+        setCallState(next);
+      });
+      peer.on('error', (error) => {
+        console.error('Group call peer failed', remoteId, error);
+        peer.destroy();
+      });
+    }
+    if (changed || acceptedUserIds.join(',') !== (current.acceptedUserIds || []).join(',')) {
+      const next = { ...current, peers, remoteStreams, acceptedUserIds: [...new Set(acceptedUserIds)] };
+      callStateRef.current = next;
+      setCallState(next);
+    }
+  }
+
   async function startCall(conversationId: number, options?: { initiator?: boolean; initialSignal?: SignalData }, mediaType: 'audio' | 'video' = 'audio'): Promise<boolean> {
     if (!socketRef.current) return false;
     if (document.documentElement.dataset.nexoVoiceActive === 'true') {
@@ -1034,35 +1099,43 @@ export function MessengerWorkspace({
       await new Promise((resolve) => window.setTimeout(resolve, 180));
     }
     setCallError('');
+    let mediaStream: MediaStream | null = null;
     try {
       const audioConstraint: MediaTrackConstraints | boolean = audioInputId ? { deviceId: { exact: audioInputId } } : true;
       const videoConstraint: MediaTrackConstraints | boolean = mediaType === 'video' ? (videoInputId ? { deviceId: { exact: videoInputId } } : true) : false;
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint, video: videoConstraint });
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint, video: videoConstraint });
       mediaStream.getAudioTracks().forEach((track) => { track.enabled = !micMuted; });
+      const conversation = conversations.find((item) => item.id === conversationId);
+      const isGroup = conversation?.type === 'group' || (conversation?.participants?.length || 0) > 2;
+      if (isGroup) {
+        const state: CallState = {
+          conversationId, peer: null, localStream: mediaStream, remoteStream: null,
+          peers: {}, remoteStreams: {}, acceptedUserIds: options?.initiator === false ? [] : [user.id],
+          group: true, isScreenSharing: false, initiator: options?.initiator ?? true,
+          mediaType, startedAt: Date.now()
+        };
+        callStateRef.current = state;
+        setCallState(state);
+        if (options?.initiator !== false) socketRef.current.emit('call:ring', { conversationId, mediaType });
+        return true;
+      }
       const peer = new SimplePeer({
         initiator: options?.initiator ?? true,
         trickle: false,
         stream: mediaStream
       });
-
       if (options?.initiator !== false) {
         awaitingCallAcceptRef.current = conversationId;
         queuedCallSignalsRef.current = [];
       }
       const state: CallState = {
-        conversationId,
-        peer,
-        localStream: mediaStream,
-        remoteStream: null,
-        isScreenSharing: false,
-        initiator: options?.initiator ?? true,
-        mediaType,
-        startedAt: Date.now()
+        conversationId, peer, localStream: mediaStream, remoteStream: null,
+        isScreenSharing: false, initiator: options?.initiator ?? true,
+        mediaType, startedAt: Date.now()
       };
       callStateRef.current = state;
       setCallState(state);
       if (options?.initiator !== false) socketRef.current.emit('call:ring', { conversationId, mediaType });
-
       peer.on('signal', (payload) => {
         if (awaitingCallAcceptRef.current === conversationId) {
           queuedCallSignalsRef.current.push(payload);
@@ -1070,23 +1143,19 @@ export function MessengerWorkspace({
         }
         socketRef.current?.emit('call:signal', { conversationId, payload });
       });
-
       peer.on('stream', (remoteStream) => {
-        callStateRef.current = callStateRef.current
-          ? { ...callStateRef.current, remoteStream }
-          : null;
+        callStateRef.current = callStateRef.current ? { ...callStateRef.current, remoteStream } : null;
         setCallState((prev) => (prev ? { ...prev, remoteStream } : prev));
       });
-
       peer.on('close', () => endCall());
       peer.on('error', (error) => {
         console.error(error);
         endCall();
       });
-
       if (options?.initialSignal) peer.signal(options.initialSignal);
       return true;
     } catch (error) {
+      mediaStream?.getTracks().forEach((track) => track.stop());
       const mediaError = error as DOMException;
       const message = mediaError?.name === 'NotAllowedError'
         ? 'Разрешите Nexo доступ к микрофону и камере в настройках Windows.'
@@ -1155,8 +1224,10 @@ export function MessengerWorkspace({
     if (notifyRemote) socketRef.current?.emit('call:end', { conversationId: current.conversationId });
     playNexoSound('call-ended');
     current.peer?.destroy();
+    Object.values(current.peers || {}).forEach((peer) => peer.destroy());
     current.localStream?.getTracks().forEach((track) => track.stop());
     current.remoteStream?.getTracks().forEach((track) => track.stop());
+    Object.values(current.remoteStreams || {}).forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
   }
 
   async function toggleCamera() {
@@ -1293,6 +1364,7 @@ export function MessengerWorkspace({
                 onToggleCamera={toggleCamera}
                 audioOutputId={audioOutputId}
                 deafened={deafened}
+                participants={activeConversation.participants}
               />}
               {messageSearchOpen && <div className="message-search-panel">
                 <div className="message-search-input-wrap">
@@ -1854,10 +1926,11 @@ function AttachmentPreview({ attachment }: { attachment: Message['attachment'] |
 }
 
 function CallOverlay({
-  state, peer, currentUser, micMuted = false, onToggleMic, onHangUp, onShareScreen, onToggleCamera, audioOutputId, deafened
+  state, peer, currentUser, micMuted = false, onToggleMic, onHangUp, onShareScreen, onToggleCamera, audioOutputId, deafened, participants = []
 }: {
   state: CallState;
   peer: User | null;
+  participants?: User[];
   currentUser: User;
   micMuted?: boolean;
   onToggleMic?: () => void;
@@ -1881,6 +1954,10 @@ function CallOverlay({
   const [controlsVisible, setControlsVisible] = useState(true);
   const hideControlsTimerRef = useRef<number | null>(null);
   const peerName = peer?.display_name || peer?.username || 'Собеседник';
+  const groupUsers = state.group
+    ? (state.acceptedUserIds || []).filter((id) => id !== currentUser.id).map((id) => participants.find((item) => item.id === id)).filter((item): item is User => Boolean(item))
+    : peer ? [peer] : [];
+  const groupStreams = state.remoteStreams || {};
   const cameraTrack = state.localStream?.getVideoTracks()[0];
   const cameraEnabled = Boolean(cameraTrack?.enabled && !state.isScreenSharing);
   async function toggleFullscreen() {
@@ -1957,11 +2034,23 @@ function CallOverlay({
       initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
       <div className="call-banner-participants">
         <div className="call-banner-person connected"><Avatar user={currentUser} size={64} showStatus /><small>Вы</small></div>
-        <div className={state.remoteStream ? 'call-banner-person connected' : 'call-banner-person pending'}><Avatar user={peer} size={64} showStatus /><small>{peerName}</small></div>
+        {groupUsers.length ? groupUsers.map((participant) => (
+          <div key={participant.id} className={groupStreams[participant.id] ? 'call-banner-person connected' : 'call-banner-person pending'}>
+            <Avatar user={participant} size={64} showStatus /><small>{participant.display_name || participant.username}</small>
+          </div>
+        )) : <div className={state.remoteStream ? 'call-banner-person connected' : 'call-banner-person pending'}><Avatar user={peer} size={64} showStatus /><small>{peerName}</small></div>}
       </div>
-      {state.remoteStream && !state.remoteStream.getVideoTracks().length && <audio ref={remoteAudioRef} className="call-audio-sink" autoPlay playsInline muted={deafened} />}
-      {(state.remoteStream?.getVideoTracks().length || cameraTrack) ? <div className={`call-banner-media ${tileSize}`}>
-        {state.remoteStream?.getVideoTracks().length ? <video ref={remoteVideoRef} autoPlay playsInline muted={deafened} /> : null}
+      {state.group ? Object.entries(groupStreams).map(([id, stream]) => (
+        stream.getVideoTracks().length
+          ? <video key={id} className="call-audio-sink" autoPlay playsInline muted={deafened}
+              ref={(node) => { if (node && node.srcObject !== stream) node.srcObject = stream; }} />
+          : <audio key={id} className="call-audio-sink" autoPlay playsInline muted={deafened}
+              ref={(node) => { if (node && node.srcObject !== stream) node.srcObject = stream; }} />
+      )) : state.remoteStream && !state.remoteStream.getVideoTracks().length && <audio ref={remoteAudioRef} className="call-audio-sink" autoPlay playsInline muted={deafened} />}
+      {(state.remoteStream?.getVideoTracks().length || cameraTrack || Object.values(groupStreams).some((stream) => stream.getVideoTracks().length)) ? <div className={`call-banner-media ${tileSize} ${state.group ? 'group' : ''}`}>
+        {state.group ? Object.entries(groupStreams).filter(([, stream]) => stream.getVideoTracks().length).map(([id, stream]) => (
+          <video key={id} autoPlay playsInline muted={deafened} ref={(node) => { if (node && node.srcObject !== stream) node.srcObject = stream; }} />
+        )) : state.remoteStream?.getVideoTracks().length ? <video ref={remoteVideoRef} autoPlay playsInline muted={deafened} /> : null}
         {cameraTrack && <video ref={localVideoRef} className="call-local-preview" autoPlay playsInline muted />}
       </div> : null}
       <div className="call-banner-controls">
