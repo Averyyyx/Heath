@@ -267,6 +267,7 @@ async function openDm(page, otherName) {
     await pageA.locator('.sidebar-section').filter({ hasText: 'Пространства' }).locator('button[aria-label="Создать пространство"]').click();
     const createSpaceModal = pageA.locator('.modal-panel').filter({ hasText: 'Создать пространство' });
     await createSpaceModal.waitFor({ state: 'visible' });
+    await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await pageA.screenshot({ path: path.join(screenshotDir, 'create-space-light-1440x900.png'), fullPage: false });
     await createSpaceModal.locator('button[aria-label="Закрыть"]').click();
     await serverHead.click();
