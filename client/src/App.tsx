@@ -1506,7 +1506,7 @@ function SidebarSection({ title, count, collapsed, onToggle, action, children }:
 }) {
   return <section className="sidebar-section">
     <header><button type="button" className="sidebar-section-toggle" onClick={onToggle}>
-      {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}<span>{title}</span><small>{count}</small>
+      {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}<span>{title}</span>{count > 0 && <small>{count}</small>}
     </button>{action}</header>
     {!collapsed && <div className="sidebar-section-body">{children}</div>}
   </section>;
