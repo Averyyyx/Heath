@@ -1252,7 +1252,7 @@ export function MessengerWorkspace({
 
   async function toggleCamera() {
     const current = callStateRef.current;
-    if (!current || current.isScreenSharing || !current.peer || !current.localStream) return;
+    if (!current || current.isScreenSharing || !current.localStream) return;
     const existingTrack = current.localStream.getVideoTracks()[0];
     if (existingTrack) {
       existingTrack.enabled = !existingTrack.enabled;
@@ -1270,7 +1270,8 @@ export function MessengerWorkspace({
         return;
       }
       current.localStream.addTrack(track);
-      current.peer.addTrack(track, current.localStream);
+      const peers = current.group ? Object.values(current.peers || {}) : current.peer ? [current.peer] : [];
+      peers.forEach((peer) => peer.addTrack(track, current.localStream!));
       track.addEventListener('ended', () => {
         if (current.localStream?.getTracks().includes(track)) current.localStream.removeTrack(track);
         setCallState((state) => state ? { ...state } : state);
@@ -1283,32 +1284,36 @@ export function MessengerWorkspace({
 
   async function shareScreen() {
     const current = callStateRef.current;
-    if (!current?.peer || !current.localStream || current.isScreenSharing) return;
+    if (!current?.localStream || current.isScreenSharing) return;
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const screenTrack = screenStream.getVideoTracks()[0];
       if (!screenTrack) return;
       const localStream = current.localStream;
       const currentVideo = localStream.getVideoTracks()[0] || null;
-      const peerWithReplace = current.peer as SimplePeer.Instance & {
-        replaceTrack?: (oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack, stream: MediaStream) => void;
+      const peers = current.group ? Object.values(current.peers || {}) : current.peer ? [current.peer] : [];
+      const replaceTrack = (peer: SimplePeer.Instance, oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack) => {
+        const compatible = peer as SimplePeer.Instance & {
+          replaceTrack?: (previousTrack: MediaStreamTrack, nextTrack: MediaStreamTrack, stream: MediaStream) => void;
+        };
+        compatible.replaceTrack?.(oldTrack, newTrack, localStream);
       };
       if (currentVideo) {
         localStream.removeTrack(currentVideo);
         localStream.addTrack(screenTrack);
-        peerWithReplace.replaceTrack?.(currentVideo, screenTrack, localStream);
+        peers.forEach((peer) => replaceTrack(peer, currentVideo, screenTrack));
       } else {
         localStream.addTrack(screenTrack);
-        current.peer.addTrack(screenTrack, localStream);
+        peers.forEach((peer) => peer.addTrack(screenTrack, localStream));
       }
       setCallState((prev) => (prev ? { ...prev, isScreenSharing: true } : prev));
       screenTrack.onended = () => {
         if (localStream.getTracks().includes(screenTrack)) localStream.removeTrack(screenTrack);
         if (currentVideo) {
           localStream.addTrack(currentVideo);
-          peerWithReplace.replaceTrack?.(screenTrack, currentVideo, localStream);
+          peers.forEach((peer) => replaceTrack(peer, screenTrack, currentVideo));
         } else {
-          try { current.peer?.removeTrack(screenTrack, localStream); } catch {}
+          peers.forEach((peer) => { try { peer.removeTrack(screenTrack, localStream); } catch {} });
         }
         setCallState((prev) => (prev ? { ...prev, isScreenSharing: false } : prev));
       };
