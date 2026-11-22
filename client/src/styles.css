@@ -3032,6 +3032,8 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .call-banner-media .call-audio-sink { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .call-banner-media .call-local-preview { position: absolute; right: 6px; bottom: 6px; width: 64px; height: 44px; border: 1px solid var(--border); border-radius: 7px; object-fit: cover; }
 .call-banner-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 5px; }
+.call-banner-controls { transition: opacity 160ms ease, transform 160ms ease; }
+.call-overlay.controls-hidden .call-banner-controls { opacity: 0; pointer-events: none; transform: translateY(8px); }
 .call-control { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--text); cursor: pointer; transition: background .12s ease, color .12s ease, border-color .12s ease; }
 .call-control:hover { background: var(--surface-hover); }
 .call-control.danger { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); background: var(--danger-soft); color: var(--danger); }
