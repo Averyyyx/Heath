@@ -243,7 +243,15 @@ async function openDm(page, otherName) {
     for (const page of [pageA, pageB, pageC]) {
       await page.waitForFunction(() => document.querySelectorAll('.call-banner-person.connected').length >= 2, null, { timeout: 30000 });
     }
+    await Promise.all([
+      pageA.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }),
+      pageB.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }),
+      pageC.evaluate(() => { document.documentElement.dataset.theme = 'dark'; })
+    ]);
     await pageA.screenshot({ path: path.join(screenshotDir, 'group-call-three-participants-dark-1440x900.png'), fullPage: false });
+    await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
+    await pageA.screenshot({ path: path.join(screenshotDir, 'group-call-three-participants-light-1440x900.png'), fullPage: false });
+    await pageA.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
     await pageA.locator('.call-hangup').click();
     await Promise.all([
       pageA.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 }),
