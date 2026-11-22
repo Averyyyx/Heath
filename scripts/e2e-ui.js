@@ -3,13 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const baseUrl = process.env.NEXO_E2E_URL || 'http://127.0.0.1:4000';
-const emailA = process.env.NEXO_E2E_EMAIL;
-const passwordA = process.env.NEXO_E2E_PASSWORD;
 const screenshotDir = process.env.NEXO_E2E_SCREENSHOT_DIR || path.resolve('artifacts/e2e-ui');
-
-if (!emailA || !passwordA) {
-  throw new Error('Set NEXO_E2E_EMAIL and NEXO_E2E_PASSWORD for the seeded developer account.');
-}
 
 async function expectOk(response, label) {
   if (!response.ok()) {
@@ -36,19 +30,32 @@ async function openDm(page, otherName) {
 (async () => {
   fs.mkdirSync(screenshotDir, { recursive: true });
   const suffix = Date.now().toString().slice(-9);
-  const emailB = 'nexo-e2e-' + suffix + '@example.test';
+  const emailA = 'nexo-e2e-host-' + suffix + '@example.test';
+  const emailB = 'nexo-e2e-guest-' + suffix + '@example.test';
+  const passwordA = 'R8#tK5!mQ2@xP7$zV4';
   const passwordB = 'C7!qR4#zP9@tL2$wM8&x';
+  const handleA = 'e2ehost' + suffix;
   const handleB = 'e2e' + suffix;
+  const displayNameA = 'Nexo E2E Host';
   const displayNameB = 'Nexo E2E Guest';
   const apiA = await request.newContext({ baseURL: baseUrl });
   const apiB = await request.newContext({ baseURL: baseUrl });
   let browser;
 
   try {
-    const loginA = await expectOk(await apiA.post('/api/auth/login', {
+    const registeredA = await expectOk(await apiA.post('/api/auth/register', {
       data: { email: emailA, password: passwordA, remember: true }
-    }), 'Developer account login');
-    const userA = loginA.user;
+    }), 'First test account registration');
+    const profileA = await expectOk(await apiA.post('/api/profile', {
+      data: {
+        displayName: displayNameA,
+        username: handleA,
+        bio: 'Temporary Playwright account',
+        avatarColor: '#D97757',
+        avatarPreset: 1
+      }
+    }), 'First test account profile setup');
+    const userA = profileA.user || registeredA.user;
 
     const registeredB = await expectOk(await apiB.post('/api/auth/register', {
       data: { email: emailB, password: passwordB, remember: true }
