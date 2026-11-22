@@ -206,7 +206,12 @@ export function MessengerWorkspace({
       callWasActiveRef.current = true;
       window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: {
         active: true, conversationId: callState.conversationId,
-        title: conversations.find((conversation) => conversation.id === callState.conversationId)?.counterpart?.display_name || conversations.find((conversation) => conversation.id === callState.conversationId)?.counterpart?.username || 'Личный звонок',
+        title: (() => {
+          const conversation = conversations.find((item) => item.id === callState.conversationId);
+          const isGroup = callState.group || conversation?.type === 'group' || (conversation?.participants?.length || 0) > 2;
+          return isGroup ? conversation?.title || 'Групповой звонок' : conversation?.counterpart?.display_name || conversation?.counterpart?.username || 'Личный звонок';
+        })(),
+        group: Boolean(callState.group || conversations.find((item) => item.id === callState.conversationId)?.type === 'group' || (conversations.find((item) => item.id === callState.conversationId)?.participants?.length || 0) > 2),
         startedAt: callState.startedAt
       } }));
     } else if (callWasActiveRef.current) {
