@@ -1236,7 +1236,9 @@ export default function App() {
                         onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openDmTab(conversation, true); } }}
                         onContextMenu={(event) => contextTargetClick(event, item)}>
                         <Avatar user={person} size={27} showStatus />
-                        <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>Откройте, чтобы продолжить разговор</small></span>
+                        <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>{conversation.last_message
+                          ? `${conversation.last_message.author.id === user.id ? 'Вы: ' : ''}${conversation.last_message.content?.trim() || (conversation.last_message.attachment ? (conversation.last_message.attachment.mime.startsWith('image/') ? 'Фото' : `Файл: ${conversation.last_message.attachment.name}`) : 'Сообщение')}`
+                          : 'Нет сообщений'}</small></span>
                         {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge" data-tooltip={`${unreadDmCounts[conversation.id]} новых сообщений`}>{unreadDmCounts[conversation.id] > 99 ? '99+' : unreadDmCounts[conversation.id]}</span>}
                         {unreadDmMentionCounts[conversation.id] > 0 && <span className="sidebar-mention-badge" data-tooltip={`${unreadDmMentionCounts[conversation.id]} упоминаний`}>@{unreadDmMentionCounts[conversation.id] > 99 ? '99+' : unreadDmMentionCounts[conversation.id]}</span>}
                       </button>;
