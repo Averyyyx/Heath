@@ -176,6 +176,7 @@ export function MessengerWorkspace({
   const pendingIncomingSignalRef = useRef<SignalData | null>(null);
   const awaitingCallAcceptRef = useRef<number | null>(null);
   const queuedCallSignalsRef = useRef<SignalData[]>([]);
+  const pendingGroupSignalsRef = useRef<Record<number, Array<{ from: number; payload: SignalData }>>>({});
   const callStateRef = useRef<CallState | null>(null);
   const previousChannelRef = useRef<number | null>(null);
   const typingTimerRef = useRef<number | null>(null);
@@ -288,8 +289,14 @@ export function MessengerWorkspace({
     const onCallSignal = ({ conversationId, from, payload }: { conversationId: number; from: number; payload: SignalData }) => {
       const current = callStateRef.current;
       if (current?.conversationId !== conversationId) return;
-      if (current.group) current.peers?.[from]?.signal(payload);
-      else current.peer?.signal(payload);
+      if (current.group) {
+        const targetPeer = current.peers?.[from];
+        if (targetPeer) targetPeer.signal(payload);
+        else {
+          const pending = pendingGroupSignalsRef.current[conversationId] || [];
+          if (pending.length < 32) pendingGroupSignalsRef.current[conversationId] = [...pending, { from, payload }];
+        }
+      } else current.peer?.signal(payload);
     };
     const onCallAccept = ({ conversationId, mediaType, acceptedParticipants }: {
       conversationId: number; mediaType?: 'audio' | 'video'; acceptedParticipants?: number[]
@@ -316,9 +323,15 @@ export function MessengerWorkspace({
       queued.forEach((payload) => socket.emit('call:signal', { conversationId, payload }));
       playNexoSound('call-accepted');
     };
-    const onCallReject = ({ conversationId }: { conversationId: number }) => {
+    const onCallReject = ({ conversationId, from }: { conversationId: number; from?: number }) => {
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
-      if (callStateRef.current?.conversationId === conversationId) endCall(false);
+      const current = callStateRef.current;
+      if (current?.conversationId === conversationId && current.group) {
+        const declined = conversations.find((item) => item.id === conversationId)?.participants.find((item) => item.id === from);
+        setCallError((declined?.display_name || declined?.username || 'Участник') + ' отклонил приглашение.');
+        return;
+      }
+      if (current?.conversationId === conversationId) endCall(false);
     };
     const onCallError = ({ conversationId, message }: { conversationId: number; message: string }) => {
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
@@ -1054,6 +1067,12 @@ export function MessengerWorkspace({
       });
       peers[remoteId] = peer;
       changed = true;
+      const queued = pendingGroupSignalsRef.current[conversationId] || [];
+      const matchingSignals = queued.filter((signal) => signal.from === remoteId);
+      if (matchingSignals.length) {
+        pendingGroupSignalsRef.current[conversationId] = queued.filter((signal) => signal.from !== remoteId);
+        matchingSignals.forEach((signal) => peer.signal(signal.payload));
+      }
       peer.on('signal', (payload) => {
         socketRef.current?.emit('call:signal', { conversationId, to: remoteId, payload });
       });
@@ -1219,6 +1238,7 @@ export function MessengerWorkspace({
     if (!current) return;
     if (awaitingCallAcceptRef.current === current.conversationId) awaitingCallAcceptRef.current = null;
     queuedCallSignalsRef.current = [];
+    delete pendingGroupSignalsRef.current[current.conversationId];
     callStateRef.current = null;
     setCallState(null);
     if (notifyRemote) socketRef.current?.emit('call:end', { conversationId: current.conversationId });
@@ -2008,9 +2028,12 @@ function CallOverlay({
     if (remoteAudioRef.current && state.remoteStream) remoteAudioRef.current.srcObject = state.remoteStream;
   }, [state.remoteStream]);
   useEffect(() => {
-    const output = (remoteAudioRef.current || remoteVideoRef.current) as (HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> }) | null;
-    if (output?.setSinkId && audioOutputId) void output.setSinkId(audioOutputId).catch((error) => console.warn('Audio output selection failed:', error));
-  }, [audioOutputId, state.remoteStream]);
+    const media = overlayRef.current?.querySelectorAll('audio, video') || [];
+    media.forEach((element) => {
+      const output = element as HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
+      if (output.setSinkId && audioOutputId) void output.setSinkId(audioOutputId).catch((error) => console.warn('Audio output selection failed:', error));
+    });
+  }, [audioOutputId, state.remoteStream, state.remoteStreams]);
 
   useEffect(() => {
     if (remoteAudioRef.current) remoteAudioRef.current.volume = remoteVolume;
