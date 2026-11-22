@@ -3501,3 +3501,24 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 .call-more-popover .nexo-select { min-height: 32px; background: #302d2b; color: #f4f0e9; }
 .call-banner-media.compact { max-height: 100px; }
 .call-banner-media.large { max-height: 180px; }
+
+
+/* Group DM mesh calls: each accepted participant gets an independent video tile. */
+.call-banner-participants { flex-wrap: wrap; max-width: 100%; }
+.call-banner-media.group {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 4px;
+}
+.call-banner-media.group > video:not(.call-local-preview) {
+  min-width: 120px;
+  max-width: 48%;
+  flex: 1 1 180px;
+  border-radius: 9px;
+  background: #090909;
+}
