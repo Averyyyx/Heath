@@ -1878,6 +1878,8 @@ function CallOverlay({
   const [noiseSuppression, setNoiseSuppression] = useState(true);
   const [tileSize, setTileSize] = useState<'compact' | 'comfortable' | 'large'>('comfortable');
   const [clock, setClock] = useState(Date.now());
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideControlsTimerRef = useRef<number | null>(null);
   const peerName = peer?.display_name || peer?.username || 'Собеседник';
   const cameraTrack = state.localStream?.getVideoTracks()[0];
   const cameraEnabled = Boolean(cameraTrack?.enabled && !state.isScreenSharing);
@@ -1897,6 +1899,26 @@ function CallOverlay({
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (!fullscreen) {
+      setControlsVisible(true);
+      if (hideControlsTimerRef.current !== null) window.clearTimeout(hideControlsTimerRef.current);
+      hideControlsTimerRef.current = null;
+      return;
+    }
+    setControlsVisible(true);
+    hideControlsTimerRef.current = window.setTimeout(() => setControlsVisible(false), 3000);
+    return () => {
+      if (hideControlsTimerRef.current !== null) window.clearTimeout(hideControlsTimerRef.current);
+      hideControlsTimerRef.current = null;
+    };
+  }, [fullscreen]);
+
+  function revealCallControls() {
+    setControlsVisible(true);
+    if (hideControlsTimerRef.current !== null) window.clearTimeout(hideControlsTimerRef.current);
+    if (fullscreen) hideControlsTimerRef.current = window.setTimeout(() => setControlsVisible(false), 3000);
+  }
   useEffect(() => {
     state.localStream?.getAudioTracks().forEach((track) => { void track.applyConstraints({ noiseSuppression }).catch(() => {}); });
   }, [state.localStream, noiseSuppression]);
@@ -1930,7 +1952,8 @@ function CallOverlay({
   );
 
   return (
-    <motion.section className="call-overlay"
+    <motion.section ref={overlayRef} className={`call-overlay ${fullscreen && !controlsVisible ? 'controls-hidden' : ''}`}
+      onMouseMove={revealCallControls} onPointerDown={revealCallControls}
       initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
       <div className="call-banner-participants">
         <div className="call-banner-person connected"><Avatar user={currentUser} size={64} showStatus /><small>Вы</small></div>
@@ -1947,7 +1970,7 @@ function CallOverlay({
             {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
           </button>
           <button type="button" className={cameraEnabled ? 'call-control' : 'call-control danger'} onClick={onToggleCamera}
-            disabled={!cameraTrack || state.isScreenSharing} data-tooltip={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'} aria-label={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'}>
+            disabled={state.isScreenSharing} data-tooltip={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'} aria-label={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'}>
             {cameraEnabled ? <Camera size={17} /> : <CameraOff size={17} />}
           </button>
         </div>
