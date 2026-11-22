@@ -167,7 +167,24 @@ async function openDm(page, otherName) {
 
     const serverHead = pageA.locator('.sidebar-server-head').filter({ hasText: serverName }).first();
     await serverHead.waitFor({ state: 'visible', timeout: 15000 });
+    await pageA.locator('.sidebar-section').filter({ hasText: 'Пространства' }).locator('button[aria-label="Создать пространство"]').click();
+    const createSpaceModal = pageA.locator('.modal-panel').filter({ hasText: 'Новое пространство' });
+    await createSpaceModal.waitFor({ state: 'visible' });
+    await pageA.screenshot({ path: path.join(screenshotDir, 'create-space-light-1440x900.png'), fullPage: false });
+    await createSpaceModal.locator('button[aria-label="Закрыть"]').click();
     await serverHead.click();
+    await serverHead.click({ button: 'right' });
+    await pageA.locator('.nexo-context-menu').getByRole('button', { name: 'Создать канал' }).click();
+    const createChannelModal = pageA.locator('.modal-panel').filter({ hasText: 'Создать канал' });
+    await createChannelModal.waitFor({ state: 'visible' });
+    await pageA.screenshot({ path: path.join(screenshotDir, 'create-channel-light-1440x900.png'), fullPage: false });
+    await createChannelModal.locator('button[aria-label="Закрыть"]').click();
+    await pageA.locator('.sidebar-row.channel-row').filter({ hasText: 'e2e-chat' }).click({ button: 'right' });
+    await pageA.locator('.nexo-context-menu').getByRole('button', { name: 'Настройки канала' }).click();
+    const channelSettingsModal = pageA.locator('.modal-panel').filter({ hasText: 'Настройки канала' });
+    await channelSettingsModal.waitFor({ state: 'visible' });
+    await pageA.screenshot({ path: path.join(screenshotDir, 'channel-settings-light-1440x900.png'), fullPage: false });
+    await channelSettingsModal.locator('button[aria-label="Закрыть"]').click();
     await pageA.locator('.voice-channel-row').filter({ hasText: 'voice-lobby' }).click();
     await pageA.locator('.active-voice-panel').waitFor({ state: 'visible', timeout: 20000 });
     await pageA.locator('.voice-room').waitFor({ state: 'visible', timeout: 20000 });
