@@ -34,9 +34,10 @@ if (!email || !password) {
           const dock = document.querySelector('.sidebar-user-area');
           const card = document.querySelector('.nexo-user-dock');
           const actions = document.querySelectorAll('.nexo-user-dock .dock-actions > button');
+          const zoom = Number(document.body.style.zoom) || 1;
           return {
-            bottom: dock?.getBoundingClientRect().bottom ?? Infinity,
-            height: card?.getBoundingClientRect().height ?? 0,
+            bottom: (dock?.getBoundingClientRect().bottom ?? Infinity) / zoom,
+            height: card?.offsetHeight ?? 0,
             buttons: actions.length,
             viewport: window.innerHeight
           };
