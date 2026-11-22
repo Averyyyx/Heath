@@ -82,6 +82,7 @@ type ChannelMessageStore = Record<number, ChannelMessage[]>;
 type CallState = {
   conversationId: number;
   peer: SimplePeer.Instance | null;
+  peerUserId?: number;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   peers?: Record<number, SimplePeer.Instance>;
@@ -297,7 +298,7 @@ export function MessengerWorkspace({
           const pending = pendingGroupSignalsRef.current[conversationId] || [];
           if (pending.length < 32) pendingGroupSignalsRef.current[conversationId] = [...pending, { from, payload }];
         }
-      } else current.peer?.signal(payload);
+      } else if (!current.peerUserId || current.peerUserId === from) current.peer?.signal(payload);
     };
     const onCallAccept = ({ conversationId, mediaType, acceptedParticipants }: {
       conversationId: number; mediaType?: 'audio' | 'video'; acceptedParticipants?: number[]
@@ -1159,6 +1160,7 @@ export function MessengerWorkspace({
         if (options?.initiator !== false) socketRef.current.emit('call:ring', { conversationId, mediaType });
         return true;
       }
+      const peerUserId = conversation?.participants?.find((participant) => participant.id !== user.id)?.id ?? conversation?.counterpart?.id;
       const peer = new SimplePeer({
         initiator: options?.initiator ?? true,
         trickle: false,
@@ -1169,7 +1171,7 @@ export function MessengerWorkspace({
         queuedCallSignalsRef.current = [];
       }
       const state: CallState = {
-        conversationId, peer, localStream: mediaStream, remoteStream: null,
+        conversationId, peer, peerUserId, localStream: mediaStream, remoteStream: null,
         isScreenSharing: false, initiator: options?.initiator ?? true,
         mediaType, startedAt: Date.now()
       };
@@ -1181,7 +1183,7 @@ export function MessengerWorkspace({
           queuedCallSignalsRef.current.push(payload);
           return;
         }
-        socketRef.current?.emit('call:signal', { conversationId, payload });
+        socketRef.current?.emit('call:signal', { conversationId, to: peerUserId, payload });
       });
       peer.on('stream', (remoteStream) => {
         callStateRef.current = callStateRef.current ? { ...callStateRef.current, remoteStream } : null;
