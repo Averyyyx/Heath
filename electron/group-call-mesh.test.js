@@ -21,6 +21,12 @@ test('group DM WebRTC signaling is addressed to a single accepted participant', 
   assert.match(client, /socketRef\.current\?\.emit\('call:signal',\s*\{\s*conversationId,\s*to:\s*remoteId,\s*payload\s*\}\)/);
 });
 
+test('one-to-one calls address the peer and reflect the received remote stream', () => {
+  assert.match(client, /const peerUserId = conversation\?\.participants\?\.find/);
+  assert.match(client, /emit\('call:signal', \{ conversationId, to: peerUserId, payload \}\)/);
+  assert.match(client, /\{state\.group \? groupUsers\.map/);
+});
+
 test('every accepted group participant creates one deterministic peer per other participant', () => {
   assert.match(client, /function ensureGroupPeers\(conversationId: number, acceptedUserIds: number\[\]\)/);
   assert.match(client, /initiator:\s*user\.id\s*<\s*remoteId/);
