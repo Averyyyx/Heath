@@ -1,79 +1,212 @@
-const { chromium } = require('playwright');
+const { chromium, request } = require('playwright');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const baseUrl = process.env.NEXO_E2E_URL || 'http://127.0.0.1:4000';
-const email = process.env.NEXO_E2E_EMAIL;
-const password = process.env.NEXO_E2E_PASSWORD;
+const emailA = process.env.NEXO_E2E_EMAIL;
+const passwordA = process.env.NEXO_E2E_PASSWORD;
 const screenshotDir = process.env.NEXO_E2E_SCREENSHOT_DIR || path.resolve('artifacts/e2e-ui');
 
-if (!email || !password) {
-  throw new Error('Set NEXO_E2E_EMAIL and NEXO_E2E_PASSWORD for the seeded test account.');
+if (!emailA || !passwordA) {
+  throw new Error('Set NEXO_E2E_EMAIL and NEXO_E2E_PASSWORD for the seeded developer account.');
+}
+
+async function expectOk(response, label) {
+  if (!response.ok()) {
+    throw new Error(label + ' failed (' + response.status() + '): ' + (await response.text()).slice(0, 1000));
+  }
+  return response.json();
+}
+
+async function loginPage(page, email, password) {
+  await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').first().fill(password);
+  await page.locator('form').filter({ has: page.locator('input[type="email"]') }).locator('button[type="submit"]').click();
+  await page.locator('.nexo-user-dock').waitFor({ state: 'visible', timeout: 30000 });
+}
+
+async function openDm(page, otherName) {
+  const row = page.locator('.sidebar-row').filter({ hasText: otherName }).first();
+  await row.waitFor({ state: 'visible', timeout: 20000 });
+  await row.click();
+  await page.locator('.chat-header').waitFor({ state: 'visible', timeout: 15000 });
 }
 
 (async () => {
   fs.mkdirSync(screenshotDir, { recursive: true });
-  const browser = await chromium.launch({
-    headless: true,
-    args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']
-  });
+  const suffix = Date.now().toString().slice(-9);
+  const emailB = 'nexo-e2e-' + suffix + '@example.test';
+  const passwordB = 'C7!qR4#zP9@tL2$wM8&x';
+  const handleB = 'e2e' + suffix;
+  const displayNameB = 'Nexo E2E Guest';
+  const apiA = await request.newContext({ baseURL: baseUrl });
+  const apiB = await request.newContext({ baseURL: baseUrl });
+  let browser;
+
   try {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-    await page.locator('input[type="email"]').fill(email);
-    await page.locator('input[type="password"]').first().fill(password);
-    await page.locator('form').filter({ has: page.locator('input[type="email"]') }).locator('button[type="submit"]').click();
-    await page.locator('.nexo-user-dock').waitFor({ state: 'visible', timeout: 30000 });
+    const loginA = await expectOk(await apiA.post('/api/auth/login', {
+      data: { email: emailA, password: passwordA, remember: true }
+    }), 'Developer account login');
+    const userA = loginA.user;
+
+    const registeredB = await expectOk(await apiB.post('/api/auth/register', {
+      data: { email: emailB, password: passwordB, remember: true }
+    }), 'Second test account registration');
+    const profileB = await expectOk(await apiB.post('/api/profile', {
+      data: {
+        displayName: displayNameB,
+        username: handleB,
+        bio: 'Temporary Playwright account',
+        avatarColor: '#D97757',
+        avatarPreset: 2
+      }
+    }), 'Second test account profile setup');
+    const userB = profileB.user || registeredB.user;
+
+    const friendRequest = await expectOk(await apiA.post('/api/friends/request', {
+      data: { username: userB.username }
+    }), 'Friend request');
+    await expectOk(await apiB.post('/api/friends/respond', {
+      data: { requestId: friendRequest.request.id, action: 'accept' }
+    }), 'Friend request acceptance');
+
+    await expectOk(await apiA.post('/api/conversations/dm', {
+      data: { username: userB.username }
+    }), 'Direct conversation creation');
+
+    const serverResult = await expectOk(await apiA.post('/api/servers', {
+      data: { name: 'E2E Space ' + suffix, description: 'Temporary Playwright voice-channel test space' }
+    }), 'Test server creation');
+    const server = serverResult.server;
+    const channelResult = await expectOk(await apiA.post('/api/servers/' + server.id + '/channels', {
+      data: { name: 'voice-lobby', type: 'voice', userLimit: 8 }
+    }), 'Voice channel creation');
+    const channelList = await expectOk(await apiA.get('/api/servers/' + server.id + '/channels'), 'Voice channel list');
+    const voiceChannel = channelList.channels.find((channel) => channel.type === 'voice' && channel.name === 'voice-lobby');
+    if (!voiceChannel) throw new Error('The created voice channel was not returned by the server.');
+    const serverName = channelResult.server?.name || server.name;
+
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']
+    });
+    const contextA = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      deviceScaleFactor: 1,
+      permissions: ['microphone', 'camera']
+    });
+    const contextB = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      deviceScaleFactor: 1,
+      permissions: ['microphone', 'camera']
+    });
+    const pageA = await contextA.newPage();
+    const pageB = await contextB.newPage();
+
+    await Promise.all([
+      loginPage(pageA, emailA, passwordA),
+      loginPage(pageB, emailB, passwordB)
+    ]);
+
+    await Promise.all([
+      openDm(pageA, userB.display_name || userB.username),
+      openDm(pageB, userA.display_name || userA.username)
+    ]);
+
+    await pageA.locator('.chat-header .chat-actions button').filter({ hasText: 'Голос' }).click();
+    await pageB.locator('.incoming-call-card').waitFor({ state: 'visible', timeout: 20000 });
+    await pageA.locator('.call-overlay').waitFor({ state: 'visible', timeout: 15000 });
+    if (await pageA.locator('.call-banner-person.pending').count() < 1) {
+      throw new Error('The caller did not show the remote participant as pending before acceptance.');
+    }
+    await pageB.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
+    await pageB.screenshot({ path: path.join(screenshotDir, 'incoming-call-light-1440x900.png'), fullPage: false });
+    await pageB.locator('.incoming-call-actions .call-accept').click();
+    await pageA.locator('.call-banner-person.connected').nth(1).waitFor({ state: 'visible', timeout: 30000 });
+    await pageB.locator('.call-banner-person.connected').nth(1).waitFor({ state: 'visible', timeout: 30000 });
+    if (await pageA.locator('.call-banner-controls .call-control-group').count() !== 2) {
+      throw new Error('The connected call does not show both control groups.');
+    }
+    if (await pageA.locator('.call-banner-controls .call-hangup').count() !== 1) {
+      throw new Error('The connected call does not show its separate hang-up control.');
+    }
+    await pageA.screenshot({ path: path.join(screenshotDir, 'call-connected-dark-1440x900.png'), fullPage: false });
+    await pageA.locator('.call-hangup').click();
+    await pageA.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 });
+    await pageB.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 });
+
+    const serverHead = pageA.locator('.sidebar-server-head').filter({ hasText: serverName }).first();
+    await serverHead.waitFor({ state: 'visible', timeout: 15000 });
+    await serverHead.click();
+    await pageA.locator('.voice-channel-row').filter({ hasText: 'voice-lobby' }).click();
+    await pageA.locator('.active-voice-panel').waitFor({ state: 'visible', timeout: 20000 });
+    await pageA.locator('.voice-room').waitFor({ state: 'visible', timeout: 20000 });
+    if (await pageA.locator('.sidebar-voice-member').count() < 1) {
+      throw new Error('The joined user is missing from the voice channel participant list.');
+    }
+    await pageA.screenshot({ path: path.join(screenshotDir, 'voice-channel-dark-1440x900.png'), fullPage: false });
+    await pageA.locator('.voice-room-hangup').click();
+    await pageA.locator('.active-voice-panel').waitFor({ state: 'hidden', timeout: 15000 });
 
     for (const height of [700, 768, 800, 900, 1080]) {
       for (const zoom of [1, 1.25, 1.5]) {
-        await page.setViewportSize({ width: 1440, height });
-        await page.evaluate((factor) => { document.body.style.zoom = String(factor); }, zoom);
-        await page.waitForTimeout(100);
-        const metrics = await page.evaluate(() => {
+        await pageA.setViewportSize({ width: 1440, height });
+        await pageA.evaluate((factor) => { document.body.style.zoom = String(factor); }, zoom);
+        await pageA.waitForTimeout(100);
+        const metrics = await pageA.evaluate(() => {
           const dock = document.querySelector('.sidebar-user-area');
           const card = document.querySelector('.nexo-user-dock');
           const actions = document.querySelectorAll('.nexo-user-dock .dock-actions > button');
-          const zoom = Number(document.body.style.zoom) || 1;
+          const zoomFactor = Number(document.body.style.zoom) || 1;
           return {
-            bottom: (dock?.getBoundingClientRect().bottom ?? Infinity) / zoom,
+            bottom: (dock?.getBoundingClientRect().bottom ?? Infinity) / zoomFactor,
             height: card?.offsetHeight ?? 0,
             buttons: actions.length,
             viewport: window.innerHeight
           };
         });
-        if (metrics.bottom > metrics.viewport + 1) throw new Error(`Dock overflow at ${height}px / ${zoom * 100}%: ${JSON.stringify(metrics)}`);
-        if (metrics.buttons !== 3) throw new Error(`Expected three dock actions: ${JSON.stringify(metrics)}`);
-        if (Math.abs(metrics.height - 52) > 2) throw new Error(`Unexpected dock height: ${JSON.stringify(metrics)}`);
+        if (metrics.bottom > metrics.viewport + 1) throw new Error('Dock overflow at ' + height + 'px / ' + (zoom * 100) + '%: ' + JSON.stringify(metrics));
+        if (metrics.buttons !== 3) throw new Error('Expected three dock actions: ' + JSON.stringify(metrics));
+        if (Math.abs(metrics.height - 52) > 2) throw new Error('Unexpected dock height: ' + JSON.stringify(metrics));
       }
     }
 
-    await page.evaluate(() => { document.body.style.zoom = '1'; });
-    await page.locator('.dock-user .nexo-avatar').click();
-    if (await page.locator('.dock-account-menu, .dock-menu-profile').count()) {
+    await pageA.evaluate(() => { document.body.style.zoom = '1'; });
+    await pageA.locator('.dock-user').click();
+    if (await pageA.locator('.dock-account-menu, .dock-menu-profile').count()) {
       throw new Error('Legacy account menu is still present.');
     }
 
-    const unstyledFields = await page.locator('input:not(.nexo-input):not([type="hidden"]), select:not(.nexo-select), textarea:not(.nexo-textarea)').evaluateAll((nodes) =>
+    await pageA.locator('.nexo-user-dock button[aria-label="Настройки"]').click();
+    await pageA.waitForTimeout(250);
+    await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
+    await pageA.screenshot({ path: path.join(screenshotDir, 'settings-light-1440x900.png'), fullPage: false });
+
+    const unstyledFields = await pageA.locator('input:not(.nexo-input):not([type="hidden"]), select:not(.nexo-select), textarea:not(.nexo-textarea)').evaluateAll((nodes) =>
       nodes.map((node) => ({ tag: node.tagName, type: node.getAttribute('type'), className: node.className }))
     );
-    if (unstyledFields.length) throw new Error(`Found form controls outside the shared UI field styles: ${JSON.stringify(unstyledFields)}`);
+    if (unstyledFields.length) throw new Error('Found form controls outside the shared UI field styles: ' + JSON.stringify(unstyledFields));
 
     for (const theme of ['light', 'dark']) {
-      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      await pageA.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
       for (const height of [768, 900]) {
-        await page.setViewportSize({ width: 1440, height });
-        await page.waitForTimeout(120);
-        await page.screenshot({
-          path: path.join(screenshotDir, `workspace-${theme}-1440x${height}.png`),
+        await pageA.setViewportSize({ width: 1440, height });
+        await pageA.waitForTimeout(120);
+        await pageA.screenshot({
+          path: path.join(screenshotDir, 'workspace-' + theme + '-1440x' + height + '.png'),
           fullPage: false
         });
       }
     }
 
-    console.log(`Dock, shared form-control, and workspace screenshot checks passed. Screenshots: ${screenshotDir}`);
+    console.log('Two-account DM call, voice-channel join/leave, dock, form-control, and workspace screenshot checks passed. Screenshots: ' + screenshotDir);
+    await contextA.close();
+    await contextB.close();
   } finally {
-    await browser.close();
+    await browser?.close();
+    await apiA.dispose();
+    await apiB.dispose();
   }
 })().catch((error) => {
   console.error(error);
