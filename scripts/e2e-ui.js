@@ -96,7 +96,7 @@ async function openDm(page, otherName) {
 
     browser = await chromium.launch({
       headless: true,
-      args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']
+      args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--disable-features=WebRtcHideLocalIpsWithMdns']
     });
     const contextA = await browser.newContext({
       viewport: { width: 1440, height: 900 },
@@ -119,6 +119,16 @@ async function openDm(page, otherName) {
       loginPage(pageA, emailA, passwordA),
       loginPage(pageB, emailB, passwordB)
     ]);
+    const mediaCheck = await pageB.evaluate(async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, name: error.name, message: error.message };
+      }
+    });
+    if (!mediaCheck.ok) throw new Error('Fake microphone is unavailable in Playwright: ' + JSON.stringify(mediaCheck));
 
     await Promise.all([
       openDm(pageA, userB.display_name || userB.username),
