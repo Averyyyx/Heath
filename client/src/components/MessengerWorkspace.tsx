@@ -300,8 +300,8 @@ export function MessengerWorkspace({
         }
       } else if (!current.peerUserId || current.peerUserId === from) current.peer?.signal(payload);
     };
-    const onCallAccept = ({ conversationId, from, mediaType, acceptedParticipants }: {
-      conversationId: number; from?: number; mediaType?: 'audio' | 'video'; acceptedParticipants?: number[]
+    const onCallAccept = ({ conversationId, mediaType, acceptedParticipants }: {
+      conversationId: number; mediaType?: 'audio' | 'video'; acceptedParticipants?: number[]
     }) => {
       const groupCall = callStateRef.current;
       if (groupCall?.conversationId === conversationId && groupCall.group && acceptedParticipants) {
