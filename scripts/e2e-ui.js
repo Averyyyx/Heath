@@ -241,7 +241,7 @@ async function openDm(page, otherName) {
       pageC.locator('.call-overlay').waitFor({ state: 'visible', timeout: 15000 })
     ]);
     for (const page of [pageA, pageB, pageC]) {
-      await page.waitForFunction(() => document.querySelectorAll('.call-banner-person.connected').length >= 2, null, { timeout: 30000 });
+      await page.waitForFunction(() => document.querySelectorAll('.call-banner-person.connected').length >= 3, null, { timeout: 30000 });
     }
     await Promise.all([
       pageA.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }),
