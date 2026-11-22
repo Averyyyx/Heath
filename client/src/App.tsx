@@ -1234,13 +1234,15 @@ export default function App() {
                     action={<button type="button" className="ghost-icon" aria-label="Новое сообщение" data-tooltip="Новое сообщение" onClick={() => openPalette('new-message')}><Plus size={14} /></button>}>
                     {conversations.map((conversation) => {
                       const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
-                      const item: SidebarPin = { id: `dm:${conversation.id}`, kind: 'dm', title: person?.display_name || person?.username || 'Диалог', targetId: conversation.id };
+                      const isGroupConversation = conversation.type === 'group' || conversation.participants.length > 2;
+                      const conversationTitle = isGroupConversation ? conversation.title || 'Групповой диалог' : person?.display_name || person?.username || 'Диалог';
+                      const item: SidebarPin = { id: `dm:${conversation.id}`, kind: 'dm', title: conversationTitle, targetId: conversation.id };
                       return <button type="button" key={conversation.id} className={`sidebar-row ${activeTabId === item.id ? 'active' : ''} ${unreadDmCounts[conversation.id] ? 'has-unread' : ''} ${unreadDmMentionCounts[conversation.id] ? 'has-mention' : ''}`}
                         onClick={(event) => openDmTab(conversation, event.ctrlKey || event.metaKey)}
                         onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openDmTab(conversation, true); } }}
                         onContextMenu={(event) => contextTargetClick(event, item)}>
                         <Avatar user={person} size={27} showStatus />
-                        <span className="sidebar-row-text"><strong>{person?.display_name || person?.username || 'Диалог'}</strong><small>{conversation.last_message
+                        <span className="sidebar-row-text"><strong>{conversationTitle}</strong><small>{conversation.last_message
                           ? `${conversation.last_message.author.id === user.id ? 'Вы: ' : ''}${conversation.last_message.content?.trim() || (conversation.last_message.attachment ? (conversation.last_message.attachment.mime.startsWith('image/') ? 'Фото' : `Файл: ${conversation.last_message.attachment.name}`) : 'Сообщение')}`
                           : 'Нет сообщений'}</small></span>
                         {unreadDmCounts[conversation.id] > 0 && <span className="sidebar-count-badge" data-tooltip={`${unreadDmCounts[conversation.id]} новых сообщений`}>{unreadDmCounts[conversation.id] > 99 ? '99+' : unreadDmCounts[conversation.id]}</span>}
