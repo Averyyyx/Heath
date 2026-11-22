@@ -25,7 +25,7 @@ async function openDm(page, otherName) {
   const row = page.locator('.sidebar-row').filter({ hasText: otherName }).first();
   await row.waitFor({ state: 'visible', timeout: 20000 });
   await row.click();
-  await page.locator('.chat-header').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('.chat-header:visible').waitFor({ state: 'visible', timeout: 15000 });
 }
 
 (async () => {
