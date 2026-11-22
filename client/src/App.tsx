@@ -986,6 +986,10 @@ export default function App() {
       { id: 'theme-light', title: 'Сменить тему: светлая', group: 'Действия', icon: <Sun size={16} />, run: () => setTheme('light') },
       { id: 'theme-dark', title: 'Сменить тему: тёмная', group: 'Действия', icon: <Moon size={16} />, run: () => setTheme('dark') },
       { id: 'theme-system', title: 'Сменить тему: системная', group: 'Действия', icon: <Monitor size={16} />, run: () => setTheme('system') },
+      { id: 'status-online', title: 'Статус: в сети', group: 'Действия', icon: <Circle size={16} />, run: () => void changeStatus('online') },
+      { id: 'status-idle', title: 'Статус: отошёл', group: 'Действия', icon: <Circle size={16} />, run: () => void changeStatus('idle') },
+      { id: 'status-dnd', title: 'Статус: не беспокоить', group: 'Действия', icon: <Circle size={16} />, run: () => void changeStatus('dnd') },
+      { id: 'status-invisible', title: 'Статус: невидимка', group: 'Действия', icon: <Circle size={16} />, run: () => void changeStatus('invisible') },
       { id: 'logout', title: 'Выйти из аккаунта', group: 'Действия', icon: <LogOut size={16} />, run: () => void handleLogout() }
     ] : [];
     if (paletteMode === 'all') {
