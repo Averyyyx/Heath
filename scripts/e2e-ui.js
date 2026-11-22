@@ -1,4 +1,5 @@
 const { chromium, request } = require('playwright');
+const Database = require('better-sqlite3');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -32,14 +33,19 @@ async function openDm(page, otherName) {
   const suffix = Date.now().toString().slice(-9);
   const emailA = 'nexo-e2e-host-' + suffix + '@example.test';
   const emailB = 'nexo-e2e-guest-' + suffix + '@example.test';
+  const emailC = 'nexo-e2e-third-' + suffix + '@example.test';
   const passwordA = 'R8#tK5!mQ2@xP7$zV4';
   const passwordB = 'C7!qR4#zP9@tL2$wM8&x';
+  const passwordC = 'H6@pN3!sW8#yK4$uQ1';
   const handleA = 'e2ehost' + suffix;
   const handleB = 'e2e' + suffix;
+  const handleC = 'e2ethird' + suffix;
   const displayNameA = 'Nexo E2E Host';
   const displayNameB = 'Nexo E2E Guest';
+  const displayNameC = 'Nexo E2E Third';
   const apiA = await request.newContext({ baseURL: baseUrl });
   const apiB = await request.newContext({ baseURL: baseUrl });
+  const apiC = await request.newContext({ baseURL: baseUrl });
   let browser;
 
   try {
