@@ -168,7 +168,7 @@ export function FriendsPanel({ user, onRefresh, onOpenConversation }: FriendsPan
         <aside className="discord-active-contacts">
           <h2>Активные контакты</h2>
           {onlineFriends.length === 0 ? <p>Пока никого нет в сети.</p> : onlineFriends.slice(0, 6).map((record) => (
-            <button type="button" key={record.id} onClick={() => onOpenConversation?.({ username: record.user.username })}>
+            <button type="button" className="active-contact-item" key={record.id} onClick={() => onOpenConversation?.({ username: record.user.username })}>
               <Avatar user={record.user} size={30} showStatus />
               <span><strong>{record.user.display_name || record.user.username}</strong><small>{record.user.custom_status || 'В сети'}</small></span>
             </button>
