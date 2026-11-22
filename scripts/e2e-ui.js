@@ -192,6 +192,10 @@ async function openDm(page, otherName) {
       throw new Error('The joined user is missing from the voice channel participant list.');
     }
     await pageA.screenshot({ path: path.join(screenshotDir, 'voice-channel-dark-1440x900.png'), fullPage: false });
+    await pageA.locator('.active-voice-panel button[data-tooltip="Камера"]').click();
+    await pageA.locator('.voice-room video').first().waitFor({ state: 'visible', timeout: 15000 });
+    await pageA.screenshot({ path: path.join(screenshotDir, 'voice-channel-camera-dark-1440x900.png'), fullPage: false });
+    await pageA.locator('.active-voice-panel button[data-tooltip="Камера"]').click();
     await pageA.locator('.voice-room-hangup').click();
     await pageA.locator('.active-voice-panel').waitFor({ state: 'hidden', timeout: 15000 });
 
