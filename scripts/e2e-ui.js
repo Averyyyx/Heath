@@ -111,7 +111,7 @@ async function openDm(page, otherName) {
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
     for (const [label, page] of [['A', pageA], ['B', pageB]]) {
-      page.on('console', (message) => { if (message.type() === 'error' || message.text().includes('[call-ui]')) console.log('[page ' + label + ' console]', message.type(), message.text()); });
+      page.on('console', (message) => { if (message.type() === 'error') console.error('[page ' + label + ' console]', message.text()); });
       page.on('pageerror', (error) => console.error('[page ' + label + ' error]', error.message));
     }
 
