@@ -290,7 +290,6 @@ export function MessengerWorkspace({
     };
     const onCallSignal = ({ conversationId, from, payload }: { conversationId: number; from: number; payload: SignalData }) => {
       const current = callStateRef.current;
-      console.log('[call-ui] signal received', { conversationId, from, group: Boolean(current?.group), hasPeer: Boolean(current?.peer), peerUserId: current?.peerUserId });
       if (current?.conversationId !== conversationId) return;
       if (current.group) {
         const targetPeer = current.peers?.[from];
@@ -305,7 +304,6 @@ export function MessengerWorkspace({
       conversationId: number; from?: number; mediaType?: 'audio' | 'video'; acceptedParticipants?: number[]
     }) => {
       const groupCall = callStateRef.current;
-      console.log('[call-ui] accept event', { conversationId, from: groupCall?.initiator ? 'caller-side' : 'callee-side', waiting: awaitingCallAcceptRef.current, acceptedParticipants });
       if (groupCall?.conversationId === conversationId && groupCall.group && acceptedParticipants) {
         ensureGroupPeers(conversationId, acceptedParticipants);
         playNexoSound('call-accepted');
@@ -1181,7 +1179,6 @@ export function MessengerWorkspace({
       setCallState(state);
       if (options?.initiator !== false) socketRef.current.emit('call:ring', { conversationId, mediaType });
       peer.on('signal', (payload) => {
-        console.log('[call-ui] signal send', { conversationId, to: peerUserId, queued: awaitingCallAcceptRef.current === conversationId });
         if (awaitingCallAcceptRef.current === conversationId) {
           queuedCallSignalsRef.current.push(payload);
           return;
@@ -1189,7 +1186,6 @@ export function MessengerWorkspace({
         socketRef.current?.emit('call:signal', { conversationId, to: peerUserId, payload });
       });
       peer.on('stream', (remoteStream) => {
-        console.log('[call-ui] remote stream received', { conversationId, tracks: remoteStream.getTracks().map((track) => track.kind) });
         callStateRef.current = callStateRef.current ? { ...callStateRef.current, remoteStream } : null;
         setCallState((prev) => (prev ? { ...prev, remoteStream } : prev));
       });
