@@ -352,6 +352,23 @@ export function MessengerWorkspace({
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
       if (incomingCall?.conversationId === conversationId) { setIncomingCall(null); onIncomingCallHandled?.(); }
     };
+    const onCallParticipantLeft = ({ conversationId, userId }: { conversationId: number; userId: number }) => {
+      const current = callStateRef.current;
+      if (!current?.group || current.conversationId !== conversationId) return;
+      const peer = current.peers?.[userId];
+      const peers = { ...(current.peers || {}) };
+      const remoteStreams = { ...(current.remoteStreams || {}) };
+      delete peers[userId];
+      delete remoteStreams[userId];
+      const next = {
+        ...current, peers, remoteStreams,
+        acceptedUserIds: (current.acceptedUserIds || []).filter((id) => id !== userId),
+        remoteStream: Object.values(remoteStreams)[0] || null
+      };
+      callStateRef.current = next;
+      setCallState(next);
+      peer?.destroy();
+    };
     const onServerUpsert = ({ server }: { server: Server }) => {
       setServers((prev) => prev.some((item) => item.id === server.id)
         ? prev.map((item) => item.id === server.id ? server : item)
@@ -416,6 +433,7 @@ export function MessengerWorkspace({
     socket.on('call:timeout', onCallTimeout);
     socket.on('call:error', onCallError);
     socket.on('call:end', onCallEnd);
+    socket.on('call:participant-left', onCallParticipantLeft);
     socket.on('server:upsert', onServerUpsert);
     socket.on('channel:message:new', onChannelMessage);
     socket.on('channel:reactions:update', onChannelReactionsUpdate);
@@ -442,6 +460,7 @@ export function MessengerWorkspace({
       socket.off('call:timeout', onCallTimeout);
       socket.off('call:error', onCallError);
       socket.off('call:end', onCallEnd);
+      socket.off('call:participant-left', onCallParticipantLeft);
       socket.off('server:upsert', onServerUpsert);
       socket.off('channel:message:new', onChannelMessage);
       socket.off('channel:reactions:update', onChannelReactionsUpdate);
