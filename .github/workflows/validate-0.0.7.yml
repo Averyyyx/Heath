@@ -38,6 +38,9 @@ jobs:
       - name: Start seeded Nexo test server
         shell: pwsh
         run: |
+          $env:NODE_ENV = 'development'
+          $env:USE_MEMORY_SESSION = 'true'
+          $env:CLIENT_ORIGIN = 'http://localhost:4000'
           $env:NEXO_DEV_ACCOUNT = 'true'
           $env:NEXO_DEV_EMAIL = 'dev@nexo.local'
           $env:NEXO_DEV_PASSWORD = 'Nexo-E2E-Password-2026!'
@@ -63,7 +66,7 @@ jobs:
           }
       - name: Run Playwright UI regression and capture screenshots
         env:
-          NEXO_E2E_URL: http://127.0.0.1:4000
+          NEXO_E2E_URL: http://localhost:4000
           NEXO_E2E_EMAIL: dev@nexo.local
           NEXO_E2E_PASSWORD: Nexo-E2E-Password-2026!
           NEXO_E2E_SCREENSHOT_DIR: artifacts/e2e-ui
