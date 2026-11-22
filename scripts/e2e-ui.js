@@ -275,12 +275,14 @@ async function openDm(page, otherName) {
     await pageA.locator('.nexo-context-menu').getByRole('button', { name: 'Создать канал' }).click();
     const createChannelModal = pageA.locator('.modal-panel').filter({ hasText: 'Создать канал' });
     await createChannelModal.waitFor({ state: 'visible' });
+    await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await pageA.screenshot({ path: path.join(screenshotDir, 'create-channel-light-1440x900.png'), fullPage: false });
     await createChannelModal.locator('button[aria-label="Закрыть"]').click();
     await pageA.locator('.sidebar-row').filter({ hasText: 'e2e-chat' }).click({ button: 'right' });
     await pageA.locator('.nexo-context-menu').getByRole('button', { name: 'Настройки канала' }).click();
     const channelSettingsModal = pageA.locator('.modal-panel').filter({ hasText: 'Настройки канала' });
     await channelSettingsModal.waitFor({ state: 'visible' });
+    await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await pageA.screenshot({ path: path.join(screenshotDir, 'channel-settings-light-1440x900.png'), fullPage: false });
     await channelSettingsModal.locator('button[aria-label="Закрыть"]').click();
     await pageA.locator('.voice-channel-row').filter({ hasText: 'voice-lobby' }).click();
