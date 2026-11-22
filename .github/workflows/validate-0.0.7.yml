@@ -35,7 +35,7 @@ jobs:
         run: npm install --no-save playwright
       - name: Install Chromium
         run: npx playwright install chromium
-      - name: Start seeded Nexo test server
+      - name: Run Playwright against a seeded Nexo server
         shell: pwsh
         run: |
           $env:NODE_ENV = 'development'
@@ -47,38 +47,31 @@ jobs:
           $env:SESSION_SECRET = 'nexo-e2e-temporary-session-secret'
           $env:DB_PATH = Join-Path $env:RUNNER_TEMP 'nexo-e2e.db'
           $env:DATA_DIR = Join-Path $env:RUNNER_TEMP 'nexo-e2e-data'
+          $env:NEXO_E2E_URL = 'http://localhost:4000'
+          $env:NEXO_E2E_EMAIL = 'dev@nexo.local'
+          $env:NEXO_E2E_PASSWORD = 'Nexo-E2E-Password-2026!'
+          $env:NEXO_E2E_SCREENSHOT_DIR = 'artifacts/e2e-ui'
           $stdout = Join-Path $env:RUNNER_TEMP 'nexo-e2e-server.log'
           $stderr = Join-Path $env:RUNNER_TEMP 'nexo-e2e-server-error.log'
           $server = Start-Process -FilePath 'node' -ArgumentList @('server.js') -WorkingDirectory $env:GITHUB_WORKSPACE -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-          Set-Content -Path (Join-Path $env:RUNNER_TEMP 'nexo-e2e-server.pid') -Value $server.Id
-          $ready = $false
-          for ($attempt = 0; $attempt -lt 45; $attempt++) {
-            try {
-              $response = Invoke-WebRequest -Uri 'http://127.0.0.1:4000' -TimeoutSec 2
-              if ($response.StatusCode -eq 200) { $ready = $true; break }
-            } catch {}
-            Start-Sleep -Seconds 2
-          }
-          if (-not $ready) {
-            if (Test-Path $stdout) { Get-Content $stdout }
-            if (Test-Path $stderr) { Get-Content $stderr }
-            throw 'Nexo test server did not become ready.'
-          }
-      - name: Run Playwright UI regression and capture screenshots
-        env:
-          NEXO_E2E_URL: http://localhost:4000
-          NEXO_E2E_EMAIL: dev@nexo.local
-          NEXO_E2E_PASSWORD: Nexo-E2E-Password-2026!
-          NEXO_E2E_SCREENSHOT_DIR: artifacts/e2e-ui
-        run: node scripts/e2e-ui.js
-      - name: Stop seeded Nexo test server
-        if: always()
-        shell: pwsh
-        run: |
-          $pidFile = Join-Path $env:RUNNER_TEMP 'nexo-e2e-server.pid'
-          if (Test-Path $pidFile) {
-            $serverPid = [int](Get-Content $pidFile)
-            Stop-Process -Id $serverPid -Force -ErrorAction SilentlyContinue
+          try {
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 45; $attempt++) {
+              try {
+                $response = Invoke-WebRequest -Uri 'http://127.0.0.1:4000' -TimeoutSec 2
+                if ($response.StatusCode -eq 200) { $ready = $true; break }
+              } catch {}
+              Start-Sleep -Seconds 2
+            }
+            if (-not $ready) {
+              if (Test-Path $stdout) { Get-Content $stdout }
+              if (Test-Path $stderr) { Get-Content $stderr }
+              throw 'Nexo test server did not become ready.'
+            }
+            node scripts/e2e-ui.js
+            if ($LASTEXITCODE -ne 0) { throw 'Playwright UI regression failed.' }
+          } finally {
+            Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
           }
       - name: Upload Playwright screenshots and server logs
         if: always()
