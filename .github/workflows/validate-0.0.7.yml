@@ -1,5 +1,9 @@
 name: Nexo 0.0.8 validation
 
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     branches: [main]
