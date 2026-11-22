@@ -110,6 +110,10 @@ async function openDm(page, otherName) {
     });
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
+    for (const [label, page] of [['A', pageA], ['B', pageB]]) {
+      page.on('console', (message) => { if (message.type() === 'error') console.error('[page ' + label + ' console]', message.text()); });
+      page.on('pageerror', (error) => console.error('[page ' + label + ' error]', error.message));
+    }
 
     await Promise.all([
       loginPage(pageA, emailA, passwordA),
@@ -133,6 +137,9 @@ async function openDm(page, otherName) {
     await pageB.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await pageB.screenshot({ path: path.join(screenshotDir, 'incoming-call-light-1440x900.png'), fullPage: false });
     await pageB.locator('.incoming-call-actions .call-accept').click();
+    await pageB.locator('.call-overlay').waitFor({ state: 'visible', timeout: 15000 });
+    await pageA.screenshot({ path: path.join(screenshotDir, 'call-after-accept-a.png'), fullPage: false });
+    await pageB.screenshot({ path: path.join(screenshotDir, 'call-after-accept-b.png'), fullPage: false });
     await pageA.locator('.call-banner-person.connected').nth(1).waitFor({ state: 'visible', timeout: 30000 });
     await pageB.locator('.call-banner-person.connected').nth(1).waitFor({ state: 'visible', timeout: 30000 });
     if (await pageA.locator('.call-banner-controls .call-control-group').count() !== 2) {
