@@ -1010,7 +1010,7 @@ export default function App() {
     }
     const groupOrder = ['Диалоги', 'Друзья', 'Каналы', 'Действия'];
     return items.sort((left, right) => groupOrder.indexOf(left.group) - groupOrder.indexOf(right.group));
-  }, [paletteMode, conversations, friends, servers, user, theme]);
+  }, [paletteMode, conversations, friends, servers, user, theme, changeStatus]);
 
   const filteredPalette = paletteEntries.filter((item) => fuzzyMatch(`${item.title} ${item.subtitle || ''}`, paletteQuery));
   const paletteGroups = ['Диалоги', 'Друзья', 'Каналы', 'Действия'];
