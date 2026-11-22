@@ -1287,7 +1287,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
             </Select></Field>
           <Field label="Свой статус"><Input value={profileCustomStatus} maxLength={60} placeholder="Над чем работаете?" onChange={(event) => setProfileCustomStatus(event.target.value)} /></Field>
           <small className="muted">{profileCustomStatus.length}/60</small>
-          <button type="button" className="secondary" onClick={() => void savePresence()} disabled={presenceBusy}>
+          <button type="button" className="nexo-ui-button secondary" onClick={() => void savePresence()} disabled={presenceBusy}>
             {presenceBusy ? 'Сохраняем…' : 'Сохранить статус'}
           </button>
           {presenceStatus.message && <p className={`status ${presenceStatus.type}`}>{presenceStatus.message}</p>}
