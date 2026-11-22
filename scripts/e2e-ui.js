@@ -215,6 +215,37 @@ async function openDm(page, otherName) {
     await pageB.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 });
     await pageA.locator('.active-call-strip').waitFor({ state: 'hidden', timeout: 10000 });
 
+    await Promise.all([
+      openDm(pageA, groupTitle),
+      openDm(pageB, groupTitle),
+      openDm(pageC, groupTitle)
+    ]);
+    await pageA.locator('.chat-header .chat-actions button').filter({ hasText: 'Голос' }).click();
+    await Promise.all([
+      pageB.locator('.incoming-call-card').waitFor({ state: 'visible', timeout: 20000 }),
+      pageC.locator('.incoming-call-card').waitFor({ state: 'visible', timeout: 20000 })
+    ]);
+    await Promise.all([
+      pageB.locator('.incoming-call-actions .call-accept').click(),
+      pageC.locator('.incoming-call-actions .call-accept').click()
+    ]);
+    await Promise.all([
+      pageA.locator('.call-overlay').waitFor({ state: 'visible', timeout: 15000 }),
+      pageB.locator('.call-overlay').waitFor({ state: 'visible', timeout: 15000 }),
+      pageC.locator('.call-overlay').waitFor({ state: 'visible', timeout: 15000 })
+    ]);
+    for (const page of [pageA, pageB, pageC]) {
+      await page.waitForFunction(() => document.querySelectorAll('.call-banner-person.connected').length >= 2, null, { timeout: 30000 });
+    }
+    await pageA.screenshot({ path: path.join(screenshotDir, 'group-call-three-participants-dark-1440x900.png'), fullPage: false });
+    await pageA.locator('.call-hangup').click();
+    await Promise.all([
+      pageA.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 }),
+      pageB.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 }),
+      pageC.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 })
+    ]);
+    await pageA.locator('.active-call-strip').waitFor({ state: 'hidden', timeout: 10000 });
+
     const serverHead = pageA.locator('.sidebar-server-head').filter({ hasText: serverName }).first();
     await serverHead.waitFor({ state: 'visible', timeout: 15000 });
     await pageA.locator('.sidebar-section').filter({ hasText: 'Пространства' }).locator('button[aria-label="Создать пространство"]').click();
