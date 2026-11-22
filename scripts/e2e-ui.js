@@ -260,7 +260,7 @@ async function openDm(page, otherName) {
     await createChannelModal.waitFor({ state: 'visible' });
     await pageA.screenshot({ path: path.join(screenshotDir, 'create-channel-light-1440x900.png'), fullPage: false });
     await createChannelModal.locator('button[aria-label="Закрыть"]').click();
-    await pageA.locator('.sidebar-row.channel-row').filter({ hasText: 'e2e-chat' }).click({ button: 'right' });
+    await pageA.locator('.sidebar-row').filter({ hasText: 'e2e-chat' }).click({ button: 'right' });
     await pageA.locator('.nexo-context-menu').getByRole('button', { name: 'Настройки канала' }).click();
     const channelSettingsModal = pageA.locator('.modal-panel').filter({ hasText: 'Настройки канала' });
     await channelSettingsModal.waitFor({ state: 'visible' });
