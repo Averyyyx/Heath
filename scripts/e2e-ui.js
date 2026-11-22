@@ -248,6 +248,8 @@ async function openDm(page, otherName) {
       pageB.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }),
       pageC.evaluate(() => { document.documentElement.dataset.theme = 'dark'; })
     ]);
+    await pageA.locator('.active-call-strip').filter({ hasText: groupTitle }).waitFor({ state: 'visible', timeout: 5000 });
+    await pageA.locator('.active-call-strip').getByText('Групповой диалог').waitFor({ state: 'visible', timeout: 5000 });
     await pageA.screenshot({ path: path.join(screenshotDir, 'group-call-three-participants-dark-1440x900.png'), fullPage: false });
     await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await pageA.screenshot({ path: path.join(screenshotDir, 'group-call-three-participants-light-1440x900.png'), fullPage: false });
