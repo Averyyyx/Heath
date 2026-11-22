@@ -142,8 +142,8 @@ export function FriendsPanel({ user, onRefresh, onOpenConversation }: FriendsPan
                 <div className="friends-list-heading"><span>ВХОДЯЩИЕ ЗАПРОСЫ</span><b>{friends.incoming.length}</b></div>
                 {friends.incoming.length === 0 && <div className="friends-empty"><Clock3 size={25} /><strong>Нет ожидающих запросов</strong><span>Новые запросы появятся здесь.</span></div>}
                 {friends.incoming.map((record) => <FriendRow key={record.id} record={record} actions={<>
-                  <button type="button" className="friend-accept" onClick={() => void handleRespond(record.id, 'accept')} title="Принять запрос"><Check size={16} /></button>
-                  <button type="button" className="friend-decline" onClick={() => void handleRespond(record.id, 'decline')} title="Отклонить запрос"><X size={16} /></button>
+                  <button type="button" className="friend-accept" onClick={() => void handleRespond(record.id, 'accept')} data-tooltip="Принять запрос"><Check size={16} /></button>
+                  <button type="button" className="friend-decline" onClick={() => void handleRespond(record.id, 'decline')} data-tooltip="Отклонить запрос"><X size={16} /></button>
                 </>} />)}
                 <div className="friends-list-heading outgoing"><span>ОТПРАВЛЕННЫЕ ЗАПРОСЫ</span><b>{friends.outgoing.length}</b></div>
                 {friends.outgoing.length === 0 && <p className="friends-muted-line">Нет отправленных запросов.</p>}
