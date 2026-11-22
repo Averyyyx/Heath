@@ -1088,12 +1088,6 @@ export function MessengerWorkspace({
       });
       peers[remoteId] = peer;
       changed = true;
-      const queued = pendingGroupSignalsRef.current[conversationId] || [];
-      const matchingSignals = queued.filter((signal) => signal.from === remoteId);
-      if (matchingSignals.length) {
-        pendingGroupSignalsRef.current[conversationId] = queued.filter((signal) => signal.from !== remoteId);
-        matchingSignals.forEach((signal) => peer.signal(signal.payload));
-      }
       peer.on('signal', (payload) => {
         socketRef.current?.emit('call:signal', { conversationId, to: remoteId, payload });
       });
@@ -1122,6 +1116,12 @@ export function MessengerWorkspace({
         console.error('Group call peer failed', remoteId, error);
         peer.destroy();
       });
+      const queued = pendingGroupSignalsRef.current[conversationId] || [];
+      const matchingSignals = queued.filter((signal) => signal.from === remoteId);
+      if (matchingSignals.length) {
+        pendingGroupSignalsRef.current[conversationId] = queued.filter((signal) => signal.from !== remoteId);
+        matchingSignals.forEach((signal) => peer.signal(signal.payload));
+      }
     }
     if (changed || acceptedUserIds.join(',') !== (current.acceptedUserIds || []).join(',')) {
       const next = { ...current, peers, remoteStreams, acceptedUserIds: [...new Set(acceptedUserIds)] };
