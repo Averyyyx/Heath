@@ -719,9 +719,10 @@ function createSplashWindow() {
   const splashIconPath = getDesktopIconPath();
 
   splashWindow = new BrowserWindow({
-    width: 480,
-    height: 570,
+    width: 440,
+    height: 520,
     resizable: false,
+    movable: true,
     frame: false,
     alwaysOnTop: true,
     transparent: false,
