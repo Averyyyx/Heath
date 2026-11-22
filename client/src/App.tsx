@@ -44,7 +44,7 @@ type StatusChoice = { value: UserStatus; label: string };
 type IncomingCallInfo = { conversationId: number; from: number; user: User; mediaType: 'audio' | 'video'; groupTitle?: string };
 type VoiceInviteInfo = { serverId: number; channelId: number; serverName: string; channelName: string; from: number; user: User };
 type DeepLinkPayload = { type: 'dm'; conversationId: number; messageId?: number } | { type: 'channel'; serverId: number; channelId: number; messageId?: number };
-type ActiveCallInfo = { conversationId: number; title: string; startedAt: number };
+type ActiveCallInfo = { conversationId: number; title: string; startedAt: number; group?: boolean };
 
 
 const tabHome: WorkspaceTab = { id: 'home', kind: 'home', title: 'Главная', pinned: true };
@@ -474,12 +474,13 @@ export default function App() {
 
   useEffect(() => {
     const onCallState = (event: Event) => {
-      const detail = (event as CustomEvent<{ active: boolean; conversationId?: number; title?: string; startedAt?: number }>).detail;
+      const detail = (event as CustomEvent<{ active: boolean; conversationId?: number; title?: string; startedAt?: number; group?: boolean }>).detail;
       if (!detail?.active || !detail.conversationId) setActiveCallInfo(null);
       else setActiveCallInfo({
         conversationId: detail.conversationId,
         title: detail.title || 'Личный звонок',
-        startedAt: detail.startedAt || Date.now()
+        startedAt: detail.startedAt || Date.now(),
+        group: Boolean(detail.group)
       });
     };
     window.addEventListener('nexo-call-state', onCallState);
@@ -1320,8 +1321,8 @@ export default function App() {
                       <button type="button" className="active-call-return" onClick={() => setActiveTabId(`dm:${activeCallInfo.conversationId}`)} aria-label="Вернуться к звонку">
                         <span className="status-dot" />
                         <span className="active-call-copy">
-                          <strong>Звонок · {activeTab.kind === 'dm' && activeTab.targetId === activeCallInfo.conversationId ? activeTab.title : activeCallInfo.title}</strong>
-                          <small>{formatCallDuration(callClock - activeCallInfo.startedAt)} · Личный диалог</small>
+                          <strong>Звонок · {!activeCallInfo.group && activeTab.kind === 'dm' && activeTab.targetId === activeCallInfo.conversationId ? activeTab.title : activeCallInfo.title}</strong>
+                          <small>{formatCallDuration(callClock - activeCallInfo.startedAt)} · {activeCallInfo.group ? 'Групповой диалог' : 'Личный диалог'}</small>
                         </span>
                       </button>
                       <button type="button" className="hangup" data-tooltip="Завершить звонок" aria-label="Завершить звонок" onClick={() => window.dispatchEvent(new CustomEvent('nexo-end-call'))}><PhoneOff size={15} /></button>
