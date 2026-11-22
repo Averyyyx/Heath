@@ -1162,7 +1162,7 @@ export default function App() {
     <div className="app-root nexo-root">
       <header className="app-nav nexo-titlebar">
         <div className="titlebar-brand"><img className="brand-image" src="/nexo-mark.svg" alt="" /><strong>Nexo</strong><span className="titlebar-version">ALPHA</span></div>
-        <button type="button" className="titlebar-command" onClick={() => openPalette()} title="Найти или выполнить команду (Ctrl+K)">
+        <button type="button" className="titlebar-command" onClick={() => openPalette()} data-tooltip="Найти или выполнить команду (Ctrl+K)">
           <Search size={15} /><span>Найти или выполнить команду</span><kbd>Ctrl K</kbd>
         </button>
         <div className="titlebar-actions"><span className="titlebar-current">{currentTitle}</span></div>
@@ -1187,7 +1187,7 @@ export default function App() {
                   ref={(node) => { tabNodeRefs.current[tab.id] = node; }}
                   type="button" draggable={tab.kind !== 'home'}
                   className={`nexo-tab ${activeTabId === tab.id ? 'active' : ''} ${tab.pinned ? 'pinned' : ''}`}
-                  title={tab.title} aria-selected={activeTabId === tab.id}
+                  data-tooltip={tab.title} aria-selected={activeTabId === tab.id}
                   onClick={() => setActiveTabId(tab.id)}
                   onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); closeTab(tab.id); } }}
                   onDragStartCapture={(event: DragEvent<HTMLButtonElement>) => { event.dataTransfer.setData('text/nexo-tab', tab.id); event.dataTransfer.effectAllowed = 'move'; }}
@@ -1350,7 +1350,7 @@ export default function App() {
                     </div>                  </div>
                 </>
               )}
-              <div className="sidebar-resizer" onMouseDown={beginResize} onDoubleClick={() => { setSidebarWidth(264); if (user) localStorage.setItem(sidebarStorageKey(user.id), '264'); }} title="Перетащите, чтобы изменить ширину" />
+              <div className="sidebar-resizer" onMouseDown={beginResize} onDoubleClick={() => { setSidebarWidth(264); if (user) localStorage.setItem(sidebarStorageKey(user.id), '264'); }} data-tooltip="Перетащите, чтобы изменить ширину" />
             </aside>
 
             <main className="nexo-tab-content">
