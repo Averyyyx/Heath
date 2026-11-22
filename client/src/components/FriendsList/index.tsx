@@ -60,7 +60,7 @@ export const FriendsList: FC<FriendsListProps> = ({ onSelectFriend }) => {
       <label className="friends-search">
         <Search size={15} />
         <Input type="search" placeholder="Поиск друзей" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} aria-label="Поиск друзей" />
-        {searchQuery && <button type="button" onClick={() => setSearchQuery('')} aria-label="Очистить поиск"><X size={14} /></button>}
+        {searchQuery && <button type="button" className="ghost-icon" onClick={() => setSearchQuery('')} aria-label="Очистить поиск"><X size={14} /></button>}
       </label>
       <div className="friends-filter-tabs" role="tablist" aria-label="Фильтр друзей">
         <button type="button" role="tab" aria-selected={activeTab === 'online'} className={activeTab === 'online' ? 'active' : ''} onClick={() => setActiveTab('online')}>В сети <span>{onlineFriends.length}</span></button>
