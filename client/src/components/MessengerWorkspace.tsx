@@ -1408,8 +1408,8 @@ export function MessengerWorkspace({
                   <small>{activeChannel.topic}</small>
                 </div>
                 <div className="chat-actions">
-                  <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
-                  <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('channel')} title="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
+                  <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} data-tooltip="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
+                  <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('channel')} data-tooltip="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
                   <button type="button" className={showMembersPanel ? 'ghost active' : 'ghost'} onClick={() => setShowMembersPanel((value) => !value)} data-tooltip="Показать участников" aria-label="Показать участников">
                     <Users size={16} />Участники
                   </button>
