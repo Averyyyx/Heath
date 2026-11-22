@@ -1395,6 +1395,7 @@ io.on('connection', (socket) => {
         mediaType: mediaType === 'video' ? 'video' : 'audio',
         participants
       };
+      if (process.env.NODE_ENV === 'development') console.log('[call] ring', { conversationId: Number(conversationId), from: socket.user.id, participants: participants.map((participant) => participant.id) });
       participants.filter((participant) => participant.id !== socket.user.id).forEach((participant) => {
         io.to(getUserRoom(participant.id)).emit('call:ring', invitation);
         io.to(getUserRoom(participant.id)).emit('call:invite', invitation);
@@ -1417,6 +1418,7 @@ io.on('connection', (socket) => {
         mediaType: mediaType === 'video' ? 'video' : 'audio',
         acceptedParticipants: [...call.accepted]
       };
+      if (process.env.NODE_ENV === 'development') console.log('[call] accept', { conversationId: safeConversationId, from: socket.user.id, accepted: accepted.acceptedParticipants });
       call.accepted.forEach((participantId) => {
         io.to(getUserRoom(participantId)).emit('call:accept', accepted);
       });
@@ -1466,6 +1468,7 @@ io.on('connection', (socket) => {
       ensureConversationAccess(safeConversationId, socket.user.id);
       const targetId = Number(to);
       const call = activeCallParticipants.get(safeConversationId);
+      if (process.env.NODE_ENV === 'development') console.log('[call] signal', { conversationId: safeConversationId, from: socket.user.id, to: Number.isInteger(targetId) && targetId > 0 ? targetId : 'conversation' });
       if (Number.isInteger(targetId) && targetId > 0) {
         if (!call || !call.accepted.has(socket.user.id) || !call.accepted.has(targetId)) {
           throw new Error('Оба участника должны принять звонок до обмена WebRTC-сигналами.');
