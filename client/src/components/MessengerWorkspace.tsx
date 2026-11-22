@@ -87,6 +87,7 @@ type CallState = {
   peers?: Record<number, SimplePeer.Instance>;
   remoteStreams?: Record<number, MediaStream>;
   acceptedUserIds?: number[];
+  departedUserIds?: number[];
   group?: boolean;
   isScreenSharing: boolean;
   initiator: boolean;
@@ -363,6 +364,7 @@ export function MessengerWorkspace({
       const next = {
         ...current, peers, remoteStreams,
         acceptedUserIds: (current.acceptedUserIds || []).filter((id) => id !== userId),
+        departedUserIds: [...new Set([...(current.departedUserIds || []), userId])],
         remoteStream: Object.values(remoteStreams)[0] || null
       };
       callStateRef.current = next;
@@ -1999,7 +2001,7 @@ function CallOverlay({
   const hideControlsTimerRef = useRef<number | null>(null);
   const peerName = peer?.display_name || peer?.username || 'Собеседник';
   const groupUsers = state.group
-    ? (state.acceptedUserIds || []).filter((id) => id !== currentUser.id).map((id) => participants.find((item) => item.id === id)).filter((item): item is User => Boolean(item))
+    ? participants.filter((item) => item.id !== currentUser.id && !(state.departedUserIds || []).includes(item.id))
     : peer ? [peer] : [];
   const groupStreams = state.remoteStreams || {};
   const cameraTrack = state.localStream?.getVideoTracks()[0];
