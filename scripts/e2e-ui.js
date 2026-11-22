@@ -229,15 +229,36 @@ async function openDm(page, otherName) {
     }
 
     await pageA.locator('.nexo-user-dock button[aria-label="Настройки"]').click();
-    await pageA.waitForTimeout(250);
-    await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
-    await pageA.screenshot({ path: path.join(screenshotDir, 'settings-light-1440x900.png'), fullPage: false });
-
-    const unstyledFields = await pageA.locator('input:not(.nexo-input):not([type="hidden"]), select:not(.nexo-select), textarea:not(.nexo-textarea)').evaluateAll((nodes) =>
-      nodes.filter((node) => node.getClientRects().length > 0)
-        .map((node) => ({ tag: node.tagName, type: node.getAttribute('type'), className: node.className }))
-    );
-    if (unstyledFields.length) throw new Error('Found form controls outside the shared UI field styles: ' + JSON.stringify(unstyledFields));
+    await pageA.locator('.settings-shell').waitFor({ state: 'visible', timeout: 15000 });
+    const settingsPages = [
+      ['account', 'Моя учётная запись'],
+      ['profile', 'Профиль'],
+      ['appearance', 'Оформление'],
+      ['voice', 'Голос и видео'],
+      ['hotkeys', 'Горячие клавиши'],
+      ['notifications', 'Уведомления и звуки'],
+      ['accessibility', 'Специальные возможности'],
+      ['premium', 'Nexo Pulse'],
+      ['servers', 'Серверы'],
+      ['updates', 'Обновления']
+    ];
+    for (const theme of ['light', 'dark']) {
+      await pageA.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      for (const [key, label] of settingsPages) {
+        await pageA.locator('.settings-nav nav button').filter({ hasText: label }).click();
+        await pageA.waitForTimeout(220);
+        await pageA.screenshot({
+          path: path.join(screenshotDir, 'settings-' + key + '-' + theme + '-1440x900.png'),
+          fullPage: false
+        });
+        const unstyledFields = await pageA.locator('input:not(.nexo-input):not(.nexo-slider):not([type="hidden"]), select:not(.nexo-select), textarea:not(.nexo-textarea)').evaluateAll((nodes) =>
+          nodes.filter((node) => node.getClientRects().length > 0)
+            .map((node) => ({ tag: node.tagName, type: node.getAttribute('type'), className: node.className }))
+        );
+        if (unstyledFields.length) throw new Error('Unstyled fields in settings section ' + key + ': ' + JSON.stringify(unstyledFields));
+      }
+    }
+    await pageA.locator('.settings-nav-footer button').filter({ hasText: 'Закрыть' }).click();
 
     for (const theme of ['light', 'dark']) {
       await pageA.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
