@@ -2400,6 +2400,7 @@
 .sidebar-row-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
 .sidebar-row-text strong { overflow: hidden; color: inherit; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-row-text small { color: var(--text-faint); font-size: 12px; }
+.sidebar-row-text small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-row.disabled { opacity: .5; cursor: default; pointer-events: none; }
 .sidebar-row.disabled small { margin-left: auto; font-size: 12px; }
 .sidebar-server-head { display: flex; width: 100%; min-height: 30px; align-items: center; gap: 7px; padding: 3px 5px; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); cursor: pointer; text-align: left; }
