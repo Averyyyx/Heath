@@ -1234,8 +1234,8 @@ export function MessengerWorkspace({
                   {activeConversation.title}
                 </div>
                 <div className="chat-actions">
-                  <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
-                  <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('dm')} title="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
+                  <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} data-tooltip="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
+                  <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('dm')} data-tooltip="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
                   <button type="button" className="ghost" onClick={() => startCall(activeConversation.id, { initiator: true }, 'audio')}>
                     <Phone size={16} />Голос
                   </button>
@@ -1410,7 +1410,7 @@ export function MessengerWorkspace({
                 <div className="chat-actions">
                   <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
                   <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('channel')} title="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
-                  <button type="button" className={showMembersPanel ? 'ghost active' : 'ghost'} onClick={() => setShowMembersPanel((value) => !value)} title="Показать участников" aria-label="Показать участников">
+                  <button type="button" className={showMembersPanel ? 'ghost active' : 'ghost'} onClick={() => setShowMembersPanel((value) => !value)} data-tooltip="Показать участников" aria-label="Показать участников">
                     <Users size={16} />Участники
                   </button>
                   {onEditChannel && <button type="button" className="ghost" onClick={onEditChannel} data-tooltip="Настройки канала" aria-label="Настройки канала"><Settings size={16} />Канал</button>}
@@ -1606,8 +1606,8 @@ export function MessengerWorkspace({
             </button>
             <div className="incoming-call-actions">
               <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" data-tooltip="Отклонить"><PhoneOff size={18} /><span>Отклонить</span></button>
-              {incomingCall.mediaType === 'video' && <button type="button" className="call-accept call-accept-audio" onClick={() => void acceptIncomingCall('audio')} aria-label="Принять без видео" title="Принять без видео"><Phone size={18} /><span>Без видео</span></button>}
-              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title={callState ? 'Принять и завершить текущий' : 'Принять'}><Phone size={18} /><span>Принять</span></button>
+              {incomingCall.mediaType === 'video' && <button type="button" className="call-accept call-accept-audio" onClick={() => void acceptIncomingCall('audio')} aria-label="Принять без видео" data-tooltip="Принять без видео"><Phone size={18} /><span>Без видео</span></button>}
+              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" data-tooltip={callState ? 'Принять и завершить текущий' : 'Принять'}><Phone size={18} /><span>Принять</span></button>
             </div>
           </motion.section>
         </motion.div>
@@ -1644,7 +1644,7 @@ function ServersRail({
       {servers.map((server) => (
         <button key={server.id} type="button"
           className={`server-circle ${activeServerId === server.id ? 'active' : ''}`}
-          onClick={() => onSelectServer(server.id)} title={server.name} aria-label={server.name}>
+          onClick={() => onSelectServer(server.id)} data-tooltip={server.name} aria-label={server.name}>
           {server.icon ? <img src={server.icon} alt="" /> : (server.name[0] || '?').toUpperCase()}
         </button>
       ))}
@@ -1929,10 +1929,10 @@ function CallOverlay({
               <label><span>Размер плитки</span><Select value={tileSize} onChange={(event) => setTileSize(event.target.value as typeof tileSize)}><option value="compact">Компактный</option><option value="comfortable">Обычный</option><option value="large">Крупный</option></Select></label>
             </div>}
           </div>
-          <button type="button" className="call-control" onClick={() => void toggleFullscreen()} title={fullscreen ? 'Свернуть звонок' : 'Развернуть звонок'} aria-label={fullscreen ? 'Свернуть звонок' : 'Развернуть звонок'}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
-          <button type="button" className="call-control" onClick={() => setCollapsed(true)} title="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
+          <button type="button" className="call-control" onClick={() => void toggleFullscreen()} data-tooltip={fullscreen ? 'Свернуть звонок' : 'Развернуть звонок'} aria-label={fullscreen ? 'Свернуть звонок' : 'Развернуть звонок'}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
+          <button type="button" className="call-control" onClick={() => setCollapsed(true)} data-tooltip="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
         </div>
-        <button type="button" className="call-control call-hangup" onClick={() => onHangUp(true)} title="Завершить звонок" aria-label="Завершить звонок"><PhoneOff size={17} /></button>
+        <button type="button" className="call-control call-hangup" onClick={() => onHangUp(true)} data-tooltip="Завершить звонок" aria-label="Завершить звонок"><PhoneOff size={17} /></button>
       </div>
       <span className="call-banner-duration">{duration}</span>
     </motion.section>
