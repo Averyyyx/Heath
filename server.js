@@ -1386,7 +1386,9 @@ io.on('connection', (socket) => {
       }
       activeCallParticipants.set(Number(conversationId), {
         callerId: socket.user.id,
-        accepted: new Set([socket.user.id])
+        accepted: new Set([socket.user.id]),
+        invited: new Set(participants.map((participant) => participant.id)),
+        declined: new Set()
       });
       const invitation = {
         conversationId: Number(conversationId), from: socket.user.id, user: sanitizeUser(socket.user),
@@ -1425,12 +1427,22 @@ io.on('connection', (socket) => {
 
   const handleCallDecline = ({ conversationId }) => {
     try {
-      ensureConversationAccess(Number(conversationId), socket.user.id);
-      getConversationParticipants(Number(conversationId)).filter((participant) => participant.id !== socket.user.id).forEach((participant) => {
-        const payload = { conversationId: Number(conversationId), from: socket.user.id };
+      const safeConversationId = Number(conversationId);
+      ensureConversationAccess(safeConversationId, socket.user.id);
+      const participants = getConversationParticipants(safeConversationId);
+      const call = activeCallParticipants.get(safeConversationId);
+      if (call) call.declined.add(socket.user.id);
+      participants.filter((participant) => participant.id !== socket.user.id).forEach((participant) => {
+        const payload = { conversationId: safeConversationId, from: socket.user.id };
         io.to(getUserRoom(participant.id)).emit('call:decline', payload);
         io.to(getUserRoom(participant.id)).emit('call:reject', payload);
       });
+      if (call && call.accepted.size === 1 && call.declined.size >= call.invited.size - 1) {
+        activeCallParticipants.delete(safeConversationId);
+        io.to(getUserRoom(call.callerId)).emit('call:end', {
+          conversationId: safeConversationId, from: socket.user.id
+        });
+      }
     } catch (error) { socket.emit('error', { message: error.message }); }
   };
   socket.on('call:decline', handleCallDecline);
