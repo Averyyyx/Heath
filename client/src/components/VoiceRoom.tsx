@@ -445,10 +445,10 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       <footer className="voice-room-controls">
         <button type="button" className={micMuted ? 'is-off' : ''} onClick={onToggleMic} data-tooltip={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>{micMuted ? <MicOff /> : <Mic />}<span>Микрофон</span></button>
         <button type="button" className={deafened ? 'is-off' : ''} onClick={onToggleDeafen} data-tooltip={deafened ? 'Включить звук' : 'Выключить звук'}>{deafened ? <VolumeX /> : <Volume2 />}<span>Наушники</span></button>
-        <button type="button" className={cameraStream ? 'is-on' : ''} onClick={() => void toggleCamera()} disabled={!localCanStream} title={localCanStream ? (cameraStream ? 'Выключить камеру' : 'Включить камеру') : 'Нет права передавать видео'}>{cameraStream ? <CameraOff /> : <Camera />}<span>Камера</span></button>
-        <button type="button" className={screenStream ? 'is-on' : ''} onClick={() => void toggleScreenShare()} disabled={!localCanStream} title={localCanStream ? (screenStream ? 'Остановить демонстрацию' : 'Демонстрация экрана') : 'Нет права передавать экран'}><MonitorUp /><span>Экран</span></button>
+        <button type="button" className={cameraStream ? 'is-on' : ''} onClick={() => void toggleCamera()} disabled={!localCanStream} data-tooltip={localCanStream ? (cameraStream ? 'Выключить камеру' : 'Включить камеру') : 'Нет права передавать видео'}>{cameraStream ? <CameraOff /> : <Camera />}<span>Камера</span></button>
+        <button type="button" className={screenStream ? 'is-on' : ''} onClick={() => void toggleScreenShare()} disabled={!localCanStream} data-tooltip={localCanStream ? (screenStream ? 'Остановить демонстрацию' : 'Демонстрация экрана') : 'Нет права передавать экран'}><MonitorUp /><span>Экран</span></button>
         <div className="voice-room-more-wrap">
-          <button type="button" className={moreOpen ? 'is-on' : ''} onClick={() => setMoreOpen((value) => !value)} title="Дополнительные настройки"><MoreHorizontal /><span>Ещё</span></button>
+          <button type="button" className={moreOpen ? 'is-on' : ''} onClick={() => setMoreOpen((value) => !value)} data-tooltip="Дополнительные настройки"><MoreHorizontal /><span>Ещё</span></button>
           {moreOpen && <div className="voice-room-more-popover">
             <div><span>Шумоподавление</span><Switch checked={noiseSuppression} onChange={setNoiseSuppression} label="Шумоподавление" /></div>
             <Slider label="Громкость участников" min={0} max={1} step={0.05} value={remoteVolume} valueLabel={`${Math.round(remoteVolume * 100)}%`} onChange={setRemoteVolume} />
