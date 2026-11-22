@@ -120,6 +120,9 @@ async function openDm(page, otherName) {
       openDm(pageA, userB.display_name || userB.username),
       openDm(pageB, userA.display_name || userA.username)
     ]);
+    if (await pageA.locator('.sidebar-section-toggle small').filter({ hasText: '0' }).count()) {
+      throw new Error('An empty sidebar section still displays a zero counter.');
+    }
 
     await pageA.locator('.chat-header .chat-actions button').filter({ hasText: 'Голос' }).click();
     await pageB.locator('.incoming-call-card').waitFor({ state: 'visible', timeout: 20000 });
