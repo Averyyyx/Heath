@@ -23,7 +23,7 @@ test('group DM WebRTC signaling is addressed to a single accepted participant', 
 test('every accepted group participant creates one deterministic peer per other participant', () => {
   assert.match(client, /function ensureGroupPeers\(conversationId: number, acceptedUserIds: number\[\]\)/);
   assert.match(client, /initiator:\s*user\.id\s*<\s*remoteId/);
-  assert.match(client, /acceptedUserIds\.filter/);
+  assert.match(client, /acceptedUserIds\s*\|\|\s*\[\]\)\.filter/);
   assert.match(client, /pendingGroupSignalsRef/);
   assert.match(client, /current\.group\s*\?\s*Object\.values\(current\.peers\s*\|\|\s*\{\}\)/);
 });
