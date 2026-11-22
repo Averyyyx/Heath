@@ -1330,6 +1330,8 @@ io.use((socket, next) => {
   });
 });
 
+const activeCallParticipants = new Map();
+
 io.on('connection', (socket) => {
   socket.join(getUserRoom(socket.user.id));
   socket.emit('socket:ready', { user: socket.user });
@@ -1378,10 +1380,14 @@ io.on('connection', (socket) => {
     try {
       ensureConversationAccess(Number(conversationId), socket.user.id);
       const participants = getConversationParticipants(Number(conversationId));
-      if (participants.length > 2) {
-        socket.emit('call:error', { conversationId: Number(conversationId), message: 'Групповые звонки до четырёх участников ещё проходят разработку. Пока доступны личные звонки.' });
+      if (participants.length > 6) {
+        socket.emit('call:error', { conversationId: Number(conversationId), message: 'В mesh-звонке одновременно могут участвовать не более шести человек.' });
         return;
       }
+      activeCallParticipants.set(Number(conversationId), {
+        callerId: socket.user.id,
+        accepted: new Set([socket.user.id])
+      });
       const invitation = {
         conversationId: Number(conversationId), from: socket.user.id, user: sanitizeUser(socket.user),
         mediaType: mediaType === 'video' ? 'video' : 'audio',
@@ -1398,15 +1404,20 @@ io.on('connection', (socket) => {
 
   socket.on('call:accept', ({ conversationId, mediaType = 'audio' }) => {
     try {
-      ensureConversationAccess(conversationId, socket.user.id);
+      const safeConversationId = Number(conversationId);
+      ensureConversationAccess(safeConversationId, socket.user.id);
+      const call = activeCallParticipants.get(safeConversationId);
+      if (!call) throw new Error('Этот звонок уже завершён.');
+      call.accepted.add(socket.user.id);
       const accepted = {
-        conversationId,
+        conversationId: safeConversationId,
         from: socket.user.id,
-        mediaType: mediaType === 'video' ? 'video' : 'audio'
+        mediaType: mediaType === 'video' ? 'video' : 'audio',
+        acceptedParticipants: [...call.accepted]
       };
-      getConversationParticipants(conversationId)
-        .filter((participant) => participant.id !== socket.user.id)
-        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:accept', accepted));
+      call.accepted.forEach((participantId) => {
+        io.to(getUserRoom(participantId)).emit('call:accept', accepted);
+      });
     } catch (error) {
       socket.emit('error', { message: error.message });
     }
@@ -1436,14 +1447,34 @@ io.on('connection', (socket) => {
     } catch (error) { socket.emit('error', { message: error.message }); }
   });
 
-  socket.on('call:signal', ({ conversationId, payload }) => {
+  socket.on('call:signal', ({ conversationId, to, payload }) => {
     try {
-      ensureConversationAccess(conversationId, socket.user.id);
-      socket.to(getConversationRoom(conversationId)).emit('call:signal', {
-        conversationId,
-        from: socket.user.id,
-        payload
-      });
+      const safeConversationId = Number(conversationId);
+      ensureConversationAccess(safeConversationId, socket.user.id);
+      const targetId = Number(to);
+      const call = activeCallParticipants.get(safeConversationId);
+      if (Number.isInteger(targetId) && targetId > 0) {
+        if (!call || !call.accepted.has(socket.user.id) || !call.accepted.has(targetId)) {
+          throw new Error('Оба участника должны принять звонок до обмена WebRTC-сигналами.');
+        }
+        if (!getConversationParticipants(safeConversationId).some((participant) => participant.id === targetId)) {
+          throw new Error('Получатель не состоит в этом диалоге.');
+        }
+        if (!payload || Buffer.byteLength(JSON.stringify(payload), 'utf8') > 256 * 1024) {
+          throw new Error('Некорректный или слишком большой сигнал WebRTC.');
+        }
+        io.to(getUserRoom(targetId)).emit('call:signal', {
+          conversationId: safeConversationId,
+          from: socket.user.id,
+          payload
+        });
+      } else {
+        socket.to(getConversationRoom(safeConversationId)).emit('call:signal', {
+          conversationId: safeConversationId,
+          from: socket.user.id,
+          payload
+        });
+      }
     } catch (error) {
       socket.emit('error', { message: error.message });
     }
@@ -1451,11 +1482,13 @@ io.on('connection', (socket) => {
 
   socket.on('call:end', ({ conversationId }) => {
     try {
-      ensureConversationAccess(Number(conversationId), socket.user.id);
-      getConversationParticipants(Number(conversationId))
+      const safeConversationId = Number(conversationId);
+      ensureConversationAccess(safeConversationId, socket.user.id);
+      activeCallParticipants.delete(safeConversationId);
+      getConversationParticipants(safeConversationId)
         .filter((participant) => participant.id !== socket.user.id)
         .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:end', {
-          conversationId: Number(conversationId), from: socket.user.id
+          conversationId: safeConversationId, from: socket.user.id
         }));
     } catch (error) {
       socket.emit('error', { message: error.message });
@@ -1553,6 +1586,15 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    for (const [conversationId, call] of activeCallParticipants.entries()) {
+      if (!call.accepted.has(socket.user.id)) continue;
+      activeCallParticipants.delete(conversationId);
+      getConversationParticipants(conversationId)
+        .filter((participant) => participant.id !== socket.user.id)
+        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:end', {
+          conversationId, from: socket.user.id
+        }));
+    }
     const sessions = db.prepare('SELECT channel_id FROM voice_sessions WHERE user_id = ?').all(socket.user.id);
     if (!sessions.length) return;
     deleteVoiceSessionsForUser.run(socket.user.id);
