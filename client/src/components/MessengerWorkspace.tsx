@@ -204,14 +204,12 @@ export function MessengerWorkspace({
   useEffect(() => {
     if (callState) {
       callWasActiveRef.current = true;
+      const conversation = conversations.find((item) => item.id === callState.conversationId);
+      const isGroupCall = Boolean(callState.group || conversation?.type === 'group' || (conversation?.participants?.length || 0) > 2);
       window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: {
         active: true, conversationId: callState.conversationId,
-        title: (() => {
-          const conversation = conversations.find((item) => item.id === callState.conversationId);
-          const isGroup = callState.group || conversation?.type === 'group' || (conversation?.participants?.length || 0) > 2;
-          return isGroup ? conversation?.title || 'Групповой звонок' : conversation?.counterpart?.display_name || conversation?.counterpart?.username || 'Личный звонок';
-        })(),
-        group: Boolean(callState.group || conversations.find((item) => item.id === callState.conversationId)?.type === 'group' || (conversations.find((item) => item.id === callState.conversationId)?.participants?.length || 0) > 2),
+        title: isGroupCall ? conversation?.title || 'Групповой звонок' : conversation?.counterpart?.display_name || conversation?.counterpart?.username || 'Личный звонок',
+        group: isGroupCall,
         startedAt: callState.startedAt
       } }));
     } else if (callWasActiveRef.current) {
