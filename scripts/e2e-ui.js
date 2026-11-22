@@ -206,7 +206,7 @@ async function openDm(page, otherName) {
     await pageA.locator('.call-overlay button[aria-label="Свернуть звонок"]').click();
     await pageA.waitForFunction(() => !document.fullscreenElement, null, { timeout: 5000 });
     await pageA.locator('.call-overlay button[aria-label="Свернуть панель звонка"]').click();
-    await pageA.locator('.call-overlay.collapsed').waitFor({ state: 'visible', timeout: 5000 });
+    await pageA.locator('.call-overlay-collapsed').waitFor({ state: 'visible', timeout: 5000 });
     await pageA.screenshot({ path: path.join(screenshotDir, 'call-collapsed-dark-1440x900.png'), fullPage: false });
     await pageA.locator('.call-overlay button').filter({ hasText: 'Развернуть' }).click();
     await pageA.locator('.call-overlay.collapsed').waitFor({ state: 'hidden', timeout: 5000 });
