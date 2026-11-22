@@ -2062,9 +2062,9 @@ function CallOverlay({
   }, [audioOutputId, state.remoteStream, state.remoteStreams]);
 
   useEffect(() => {
-    if (remoteAudioRef.current) remoteAudioRef.current.volume = remoteVolume;
-    if (remoteVideoRef.current) remoteVideoRef.current.volume = remoteVolume;
-  }, [remoteVolume, state.remoteStream]);
+    const media = overlayRef.current?.querySelectorAll('audio, video') || [];
+    media.forEach((element) => { (element as HTMLMediaElement).volume = remoteVolume; });
+  }, [remoteVolume, state.remoteStream, state.remoteStreams]);
 
   const total = Math.max(0, Math.floor((clock - state.startedAt) / 1000));
   const duration = `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`;
