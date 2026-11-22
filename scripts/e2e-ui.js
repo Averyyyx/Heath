@@ -187,7 +187,13 @@ async function openDm(page, otherName) {
     }
     await pageB.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await pageB.screenshot({ path: path.join(screenshotDir, 'incoming-call-light-1440x900.png'), fullPage: false });
+    await pageB.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+    await pageB.screenshot({ path: path.join(screenshotDir, 'incoming-call-dark-1440x900.png'), fullPage: false });
     await pageB.locator('.incoming-call-actions .call-accept').click();
+    await Promise.all([
+      pageA.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }),
+      pageB.evaluate(() => { document.documentElement.dataset.theme = 'dark'; })
+    ]);
     await pageB.locator('.call-overlay').waitFor({ state: 'visible', timeout: 15000 });
     await pageA.screenshot({ path: path.join(screenshotDir, 'call-after-accept-a.png'), fullPage: false });
     await pageB.screenshot({ path: path.join(screenshotDir, 'call-after-accept-b.png'), fullPage: false });
