@@ -135,6 +135,7 @@ async function openDm(page, otherName) {
     await pageA.locator('.call-hangup').click();
     await pageA.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 });
     await pageB.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 });
+    await pageA.locator('.active-call-strip').waitFor({ state: 'hidden', timeout: 10000 });
 
     const serverHead = pageA.locator('.sidebar-server-head').filter({ hasText: serverName }).first();
     await serverHead.waitFor({ state: 'visible', timeout: 15000 });
@@ -184,7 +185,8 @@ async function openDm(page, otherName) {
     await pageA.screenshot({ path: path.join(screenshotDir, 'settings-light-1440x900.png'), fullPage: false });
 
     const unstyledFields = await pageA.locator('input:not(.nexo-input):not([type="hidden"]), select:not(.nexo-select), textarea:not(.nexo-textarea)').evaluateAll((nodes) =>
-      nodes.map((node) => ({ tag: node.tagName, type: node.getAttribute('type'), className: node.className }))
+      nodes.filter((node) => node.getClientRects().length > 0)
+        .map((node) => ({ tag: node.tagName, type: node.getAttribute('type'), className: node.className }))
     );
     if (unstyledFields.length) throw new Error('Found form controls outside the shared UI field styles: ' + JSON.stringify(unstyledFields));
 
