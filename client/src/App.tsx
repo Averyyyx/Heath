@@ -1179,7 +1179,7 @@ export default function App() {
               onClick={() => setSidebarCollapsed((value) => !value)}>
               {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
             </button>
-            <div className="tab-scroll-arrow"><button aria-label="Прокрутить вкладки влево" onClick={() => tabStripRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}><ChevronLeft size={15} /></button></div>
+            <div className="tab-scroll-arrow"><button className="tab-scroll-button" aria-label="Прокрутить вкладки влево" onClick={() => tabStripRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}><ChevronLeft size={15} /></button></div>
             <div className="nexo-tabs" ref={tabStripRef}>
               <AnimatePresence initial={false}>
               {tabs.map((tab) => (
@@ -1207,7 +1207,7 @@ export default function App() {
             <button type="button" className="tab-add" aria-label="Новая вкладка" data-tooltip="Новая вкладка (Ctrl+T)" onClick={() => openPalette()}>
               <Plus size={16} />
             </button>
-            <div className="tab-scroll-arrow"><button aria-label="Прокрутить вкладки вправо" onClick={() => tabStripRef.current?.scrollBy({ left: 240, behavior: 'smooth' })}><ChevronRightIcon size={15} /></button></div>
+            <div className="tab-scroll-arrow"><button className="tab-scroll-button" aria-label="Прокрутить вкладки вправо" onClick={() => tabStripRef.current?.scrollBy({ left: 240, behavior: 'smooth' })}><ChevronRightIcon size={15} /></button></div>
           </div>
 
           <div className={`nexo-workbench ${activeTab.kind === 'settings' ? 'settings-active' : ''}`}>
@@ -1231,7 +1231,7 @@ export default function App() {
 
                   <SidebarSection title="Диалоги" count={conversations.length} collapsed={collapsedSections.includes('dms')}
                     onToggle={() => setCollapsedSections((current) => current.includes('dms') ? current.filter((item) => item !== 'dms') : [...current, 'dms'])}
-                    action={<button type="button" aria-label="Новое сообщение" data-tooltip="Новое сообщение" onClick={() => openPalette('new-message')}><Plus size={14} /></button>}>
+                    action={<button type="button" className="ghost-icon" aria-label="Новое сообщение" data-tooltip="Новое сообщение" onClick={() => openPalette('new-message')}><Plus size={14} /></button>}>
                     {conversations.map((conversation) => {
                       const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user.id);
                       const item: SidebarPin = { id: `dm:${conversation.id}`, kind: 'dm', title: person?.display_name || person?.username || 'Диалог', targetId: conversation.id };
@@ -1252,7 +1252,7 @@ export default function App() {
 
                   <SidebarSection title="Пространства" count={servers.length} collapsed={collapsedSections.includes('servers')}
                     onToggle={() => setCollapsedSections((current) => current.includes('servers') ? current.filter((item) => item !== 'servers') : [...current, 'servers'])}
-                    action={<button type="button" aria-label="Создать пространство" data-tooltip="Создать пространство" onClick={() => setCreateSpaceOpen(true)}><Plus size={14} /></button>}>
+                    action={<button type="button" className="ghost-icon" aria-label="Создать пространство" data-tooltip="Создать пространство" onClick={() => setCreateSpaceOpen(true)}><Plus size={14} /></button>}>
                     {servers.map((server) => (
                       <div className="sidebar-server" key={server.id}>
                         <button type="button" className="sidebar-server-head" onClick={() => setExpandedServers((current) => current.includes(server.id) ? current.filter((id) => id !== server.id) : [...current, server.id])}
@@ -1310,8 +1310,8 @@ export default function App() {
                       <div className="active-voice-actions">
                         <button type="button" className={micMuted ? 'is-off' : ''} data-tooltip={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => { if (deafened) setSavedMicMuted(!savedMicMuted); else setMic(!micMuted); }}>{micMuted ? <MicOff size={15} /> : <Mic size={15} />}</button>
                         <button type="button" className={deafened ? 'is-off' : ''} data-tooltip={deafened ? 'Включить звук' : 'Выключить звук'} onClick={() => { if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); } else { setDeafened(false); setMic(savedMicMuted); } }}>{deafened ? <HeadphoneOff size={15} /> : <Headphones size={15} />}</button>
-                        <button type="button" data-tooltip="Камера" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Camera size={15} /></button>
-                        <button type="button" data-tooltip="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><MonitorUp size={15} /></button>
+                        <button type="button" className="voice-action-button" data-tooltip="Камера" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Camera size={15} /></button>
+                        <button type="button" className="voice-action-button" data-tooltip="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><MonitorUp size={15} /></button>
                       </div>
                     </div>}
                     {activeCallInfo && <div className="active-call-strip">
@@ -1582,7 +1582,7 @@ function HomeView({ user, conversations, servers, unreadDmCounts, unreadChannelC
           const name = person?.display_name || person?.username || conversation.title || 'Диалог';
           const message = conversation.last_message;
           const unread = unreadDmCounts[conversation.id] || 0;
-          return <button key={`dm-${conversation.id}`} type="button" onClick={() => openDm(conversation)}>
+          return <button className="home-continue-item" key={`dm-${conversation.id}`} type="button" onClick={() => openDm(conversation)}>
             <Avatar user={person} size={36} showStatus />
             <span><strong>{name}</strong><small>{dmPreview(conversation)}</small></span>
             {message && <time>{formatTime(message.created_at)}</time>}
@@ -1593,7 +1593,7 @@ function HomeView({ user, conversations, servers, unreadDmCounts, unreadChannelC
         {channels.map(({ server, channel }) => {
           const preview = lastItems[`channel:${channel.id}`];
           const unread = unreadChannelCounts[channel.id] || 0;
-          return <button key={`channel-${channel.id}`} type="button" onClick={() => openChannel(server, channel.id)}>
+          return <button className="home-continue-item" key={`channel-${channel.id}`} type="button" onClick={() => openChannel(server, channel.id)}>
             <span className="home-channel-avatar"><HashIcon /></span>
             <span><strong>{channel.name}</strong><small>{preview ? `${preview.authorId === user.id ? 'Вы: ' : ''}${preview.content}` : server.name}</small></span>
             {preview && <time>{formatTime(preview.created_at)}</time>}
@@ -1655,7 +1655,7 @@ function ContextMenu({ x, y, onClose, children }: { x: number; y: number; onClos
 }
 
 function MenuAction({ icon, label, onClick }: { icon?: ReactNode; label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick}>{icon}<span>{label}</span></button>;
+  return <button type="button" className="menu-action" onClick={onClick}>{icon}<span>{label}</span></button>;
 }
 
 function WelcomeOverlay({ kind, name, onClose }: { kind: 'back' | 'new'; name: string; onClose: () => void }) {
