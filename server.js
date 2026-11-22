@@ -1439,6 +1439,7 @@ io.on('connection', (socket) => {
   socket.on('call:timeout', ({ conversationId }) => {
     try {
       ensureConversationAccess(Number(conversationId), socket.user.id);
+      activeCallParticipants.delete(Number(conversationId));
       getConversationParticipants(Number(conversationId))
         .filter((participant) => participant.id !== socket.user.id)
         .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:timeout', {
