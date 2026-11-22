@@ -1278,7 +1278,7 @@ export function MessengerWorkspace({
               </header>
               {pinnedPanelOpen && <div className="pinned-messages-panel">
                 <strong>Закреплённые сообщения</strong>
-                {pinnedMessages.length ? pinnedMessages.map((pin) => <button key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                {pinnedMessages.length ? pinnedMessages.map((pin) => <button className="pinned-message-item" key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
                   <span>{pin.author.display_name || pin.author.username}</span><small>{pin.content || 'Вложение'}</small>
                 </button>) : <p>Пока ничего не закреплено.</p>}
               </div>}
@@ -1450,7 +1450,7 @@ export function MessengerWorkspace({
               </header>
               {pinnedPanelOpen && <div className="pinned-messages-panel">
                 <strong>Закреплённые сообщения</strong>
-                {pinnedMessages.length ? pinnedMessages.map((pin) => <button key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-channel-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                {pinnedMessages.length ? pinnedMessages.map((pin) => <button className="pinned-message-item" key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-channel-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
                   <span>{pin.author.display_name || pin.author.username}</span><small>{pin.content || 'Вложение'}</small>
                 </button>) : <p>Пока ничего не закреплено.</p>}
               </div>}
@@ -1580,16 +1580,16 @@ export function MessengerWorkspace({
           }} onPointerDown={(event) => event.stopPropagation()}>
             <div className="message-context-reactions" aria-label="Добавить реакцию">
               {['👍', '❤️', '😂', '😮', '😢', '🔥', '🎉', '👀'].map((emoji) => (
-                <button key={emoji} type="button" data-tooltip={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
+                <button className="reaction-picker-button" key={emoji} type="button" data-tooltip={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
               ))}
             </div>
-            <button type="button" onClick={() => void toggleMessagePin(messageContext.message, messageContext.kind)}>
+            <button type="button" className="context-menu-action" onClick={() => void toggleMessagePin(messageContext.message, messageContext.kind)}>
               <Pin size={14} /><span>{messageContext.message.pin ? 'Открепить' : 'Закрепить'}</span>
             </button>
-            <button type="button" onClick={() => beginReplyMessage(messageContext.message, messageContext.kind)}>
+            <button type="button" className="context-menu-action" onClick={() => beginReplyMessage(messageContext.message, messageContext.kind)}>
               <MessageCircle size={14} /><span>Ответить</span>
             </button>
-            <button type="button" onClick={() => {
+            <button type="button" className="context-menu-action" onClick={() => {
               const value = messageContext.message.content || messageContext.message.attachment?.name || '';
               void copyText(value);
               setMessageContext(null);
@@ -1605,7 +1605,7 @@ export function MessengerWorkspace({
             {messageContext.message.author.id === user.id && (
               <>
                 {messageContext.message.content && (
-                  <button type="button" onClick={() => beginEditMessage(messageContext.message)}>
+                  <button type="button" className="context-menu-action" onClick={() => beginEditMessage(messageContext.message)}>
                     <Pencil size={14} /><span>Редактировать</span>
                   </button>
                 )}
