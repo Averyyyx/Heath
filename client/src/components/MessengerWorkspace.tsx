@@ -1303,7 +1303,7 @@ export function MessengerWorkspace({
                 </div>
                 {messageSearchQuery.trim() && <div className="message-search-results">
                   {messageSearchResults.length ? messageSearchResults.map((message) => (
-                    <button key={message.id} type="button" onClick={() => jumpToSearchResult(message.id)}>
+                    <button className="message-search-result" key={message.id} type="button" onClick={() => jumpToSearchResult(message.id)}>
                       <strong>{message.author.display_name || message.author.username}</strong>
                       <span>{message.content || 'Вложение'}</span>
                       <time>{new Date(message.created_at).toLocaleDateString('ru-RU')}</time>
@@ -1594,7 +1594,7 @@ export function MessengerWorkspace({
               void copyText(value);
               setMessageContext(null);
             }}><Copy size={14} /><span>Копировать текст</span></button>
-            <button type="button" onClick={() => {
+            <button type="button" className="context-menu-action" onClick={() => {
               const message = messageContext.message;
               const link = messageContext.kind === 'dm' && 'conversation_id' in message
                 ? `nexo://dm/${message.conversation_id}/message/${message.id}`
@@ -1828,7 +1828,7 @@ function MessageContent({ content }: { content: string }) {
     const code = blocks[index + 2];
     if (code !== undefined) {
       result.push(<div className="message-code-block" key={`code-${index}`}>
-        <header><span>{language || 'CODE'}</span><button type="button" data-tooltip="Копировать код" aria-label="Копировать код"
+        <header><span>{language || 'CODE'}</span><button type="button" className="code-copy-button" data-tooltip="Копировать код" aria-label="Копировать код"
           onClick={() => void copyText(code.trimEnd())}><Copy size={13} />Копировать</button></header>
         <pre><code>{code.replace(/\n$/, '')}</code></pre>
       </div>);
