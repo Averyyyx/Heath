@@ -2063,12 +2063,9 @@ function CallOverlay({
           </div>
         )) : <div className={state.remoteStream ? 'call-banner-person connected' : 'call-banner-person pending'}><Avatar user={peer} size={64} showStatus /><small>{peerName}</small></div>}
       </div>
-      {state.group ? Object.entries(groupStreams).map(([id, stream]) => (
-        stream.getVideoTracks().length
-          ? <video key={id} className="call-audio-sink" autoPlay playsInline muted={deafened}
-              ref={(node) => { if (node && node.srcObject !== stream) node.srcObject = stream; }} />
-          : <audio key={id} className="call-audio-sink" autoPlay playsInline muted={deafened}
-              ref={(node) => { if (node && node.srcObject !== stream) node.srcObject = stream; }} />
+      {state.group ? Object.entries(groupStreams).filter(([, stream]) => !stream.getVideoTracks().length).map(([id, stream]) => (
+        <audio key={id} className="call-audio-sink" autoPlay playsInline muted={deafened}
+          ref={(node) => { if (node && node.srcObject !== stream) node.srcObject = stream; }} />
       )) : state.remoteStream && !state.remoteStream.getVideoTracks().length && <audio ref={remoteAudioRef} className="call-audio-sink" autoPlay playsInline muted={deafened} />}
       {(state.remoteStream?.getVideoTracks().length || cameraTrack || Object.values(groupStreams).some((stream) => stream.getVideoTracks().length)) ? <div className={`call-banner-media ${tileSize} ${state.group ? 'group' : ''}`}>
         {state.group ? Object.entries(groupStreams).filter(([, stream]) => stream.getVideoTracks().length).map(([id, stream]) => (
