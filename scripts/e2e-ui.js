@@ -343,7 +343,7 @@ async function openDm(page, otherName) {
       await pageA.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
       for (const [key, label] of settingsPages) {
         await pageA.locator('.settings-nav nav button').filter({ hasText: label }).click();
-        await pageA.waitForTimeout(220);
+        await pageA.waitForTimeout(500);
         await pageA.screenshot({
           path: path.join(screenshotDir, 'settings-' + key + '-' + theme + '-1440x900.png'),
           fullPage: false
