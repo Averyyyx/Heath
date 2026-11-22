@@ -1,20 +1,24 @@
 const { chromium } = require('playwright');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const baseUrl = process.env.NEXO_E2E_URL || 'http://127.0.0.1:4000';
 const email = process.env.NEXO_E2E_EMAIL;
 const password = process.env.NEXO_E2E_PASSWORD;
+const screenshotDir = process.env.NEXO_E2E_SCREENSHOT_DIR || path.resolve('artifacts/e2e-ui');
 
 if (!email || !password) {
   throw new Error('Set NEXO_E2E_EMAIL and NEXO_E2E_PASSWORD for the seeded test account.');
 }
 
 (async () => {
+  fs.mkdirSync(screenshotDir, { recursive: true });
   const browser = await chromium.launch({
     headless: true,
     args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']
   });
   try {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
     await page.locator('input[type="email"]').fill(email);
     await page.locator('input[type="password"]').first().fill(password);
@@ -48,7 +52,25 @@ if (!email || !password) {
     if (await page.locator('.dock-account-menu, .dock-menu-profile').count()) {
       throw new Error('Legacy account menu is still present.');
     }
-    console.log('Dock layout checks passed for 700/768/800/900/1080 px at 100/125/150% zoom.');
+
+    const unstyledFields = await page.locator('input:not(.nexo-input):not([type="hidden"]), select:not(.nexo-select), textarea:not(.nexo-textarea)').evaluateAll((nodes) =>
+      nodes.map((node) => ({ tag: node.tagName, type: node.getAttribute('type'), className: node.className }))
+    );
+    if (unstyledFields.length) throw new Error(`Found form controls outside the shared UI field styles: ${JSON.stringify(unstyledFields)}`);
+
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+      for (const height of [768, 900]) {
+        await page.setViewportSize({ width: 1440, height });
+        await page.waitForTimeout(120);
+        await page.screenshot({
+          path: path.join(screenshotDir, `workspace-${theme}-1440x${height}.png`),
+          fullPage: false
+        });
+      }
+    }
+
+    console.log(`Dock, shared form-control, and workspace screenshot checks passed. Screenshots: ${screenshotDir}`);
   } finally {
     await browser.close();
   }
