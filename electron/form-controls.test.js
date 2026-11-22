@@ -26,10 +26,10 @@ test('application forms use the shared UI controls outside the UI primitives fol
   for (const file of files) {
     const source = fs.readFileSync(file, 'utf8');
     for (const match of source.matchAll(/<button\b([^>]*)>/gs)) {
-      if (!/\bclassName\\s*=/.test(match[1])) {
+      if (!/\bclassName\s*=/.test(match[1])) {
         unstyledButtons.push({ file: path.relative(root, file), line: source.slice(0, match.index).split('\n').length });
       }
-      if (/\btitle\\s*=/.test(match[1])) {
+      if (/\btitle\s*=/.test(match[1])) {
         unstyledButtons.push({ file: path.relative(root, file), line: source.slice(0, match.index).split('\n').length, issue: 'native title tooltip' });
       }
     }
