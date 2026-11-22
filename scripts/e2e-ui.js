@@ -179,7 +179,7 @@ async function openDm(page, otherName) {
       throw new Error('An empty sidebar section still displays a zero counter.');
     }
 
-    await pageA.locator('.chat-header .chat-actions button').filter({ hasText: 'Голос' }).click();
+    await pageA.locator('.chat-header:visible .chat-actions button').filter({ hasText: 'Голос' }).click();
     await pageB.locator('.incoming-call-card').waitFor({ state: 'visible', timeout: 20000 });
     await pageA.locator('.call-overlay').waitFor({ state: 'visible', timeout: 15000 });
     if (await pageA.locator('.call-banner-person.pending').count() < 1) {
@@ -226,7 +226,7 @@ async function openDm(page, otherName) {
       openDm(pageB, groupTitle),
       openDm(pageC, groupTitle)
     ]);
-    await pageA.locator('.chat-header .chat-actions button').filter({ hasText: 'Голос' }).click();
+    await pageA.locator('.chat-header:visible .chat-actions button').filter({ hasText: 'Голос' }).click();
     await Promise.all([
       pageB.locator('.incoming-call-card').waitFor({ state: 'visible', timeout: 20000 }),
       pageC.locator('.incoming-call-card').waitFor({ state: 'visible', timeout: 20000 })
