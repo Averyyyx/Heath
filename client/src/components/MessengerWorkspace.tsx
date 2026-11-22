@@ -2089,7 +2089,7 @@ function CallOverlay({
       initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
       <div className="call-banner-participants">
         <div className="call-banner-person connected"><Avatar user={currentUser} size={64} showStatus /><small>Вы</small></div>
-        {groupUsers.length ? groupUsers.map((participant) => (
+        {state.group ? groupUsers.map((participant) => (
           <div key={participant.id} className={groupStreams[participant.id] ? 'call-banner-person connected' : 'call-banner-person pending'}>
             <Avatar user={participant} size={64} showStatus /><small>{participant.display_name || participant.username}</small>
           </div>
