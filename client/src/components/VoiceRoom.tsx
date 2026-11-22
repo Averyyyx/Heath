@@ -287,6 +287,13 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
           channelName: channel.name, joinedAt: Date.now()
         } }));
       } catch (reason) {
+        // A failed permission check, full channel, or API error must never leave
+        // the microphone active after getUserMedia has already succeeded.
+        if (!joinedRef.current) {
+          localRef.current?.getTracks().forEach((track) => track.stop());
+          localRef.current = null;
+          setLocalStream(null);
+        }
         setError((reason as Error).message || 'Не удалось подключиться к голосовому каналу.');
         setBusy(false);
       } finally {
