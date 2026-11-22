@@ -160,6 +160,11 @@ async function openDm(page, otherName) {
       throw new Error('The connected call does not show its separate hang-up control.');
     }
     await pageA.screenshot({ path: path.join(screenshotDir, 'call-connected-dark-1440x900.png'), fullPage: false });
+    await pageA.locator('.call-overlay button[aria-label="Развернуть звонок"]').click();
+    await pageA.waitForFunction(() => Boolean(document.fullscreenElement), null, { timeout: 5000 });
+    await pageA.screenshot({ path: path.join(screenshotDir, 'call-fullscreen-dark-1440x900.png'), fullPage: false });
+    await pageA.locator('.call-overlay button[aria-label="Свернуть звонок"]').click();
+    await pageA.waitForFunction(() => !document.fullscreenElement, null, { timeout: 5000 });
     await pageA.locator('.call-hangup').click();
     await pageA.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 });
     await pageB.locator('.call-overlay').waitFor({ state: 'hidden', timeout: 15000 });
