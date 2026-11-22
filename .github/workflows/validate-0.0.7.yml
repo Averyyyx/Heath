@@ -36,6 +36,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install chromium
       - name: Run Playwright against a seeded Nexo server
+        timeout-minutes: 8
         shell: pwsh
         run: |
           $env:NODE_ENV = 'development'
