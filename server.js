@@ -1485,9 +1485,17 @@ io.on('connection', (socket) => {
     try {
       const safeConversationId = Number(conversationId);
       ensureConversationAccess(safeConversationId, socket.user.id);
+      const call = activeCallParticipants.get(safeConversationId);
+      const participants = getConversationParticipants(safeConversationId);
+      if (call && participants.length > 2 && call.callerId !== socket.user.id) {
+        call.accepted.delete(socket.user.id);
+        call.accepted.forEach((participantId) => io.to(getUserRoom(participantId)).emit('call:participant-left', {
+          conversationId: safeConversationId, userId: socket.user.id
+        }));
+        return;
+      }
       activeCallParticipants.delete(safeConversationId);
-      getConversationParticipants(safeConversationId)
-        .filter((participant) => participant.id !== socket.user.id)
+      participants.filter((participant) => participant.id !== socket.user.id)
         .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:end', {
           conversationId: safeConversationId, from: socket.user.id
         }));
@@ -1589,9 +1597,16 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     for (const [conversationId, call] of activeCallParticipants.entries()) {
       if (!call.accepted.has(socket.user.id)) continue;
+      const participants = getConversationParticipants(conversationId);
+      if (participants.length > 2 && call.callerId !== socket.user.id) {
+        call.accepted.delete(socket.user.id);
+        call.accepted.forEach((participantId) => io.to(getUserRoom(participantId)).emit('call:participant-left', {
+          conversationId, userId: socket.user.id
+        }));
+        continue;
+      }
       activeCallParticipants.delete(conversationId);
-      getConversationParticipants(conversationId)
-        .filter((participant) => participant.id !== socket.user.id)
+      participants.filter((participant) => participant.id !== socket.user.id)
         .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:end', {
           conversationId, from: socket.user.id
         }));
