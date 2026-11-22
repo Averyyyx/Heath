@@ -29,6 +29,65 @@ jobs:
         run: npm test
       - name: Build client (TypeScript + Vite)
         run: npm run build --prefix client
+      - name: Prepare static client for browser checks
+        run: npm run prepare:public
+      - name: Install Playwright
+        run: npm install --no-save playwright
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Start seeded Nexo test server
+        shell: pwsh
+        run: |
+          $env:NEXO_DEV_ACCOUNT = 'true'
+          $env:NEXO_DEV_EMAIL = 'dev@nexo.local'
+          $env:NEXO_DEV_PASSWORD = 'Nexo-E2E-Password-2026!'
+          $env:SESSION_SECRET = 'nexo-e2e-temporary-session-secret'
+          $env:DB_PATH = Join-Path $env:RUNNER_TEMP 'nexo-e2e.db'
+          $env:DATA_DIR = Join-Path $env:RUNNER_TEMP 'nexo-e2e-data'
+          $stdout = Join-Path $env:RUNNER_TEMP 'nexo-e2e-server.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'nexo-e2e-server-error.log'
+          $server = Start-Process -FilePath 'node' -ArgumentList @('server.js') -WorkingDirectory $env:GITHUB_WORKSPACE -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          Set-Content -Path (Join-Path $env:RUNNER_TEMP 'nexo-e2e-server.pid') -Value $server.Id
+          $ready = $false
+          for ($attempt = 0; $attempt -lt 45; $attempt++) {
+            try {
+              $response = Invoke-WebRequest -Uri 'http://127.0.0.1:4000' -TimeoutSec 2
+              if ($response.StatusCode -eq 200) { $ready = $true; break }
+            } catch {}
+            Start-Sleep -Seconds 2
+          }
+          if (-not $ready) {
+            if (Test-Path $stdout) { Get-Content $stdout }
+            if (Test-Path $stderr) { Get-Content $stderr }
+            throw 'Nexo test server did not become ready.'
+          }
+      - name: Run Playwright UI regression and capture screenshots
+        env:
+          NEXO_E2E_URL: http://127.0.0.1:4000
+          NEXO_E2E_EMAIL: dev@nexo.local
+          NEXO_E2E_PASSWORD: Nexo-E2E-Password-2026!
+          NEXO_E2E_SCREENSHOT_DIR: artifacts/e2e-ui
+        run: node scripts/e2e-ui.js
+      - name: Stop seeded Nexo test server
+        if: always()
+        shell: pwsh
+        run: |
+          $pidFile = Join-Path $env:RUNNER_TEMP 'nexo-e2e-server.pid'
+          if (Test-Path $pidFile) {
+            $serverPid = [int](Get-Content $pidFile)
+            Stop-Process -Id $serverPid -Force -ErrorAction SilentlyContinue
+          }
+      - name: Upload Playwright screenshots and server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nexo-0.0.8-UI-E2E
+          path: |
+            artifacts/e2e-ui/**
+            ${{ runner.temp }}/nexo-e2e-server.log
+            ${{ runner.temp }}/nexo-e2e-server-error.log
+          if-no-files-found: warn
+          retention-days: 10
       - name: Build Windows installer
         run: npm run electron:build
       - name: Generate SHA-256 checksum
