@@ -77,6 +77,20 @@ async function openDm(page, otherName) {
     }), 'Second test account profile setup');
     const userB = profileB.user || registeredB.user;
 
+    const registeredC = await expectOk(await apiC.post('/api/auth/register', {
+      data: { email: emailC, password: passwordC, remember: true }
+    }), 'Third test account registration');
+    const profileC = await expectOk(await apiC.post('/api/profile', {
+      data: {
+        displayName: displayNameC,
+        username: handleC,
+        bio: 'Temporary Playwright group-call account',
+        avatarColor: '#D97757',
+        avatarPreset: 3
+      }
+    }), 'Third test account profile setup');
+    const userC = profileC.user || registeredC.user;
+
     const friendRequest = await expectOk(await apiA.post('/api/friends/request', {
       data: { username: userB.username }
     }), 'Friend request');
@@ -87,6 +101,19 @@ async function openDm(page, otherName) {
     await expectOk(await apiA.post('/api/conversations/dm', {
       data: { username: userB.username }
     }), 'Direct conversation creation');
+
+    if (!process.env.DB_PATH) throw new Error('DB_PATH is required to seed a temporary group conversation.');
+    const groupTitle = 'E2E Group ' + suffix;
+    const db = new Database(process.env.DB_PATH);
+    db.pragma('busy_timeout = 5000');
+    const groupConversationId = db.transaction(() => {
+      const inserted = db.prepare("INSERT INTO conversations (type, title) VALUES ('group', ?)").run(groupTitle);
+      const conversationId = Number(inserted.lastInsertRowid);
+      const insertParticipant = db.prepare('INSERT INTO conversation_participants (conversation_id, user_id, role) VALUES (?, ?, ?)');
+      [userA, userB, userC].forEach((participant) => insertParticipant.run(conversationId, Number(participant.id), 'member'));
+      return conversationId;
+    })();
+    db.close();
 
     const serverResult = await expectOk(await apiA.post('/api/servers', {
       data: { name: 'E2E Space ' + suffix, description: 'Temporary Playwright voice-channel test space' }
