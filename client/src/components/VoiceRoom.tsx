@@ -462,11 +462,11 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       {participants.length > 6 && <p className="voice-room-limit-note">Mesh-связь рассчитана на небольшие группы: комфортный предел — 5–6 участников.</p>}
       {inviteOpen && <div className="voice-invite-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setInviteOpen(false); }}>
         <section className="voice-invite-modal" role="dialog" aria-modal="true" aria-label="Пригласить в голосовой канал">
-          <header><strong>Пригласить в голосовой канал</strong><button type="button" aria-label="Закрыть" onClick={() => setInviteOpen(false)}><X size={16} /></button></header>
+          <header><strong>Пригласить в голосовой канал</strong><button type="button" className="ghost-icon" aria-label="Закрыть" onClick={() => setInviteOpen(false)}><X size={16} /></button></header>
           {inviteStatus && <p className="voice-invite-status">{inviteStatus}</p>}
           <div className="voice-invite-list">{serverMembers.filter((member) => member.id !== user.id).map((member) => <div key={member.id}>
             <Avatar user={member.user} size={30} /><span>{member.user.display_name || member.user.username}</span>
-            <button type="button" onClick={() => inviteMember(member.id)}>Позвать</button>
+            <button type="button" className="secondary" onClick={() => inviteMember(member.id)}>Позвать</button>
           </div>)}</div>
         </section>
       </div>}
