@@ -11,6 +11,7 @@ test('group DM calls accept up to six members and track the accepted mesh', () =
   assert.match(server, /activeCallParticipants\.set\(Number\(conversationId\)/);
   assert.match(server, /acceptedParticipants:\s*\[\.\.\.call\.accepted\]/);
   assert.doesNotMatch(server, /Групповые звонки до четырёх участников ещё проходят разработку/);
+  assert.match(server, /call\.declined\.size\s*>=\s*call\.invited\.size\s*-\s*1/);
 });
 
 test('group DM WebRTC signaling is addressed to a single accepted participant', () => {
@@ -25,5 +26,7 @@ test('every accepted group participant creates one deterministic peer per other 
   assert.match(client, /initiator:\s*user\.id\s*<\s*remoteId/);
   assert.match(client, /acceptedUserIds\s*\|\|\s*\[\]\)\.filter/);
   assert.match(client, /pendingGroupSignalsRef/);
+  assert.match(server, /call:participant-left/);
+  assert.match(client, /socket\.on\('call:participant-left'/);
   assert.match(client, /current\.group\s*\?\s*Object\.values\(current\.peers\s*\|\|\s*\{\}\)/);
 });
