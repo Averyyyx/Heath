@@ -142,16 +142,23 @@ async function openDm(page, otherName) {
       deviceScaleFactor: 1,
       permissions: ['microphone', 'camera']
     });
+    const contextC = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      deviceScaleFactor: 1,
+      permissions: ['microphone', 'camera']
+    });
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
-    for (const [label, page] of [['A', pageA], ['B', pageB]]) {
+    const pageC = await contextC.newPage();
+    for (const [label, page] of [['A', pageA], ['B', pageB], ['C', pageC]]) {
       page.on('console', (message) => { if (message.type() === 'error') console.error('[page ' + label + ' console]', message.text()); });
       page.on('pageerror', (error) => console.error('[page ' + label + ' error]', error.message));
     }
 
     await Promise.all([
       loginPage(pageA, emailA, passwordA),
-      loginPage(pageB, emailB, passwordB)
+      loginPage(pageB, emailB, passwordB),
+      loginPage(pageC, emailC, passwordC)
     ]);
     const mediaCheck = await pageB.evaluate(async () => {
       try {
