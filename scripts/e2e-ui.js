@@ -4,8 +4,8 @@ const Database = require('better-sqlite3');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const baseUrl = process.env.NEXO_E2E_URL || 'http://127.0.0.1:4000';
-const screenshotDir = process.env.NEXO_E2E_SCREENSHOT_DIR || path.resolve('artifacts/e2e-ui');
+const baseUrl = process.env.HEARTH_E2E_URL || 'http://127.0.0.1:4000';
+const screenshotDir = process.env.HEARTH_E2E_SCREENSHOT_DIR || path.resolve('artifacts/e2e-ui');
 
 async function expectOk(response, label) {
   if (!response.ok()) {
@@ -19,7 +19,7 @@ async function loginPage(page, email, password) {
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"]').first().fill(password);
   await page.locator('form').filter({ has: page.locator('input[type="email"]') }).locator('button[type="submit"]').click();
-  await page.locator('.nexo-user-dock').waitFor({ state: 'visible', timeout: 30000 });
+  await page.locator('.hr-user-dock').waitFor({ state: 'visible', timeout: 30000 });
 }
 
 async function openDm(page, otherName) {
@@ -31,7 +31,7 @@ async function openDm(page, otherName) {
 
 async function assertActiveDmTabMatchesHeader(page) {
   const header = (await page.locator('.chat-header:visible .title').innerText()).trim();
-  const tab = (await page.locator('.nexo-tab.active .tab-title').innerText()).trim();
+  const tab = (await page.locator('.hr-tab.active .tab-title').innerText()).trim();
   if (tab !== header) throw new Error('Active DM tab title does not match chat header: tab="' + tab + '", header="' + header + '"');
 }
 
@@ -44,18 +44,18 @@ async function waitForStableModal(page, modal) {
 (async () => {
   fs.mkdirSync(screenshotDir, { recursive: true });
   const suffix = Date.now().toString().slice(-9);
-  const emailA = 'nexo-e2e-host-' + suffix + '@example.test';
-  const emailB = 'nexo-e2e-guest-' + suffix + '@example.test';
-  const emailC = 'nexo-e2e-third-' + suffix + '@example.test';
+  const emailA = 'hearth-e2e-host-' + suffix + '@example.test';
+  const emailB = 'hearth-e2e-guest-' + suffix + '@example.test';
+  const emailC = 'hearth-e2e-third-' + suffix + '@example.test';
   const passwordA = 'R8#tK5!mQ2@xP7$zV4';
   const passwordB = 'C7!qR4#zP9@tL2$wM8&x';
   const passwordC = 'H6@pN3!sW8#yK4$uQ1';
   const handleA = 'e2ehost' + suffix;
   const handleB = 'e2e' + suffix;
   const handleC = 'e2ethird' + suffix;
-  const displayNameA = 'Nexo E2E Host';
-  const displayNameB = 'Nexo E2E Guest';
-  const displayNameC = 'Nexo E2E Third';
+  const displayNameA = 'Hearth E2E Host';
+  const displayNameB = 'Hearth E2E Guest';
+  const displayNameC = 'Hearth E2E Third';
   const apiA = await request.newContext({ baseURL: baseUrl });
   const apiB = await request.newContext({ baseURL: baseUrl });
   const apiC = await request.newContext({ baseURL: baseUrl });
@@ -302,14 +302,14 @@ async function waitForStableModal(page, modal) {
     await createSpaceModal.locator('button[aria-label="Закрыть"]').click();
     await serverHead.click();
     await serverHead.click({ button: 'right' });
-    await pageA.locator('.nexo-context-menu').getByRole('button', { name: 'Создать канал' }).click();
+    await pageA.locator('.hr-context-menu').getByRole('button', { name: 'Создать канал' }).click();
     const createChannelModal = pageA.locator('.modal-panel').filter({ hasText: 'Создать канал' });
     await waitForStableModal(pageA, createChannelModal);
     await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await pageA.screenshot({ path: path.join(screenshotDir, 'create-channel-light-1440x900.png'), fullPage: false });
     await createChannelModal.locator('button[aria-label="Закрыть"]').click();
     await pageA.locator('.sidebar-row').filter({ hasText: 'e2e-chat' }).click({ button: 'right' });
-    await pageA.locator('.nexo-context-menu').getByRole('button', { name: 'Настройки канала' }).click();
+    await pageA.locator('.hr-context-menu').getByRole('button', { name: 'Настройки канала' }).click();
     const channelSettingsModal = pageA.locator('.modal-panel').filter({ hasText: 'Настройки канала' });
     await waitForStableModal(pageA, channelSettingsModal);
     await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
@@ -336,8 +336,8 @@ async function waitForStableModal(page, modal) {
         await pageA.waitForTimeout(100);
         const metrics = await pageA.evaluate(() => {
           const dock = document.querySelector('.sidebar-user-area');
-          const card = document.querySelector('.nexo-user-dock');
-          const actions = document.querySelectorAll('.nexo-user-dock .dock-actions > button');
+          const card = document.querySelector('.hr-user-dock');
+          const actions = document.querySelectorAll('.hr-user-dock .dock-actions > button');
           const zoomFactor = Number(document.body.style.zoom) || 1;
           return {
             bottom: (dock?.getBoundingClientRect().bottom ?? Infinity) / zoomFactor,
@@ -353,14 +353,14 @@ async function waitForStableModal(page, modal) {
     }
 
     await pageA.evaluate(() => { document.body.style.zoom = '1'; });
-    const sidebar = pageA.locator('.nexo-sidebar');
+    const sidebar = pageA.locator('.hr-sidebar');
     const originalSidebarWidth = await sidebar.evaluate((element) => element.getBoundingClientRect().width);
     for (const width of [220, 264, 360]) {
       await sidebar.evaluate((element, nextWidth) => { element.style.width = nextWidth + 'px'; }, width);
       await pageA.waitForTimeout(180);
       const dockLayout = await sidebar.evaluate((element) => {
-        const dock = element.querySelector('.nexo-user-dock');
-        const avatar = dock?.querySelector('.nexo-avatar');
+        const dock = element.querySelector('.hr-user-dock');
+        const avatar = dock?.querySelector('.hr-avatar');
         const copy = dock?.querySelector('.dock-user-copy');
         const name = dock?.querySelector('.dock-user-copy strong');
         const identity = dock?.querySelector('.dock-user');
@@ -393,7 +393,7 @@ async function waitForStableModal(page, modal) {
       throw new Error('Legacy account menu is still present.');
     }
 
-    await pageA.locator('.nexo-user-dock button[aria-label="Настройки"]').click();
+    await pageA.locator('.hr-user-dock button[aria-label="Настройки"]').click();
     await pageA.locator('.settings-shell').waitFor({ state: 'visible', timeout: 15000 });
     const settingsPages = [
       ['account', 'Моя учётная запись'],
@@ -403,7 +403,7 @@ async function waitForStableModal(page, modal) {
       ['hotkeys', 'Горячие клавиши'],
       ['notifications', 'Уведомления и звуки'],
       ['accessibility', 'Специальные возможности'],
-      ['premium', 'Nexo Pulse'],
+      ['premium', 'Hearth Plus'],
       ['servers', 'Серверы'],
       ['updates', 'Обновления']
     ];
@@ -416,7 +416,7 @@ async function waitForStableModal(page, modal) {
           path: path.join(screenshotDir, 'settings-' + key + '-' + theme + '-1440x900.png'),
           fullPage: false
         });
-        const unstyledFields = await pageA.locator('input:not(.nexo-input):not(.nexo-slider):not([type="hidden"]), select:not(.nexo-select), textarea:not(.nexo-textarea)').evaluateAll((nodes) =>
+        const unstyledFields = await pageA.locator('input:not(.hr-input):not(.hr-slider):not([type="hidden"]), select:not(.hr-select), textarea:not(.hr-textarea)').evaluateAll((nodes) =>
           nodes.filter((node) => node.getClientRects().length > 0)
             .map((node) => ({ tag: node.tagName, type: node.getAttribute('type'), className: node.className }))
         );
