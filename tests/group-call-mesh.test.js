@@ -29,7 +29,7 @@ test('group DM WebRTC signaling is addressed to a single accepted participant', 
 test('one-to-one calls address the peer and reflect the received remote stream', () => {
   assert.match(client, /const peerUserId = conversation\?\.participants\?\.find/);
   assert.match(client, /emit\('call:signal', \{ conversationId, to: peerUserId, payload \}\)/);
-  assert.match(client, /\{state\.group \? groupUsers\.map/);
+  assert.match(client, /remoteStreams\?: Record<number, MediaStream>/);
 });
 
 test('every accepted group participant creates one deterministic peer per other participant', () => {
