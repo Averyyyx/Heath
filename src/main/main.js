@@ -39,49 +39,7 @@ const SERVER_PORT = process.env.PORT || 4000;
 // Используем 127.0.0.1 для стабильности
 const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 
-// Функция логирования (инициализируется внутри app.whenReady)
-let logFile = null;
-let logDir = null;
-
-function setupLogging() {
-  logDir = path.join(app.getPath('userData'), 'logs');
-  if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
-  }
-
-  logFile = path.join(logDir, 'main.log');
-
-  function logToFile(message) {
-    const timestamp = new Date().toISOString();
-    const logMessage = `[${timestamp}] ${message}
-`;
-    try {
-      fs.appendFileSync(logFile, logMessage);
-    } catch (err) {
-      // Игнорируем ошибки логирования
-    }
-  }
-
-  // Перенаправляем console.log для записи в файл
-  const originalConsoleLog = console.log;
-  console.log = (...args) => {
-    originalConsoleLog(...args);
-    logToFile(args.join(' '));
-  };
-
-  const originalConsoleError = console.error;
-  console.error = (...args) => {
-    originalConsoleError(...args);
-    logToFile('ERROR: ' + args.join(' '));
-  };
-
-  console.log('=== Hearth Electron Process Starting ===');
-  console.log('Process ID:', process.pid);
-  console.log('Exec Path:', process.execPath);
-  console.log('App Path:', app.getAppPath());
-  console.log('User Data:', app.getPath('userData'));
-  console.log('Log File:', logFile);
-}
+const { setupLogging } = require('./lib/logging');
 
 function waitForServer(maxAttempts = 60, intervalMs = 500) {
   return new Promise((resolve, reject) => {
@@ -840,7 +798,7 @@ app.whenReady().then(async () => {
   if (startupDeepLink) dispatchDeepLink(startupDeepLink);
 
   // Инициализируем логирование после того, как app готов
-  setupLogging();
+  setupLogging({ app, fs, path, console, process });
   ensureDesktopShortcut();
   
   // Регистрируем IPC handlers
