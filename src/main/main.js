@@ -22,6 +22,7 @@ let mainWindow = null;
 let splashWindow = null;
 let tray = null;
 let serverProcess = null;
+const { waitForServer } = createServerReadiness({ http, serverUrl: SERVER_URL, getServerProcess: () => serverProcess });
 let serverReady = false;
 let serverRestarts = 0;
 let updateCheckPromise = null;
@@ -41,57 +42,7 @@ const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 
 const { setupLogging } = require('./lib/logging');
 
-function waitForServer(maxAttempts = 60, intervalMs = 500) {
-  return new Promise((resolve, reject) => {
-    let attempts = 0;
-
-    const isServerAlive = () =>
-      serverProcess && !serverProcess.killed && serverProcess.exitCode === null;
-
-    const checkServerHealth = () => {
-      // Проверяем что процесс жив
-      if (!isServerAlive()) {
-        reject(new Error('Server process died before becoming ready'));
-        return;
-      }
-
-      attempts += 1;
-      // Одна проверка = одно продолжение. Раньше при таймауте срабатывали и 'timeout',
-      // и 'error' (после destroy), и цикл опроса удваивался.
-      let settled = false;
-      const retry = (reason) => {
-        if (settled) return;
-        settled = true;
-        if (attempts >= maxAttempts) {
-          reject(new Error(`Server failed to start (${reason})`));
-          return;
-        }
-        setTimeout(checkServerHealth, intervalMs);
-      };
-
-      const req = http.get(`${SERVER_URL}/api/security/csrf-token`, (res) => {
-        res.resume();
-        if (settled) return;
-        settled = true;
-        // Подождём секунду и убедимся, что процесс не упал сразу после открытия порта
-        setTimeout(() => {
-          if (!isServerAlive()) {
-            reject(new Error('Server process died immediately after opening port'));
-            return;
-          }
-          resolve();
-        }, 1000);
-      });
-      req.on('error', () => retry('connection error'));
-      req.setTimeout(1000, () => {
-        req.destroy();
-        retry('timeout');
-      });
-    };
-
-    checkServerHealth();
-  });
-}
+const { createServerReadiness } = require('./lib/server-readiness');
 
 const { createIconService } = require('./lib/icons');
 const {
