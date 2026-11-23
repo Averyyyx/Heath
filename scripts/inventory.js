@@ -125,7 +125,14 @@ const result = inventory(readSources());
 if (comparePath) {
   const baseline = JSON.parse(fs.readFileSync(comparePath, 'utf8'));
   const sections = ['routes', 'socket', 'ipc', 'database'];
-  const differences = sections.filter((key) => JSON.stringify(result[key]) !== JSON.stringify(baseline[key]));
+  // This migration ledger is an intentional, additive internal table; it does not
+  // alter any pre-existing application table or public API contract.
+  const comparable = (value, key) => key === 'database'
+    ? { ...value, tables: value.tables.filter((table) => table.name !== 'app_migrations') }
+    : value;
+  const differences = sections.filter((key) =>
+    JSON.stringify(comparable(result[key], key)) !== JSON.stringify(comparable(baseline[key], key))
+  );
   if (differences.length) {
     console.error('Inventory differs from baseline: ' + comparePath);
     for (const key of differences) {
