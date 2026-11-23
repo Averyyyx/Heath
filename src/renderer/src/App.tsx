@@ -31,6 +31,7 @@ import { FriendsPanel } from './components/FriendsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Avatar } from './components/Avatar';
 import { DefaultAvatar } from './components/DefaultAvatar';
+import { WhatsNewModal } from './components/WhatsNewModal';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
@@ -148,7 +149,8 @@ export default function App() {
   const [voiceParticipantsByChannel, setVoiceParticipantsByChannel] = useState<Record<number, Array<{ user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string }; muted: boolean; deafened: boolean; canSpeak?: boolean }>>>({});
   const [voiceSpeakingByChannel, setVoiceSpeakingByChannel] = useState<Record<number, number[]>>({});
   const [createChannelUserLimit, setCreateChannelUserLimit] = useState(8);
-  const [appVersion, setAppVersion] = useState('0.0.8-alpha');
+  const [appVersion, setAppVersion] = useState('0.0.9-alpha');
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   const desktopApi = typeof window !== 'undefined' ? window.hearthAPI : undefined;
   const tabStripRef = useRef<HTMLDivElement>(null);
@@ -171,6 +173,21 @@ export default function App() {
   useEffect(() => {
     desktopApi?.getAppVersion?.().then(setAppVersion).catch(() => {});
   }, [desktopApi]);
+
+  useEffect(() => {
+    if (loading || !appVersion) return;
+    try {
+      const seenKey = 'hearth.whats-new.seen-version';
+      const seenVersion = localStorage.getItem(seenKey);
+      const hasLegacyNexoData = Object.keys(localStorage).some((key) => key.startsWith('nexo.'));
+      if ((seenVersion && seenVersion !== appVersion) || (!seenVersion && hasLegacyNexoData)) {
+        setShowWhatsNew(true);
+      }
+      localStorage.setItem(seenKey, appVersion);
+    } catch {
+      // The app should remain usable when browser storage is unavailable.
+    }
+  }, [appVersion, loading]);
 
   useEffect(() => {
     const onVoiceState = (event: Event) => {
@@ -1500,6 +1517,7 @@ export default function App() {
         <button className="ghost-icon" aria-label="Позже" onClick={() => setNotificationUpdate(null)}><X size={14} /></button>
       </div>}
 
+      {showWhatsNew && <WhatsNewModal version={appVersion} onClose={() => setShowWhatsNew(false)} />}
       {welcomeKind && <WelcomeOverlay kind={welcomeKind} name={welcomeName} onClose={() => setWelcomeKind(null)} />}
     </div>
   );
