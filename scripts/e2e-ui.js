@@ -17,7 +17,7 @@ async function expectOk(response, label) {
 async function assertHearthBrand(page) {
   await expect(page).toHaveTitle('Hearth');
   const visibleText = await page.locator('body').innerText();
-  if (/\\bNexo\\b/i.test(visibleText)) {
+  if (/\bNexo\b/i.test(visibleText)) {
     throw new Error('Legacy Nexo branding is visible in the Hearth interface.');
   }
 }
