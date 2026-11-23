@@ -21,6 +21,8 @@ Build the application with `npm run build:app`. Create the Windows installer wit
 
 ## Documentation
 
+- [Русская версия](README.ru.md)
+
 - [Architecture](docs/architecture.md)
 - [Development setup](docs/development.md)
 - [Releasing](docs/releasing.md)
