@@ -1,3 +1,17 @@
+# Hearth 0.0.9 Alpha
+
+## Структура и перенос данных
+- Перенесены точки входа Electron и preload в `src/main` и `src/preload`; renderer перенесён в `src/renderer`.
+- Серверная конфигурация, SQLite schema/queries, session store, permission checks, identity, password policy, attachment processing, serialization и user sanitization выделены в отдельные модули.
+- CSS разделён на последовательные слои без изменения порядка каскада.
+- Добавлена миграция профиля Nexo в Hearth: копируются пользовательские данные и секреты, пропускаются Chromium-кэши, база переименовывается, исходная папка сохраняется.
+- Однократно обновляются данные тестового аккаунта и очищаются старые HTTP-сессии.
+
+## Бренд Hearth
+- Обновлены имя приложения, package metadata, bridge `window.hearthAPI`, протокол `hearth://`, updater metadata и название Hearth Plus.
+- Добавлен перенос клиентских настроек из ключей `nexo.*` в `hearth.*`.
+- Добавлено окно «Что нового» с примечаниями текущего GitHub-релиза и доступом из настроек.
+
 # Nexo 0.0.8 Alpha
 
 ## Патч 0.0.8 (0.0.8p, P-patch)
