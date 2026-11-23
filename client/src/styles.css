@@ -3530,7 +3530,7 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 /* 0.0.8p — consistent icon buttons and compact identity dock */
 .ghost, .primary, .nexo-ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .nexo-ui-button > svg { width: 16px; height: 16px; flex: 0 0 16px; }
-.nexo-user-dock { gap: 8px; padding: 8px; }
+.nexo-user-dock { gap: 8px; padding: 6px 8px; }
 .dock-user { min-width: 0; flex: 1 1 0; }
 .dock-user-copy { min-width: 0; flex: 1 1 0; }
 .dock-user-copy strong { font-size: 14px; line-height: 18px; }
