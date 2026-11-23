@@ -27,8 +27,9 @@ test('splash, window, and tray use generated Hearth artwork', () => {
   assert.match(builder, /productName: Hearth/);
   assert.match(builder, /icon\\.ico/);
   assert.match(builder, /extraResources:/);
-  assert.match(iconBuilder, /icon-512\\.png/);
+  assert.match(iconBuilder, /const sizes = \\[16, 32, 48, 64, 128, 256, 512\\]/);
   assert.match(iconBuilder, /makeIco/);
+  assert.match(iconBuilder, /icon\\.ico/);
   assert.match(brandMark, /#C4623F/);
   assert.match(mainSource, /icon:\\s*getDesktopIconPath\(\)/);
 });
