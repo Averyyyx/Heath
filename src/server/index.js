@@ -1,5 +1,35 @@
 require('dotenv').config();
 
+const path = require('path');
+const fs = require('fs');
+const fsp = require('fs/promises');
+const http = require('http');
+const express = require('express');
+const session = require('express-session');
+const RedisStore = require('connect-redis').default;
+const { createClient: createRedisClient } = require('redis');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const csrf = require('csurf');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
+const bcrypt = require('bcryptjs');
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+const GitHubStrategy = require('passport-github2').Strategy;
+const Database = require('better-sqlite3');
+const sharp = require('sharp');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
+const zxcvbn = require('zxcvbn');
+const { fileTypeFromFile } = require('file-type');
+const NodeClam = require('clamscan');
+const multer = require('multer');
+const { Server } = require('socket.io');
+const { randomUUID, randomBytes } = require('crypto');
+const { isValidEmail } = require('../../electron/email-validation');
+
 const { createServerConfig } = require('./config');
 const {
   isDesktop,
@@ -20,6 +50,8 @@ const {
   useSQLiteSession
 } = createServerConfig(process.env, __dirname);
 
+const app = express();
+const server = http.createServer(app);
 
 console.log('Public directory path:', publicDir);
 console.log('Public directory exists:', fs.existsSync(publicDir));
