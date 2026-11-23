@@ -1,6 +1,8 @@
 'use strict';
 
-function registerAuthRoutes({ app, authLimiter, zxcvbn, isValidEmail, selectUserByEmail, validatePasswordStrength, bcrypt, generateHandleFromEmail, insertUser, db, defaultAvatarColor, selectUserById, sanitizeUser, ensureAuthenticated, speakeasy, QRCode, updateTwoFactor, updatePasswordHash, passport }) {
+const zxcvbn = require('zxcvbn');
+
+function registerAuthRoutes({ app, authLimiter, isValidEmail, selectUserByEmail, validatePasswordStrength, bcrypt, generateHandleFromEmail, insertUser, db, defaultAvatarColor, selectUserById, sanitizeUser, ensureAuthenticated, speakeasy, QRCode, updateTwoFactor, updatePasswordHash, passport }) {
   app.post('/api/auth/password-strength', authLimiter, (req, res) => {
     const password = typeof req.body?.password === 'string' ? req.body.password.slice(0, 128) : '';
     const email = typeof req.body?.email === 'string' ? req.body.email.slice(0, 254) : '';
