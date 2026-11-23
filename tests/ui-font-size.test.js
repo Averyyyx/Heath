@@ -5,9 +5,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const stylesheet = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'src', 'styles.css'), 'utf8');
+const stylesDir = path.join(__dirname, '..', 'src', 'renderer', 'src', 'styles');
+const stylesheet = fs.readdirSync(stylesDir).filter((name) => name.endsWith('.css')).sort().map((name) => fs.readFileSync(path.join(stylesDir, name), 'utf8')).join('\n');
 
-test('Nexo UI text never uses a font size below 12px', () => {
+test('Hearth UI text never uses a font size below 12px', () => {
   const declarations = [
     ...stylesheet.matchAll(/\bfont-size\s*:\s*(\d+(?:\.\d+)?)px/gi),
     ...stylesheet.matchAll(/\bfont\s*:\s*[^;{}]*?\b(\d+(?:\.\d+)?)px/gi)
@@ -20,7 +21,7 @@ test('Nexo UI text never uses a font size below 12px', () => {
 
 test('removed legacy navigation classes are not reintroduced', () => {
   for (const legacyClass of [
-    'nexo-server-rail',
+    'hr-server-rail',
     'sidebar-collapse-toggle',
     'home-overview-grid',
     'home-note',
@@ -32,6 +33,6 @@ test('removed legacy navigation classes are not reintroduced', () => {
 });
 
 test('hidden tab panels use one intentional hidden-state rule', () => {
-  const ruleCount = stylesheet.split('.nexo-tab-panel[hidden]').length - 1;
+  const ruleCount = stylesheet.split('.hr-tab-panel[hidden]').length - 1;
   assert.equal(ruleCount, 1);
 });

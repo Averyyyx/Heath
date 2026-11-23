@@ -5,12 +5,13 @@ const path = require('node:path');
 
 const server = fs.readFileSync(path.join(__dirname, '..', 'src', 'server', 'index.js'), 'utf8');
 const client = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/src/components/MessengerWorkspace.tsx'), 'utf8');
+const realtime = ['calls.js', 'voice.js'].map((name) => fs.readFileSync(path.join(__dirname, '..', 'src/server/realtime', name), 'utf8')).join('\n');
 
 test('group DM calls accept up to six members and track the accepted mesh', () => {
   assert.match(server, /participants\.length\s*>\s*6/);
   assert.match(server, /activeCallParticipants\.set\(Number\(conversationId\)/);
   assert.match(server, /acceptedParticipants:\s*\[\.\.\.call\.accepted\]/);
-  assert.doesNotMatch(server, /Групповые звонки до четырёх участников ещё проходят разработку/);
+  assert.doesNotMatch(realtime, /Групповые звонки до четырёх участников ещё проходят разработку/);
   assert.match(server, /call\.declined\.size\s*>=\s*call\.invited\.size\s*-\s*1/);
 });
 
@@ -32,7 +33,7 @@ test('every accepted group participant creates one deterministic peer per other 
   assert.match(client, /initiator:\s*user\.id\s*<\s*remoteId/);
   assert.match(client, /acceptedUserIds\s*\|\|\s*\[\]\)\.filter/);
   assert.match(client, /pendingGroupSignalsRef/);
-  assert.match(server, /call:participant-left/);
+  assert.match(realtime, /call:participant-left/);
   assert.match(client, /socket\.on\('call:participant-left'/);
   assert.match(client, /current\.group\s*\?\s*Object\.values\(current\.peers\s*\|\|\s*\{\}\)/);
 });

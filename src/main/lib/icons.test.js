@@ -15,22 +15,24 @@ function setup(platform = 'win32', packaged = true) {
   };
   const calls = [];
   const app = { isPackaged: packaged, getPath: () => root };
+  const resourcesDir = path.join(root, 'resources');
+  fs.mkdirSync(resourcesDir, { recursive: true });
   const service = createIconService({
     app, path, fs, nativeImage, process: { platform, execPath: 'C:/Hearth/Hearth.exe', resourcesPath: root },
     shell: { writeShortcutLink: (...args) => { calls.push(args); return true; } },
-    devResourcesDir: root, getNotificationCount: () => 0
+    devResourcesDir: resourcesDir, getNotificationCount: () => 0
   });
-  return { root, service, calls };
+  return { root, resourcesDir, service, calls };
 }
 
 test('icon service resolves the generated ICO and size-specific PNG assets', () => {
-  const { root, service } = setup();
+  const { root, resourcesDir, service } = setup();
   try {
-    fs.writeFileSync(path.join(root, 'icon.ico'), 'ico');
-    fs.writeFileSync(path.join(root, 'icon-256.png'), 'png');
+    fs.writeFileSync(path.join(resourcesDir, 'icon.ico'), 'ico');
+    fs.writeFileSync(path.join(resourcesDir, 'icon-256.png'), 'png');
     assert.equal(service.getDesktopIconPath(), path.join(root, 'icon.ico'));
     assert.equal(service.getIconPath('icon', 256), path.join(root, 'icon-256.png'));
-    assert.equal(service.getTrayIconPath(12), path.join(root, 'tray-9-32.png'));
+    assert.equal(service.getTrayIconPath(12), path.join(resourcesDir, 'tray-9-32.png'));
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

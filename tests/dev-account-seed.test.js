@@ -15,8 +15,8 @@ async function getFreePort() {
   return port;
 }
 
-test('NEXO_DEV_ACCOUNT seeds a complete developer profile in a fresh SQLite database', { timeout: 30000 }, async () => {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nexo-dev-seed-'));
+test('HEARTH_DEV_ACCOUNT seeds a complete developer profile in a fresh SQLite database', { timeout: 30000 }, async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hearth-dev-seed-'));
   const port = await getFreePort();
   const dbPath = path.join(dataDir, 'fresh.db');
   const child = spawn(process.execPath, [path.resolve(__dirname, '..', 'src', 'server', 'index.js')], {
@@ -28,9 +28,9 @@ test('NEXO_DEV_ACCOUNT seeds a complete developer profile in a fresh SQLite data
       DB_PATH: dbPath,
       NODE_ENV: 'development',
       ELECTRON_DESKTOP: '1',
-      NEXO_DEV_ACCOUNT: 'true',
-      NEXO_DEV_EMAIL: 'dev@nexo.local',
-      NEXO_DEV_PASSWORD: 'Nexo-Test-Password-123!'
+      HEARTH_DEV_ACCOUNT: 'true',
+      HEARTH_DEV_EMAIL: 'dev@hearth.local',
+      HEARTH_DEV_PASSWORD: 'Hearth-Test-' + process.pid + '!a1'
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -54,15 +54,15 @@ test('NEXO_DEV_ACCOUNT seeds a complete developer profile in a fresh SQLite data
 
     const db = new Database(dbPath, { readonly: true });
     try {
-      const user = db.prepare('SELECT email, display_name, username, discriminator, profile_complete, avatar_preset FROM users WHERE email = ?').get('dev@nexo.local');
+      const user = db.prepare('SELECT email, display_name, username, discriminator, profile_complete, avatar_preset FROM users WHERE email = ?').get('dev@hearth.local');
       assert.ok(user, 'developer account should be inserted');
-      assert.equal(user.display_name, 'Nexo Dev');
+      assert.equal(user.display_name, 'Hearth Dev');
       assert.equal(user.discriminator, '0001');
       assert.equal(user.profile_complete, 1);
       assert.equal(user.avatar_preset, 0);
-      const settings = db.prepare('SELECT badges FROM user_settings WHERE user_id = (SELECT id FROM users WHERE email = ?)').get('dev@nexo.local');
+      const settings = db.prepare('SELECT badges FROM user_settings WHERE user_id = (SELECT id FROM users WHERE email = ?)').get('dev@hearth.local');
       assert.deepEqual(JSON.parse(settings.badges).sort(), ['dev', 'premium']);
-      const subscription = db.prepare("SELECT id FROM premium_subscriptions WHERE user_id = (SELECT id FROM users WHERE email = ?) AND status = 'active' AND metadata LIKE '%\"dev\":true%'").get('dev@nexo.local');
+      const subscription = db.prepare("SELECT id FROM premium_subscriptions WHERE user_id = (SELECT id FROM users WHERE email = ?) AND status = 'active' AND metadata LIKE '%\"dev\":true%'").get('dev@hearth.local');
       assert.ok(subscription, 'developer premium subscription should be seeded');
     } finally {
       db.close();

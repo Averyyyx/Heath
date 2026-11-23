@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const app = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/src/App.tsx'), 'utf8');
-const css = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/src/styles.css'), 'utf8');
+const css = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/src/styles/features.css'), 'utf8');
 
 test('user dock contains exactly three actions and no legacy menu', () => {
   const actions = app.match(/className="dock-actions">([\s\S]*?)<\/div>/);
@@ -15,9 +15,9 @@ test('user dock contains exactly three actions and no legacy menu', () => {
 });
 
 test('sidebar navigation scrolls independently from the fixed user dock', () => {
-  assert.match(css, /\.nexo-sidebar\s*\{[^}]*height:\s*100%/s);
-  assert.match(css, /\.nexo-sidebar\s*\{[^}]*overflow:\s*hidden/s);
+  assert.match(css, /\.hr-sidebar \{\n  display: flex; height: 100%;/);
+  assert.match(css, /\.hr-sidebar > \.sidebar-scroll-area \{[^}]*overflow-y: auto/s);
   assert.match(css, /\.sidebar-scroll-area\s*\{[^}]*overflow-y:\s*auto/s);
-  assert.match(css, /\.nexo-sidebar\s*>\s*\.sidebar-user-area\s*\{[^}]*margin-top:\s*auto/s);
-  assert.match(css, /\.nexo-user-dock\s*\{[^}]*height:\s*52px/s);
+  assert.match(css, /\.hr-sidebar\s*>\s*\.sidebar-user-area\s*\{[^}]*margin-top:\s*auto/s);
+  assert.match(css, /\.hr-user-dock\s*\{[^}]*height:\s*52px/s);
 });
