@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 let pendingDeepLink = null;
 ipcRenderer.on('deep-link', (_event, payload) => { pendingDeepLink = payload; });
 
-contextBridge.exposeInMainWorld('nexoAPI', {
+contextBridge.exposeInMainWorld('hearthAPI', {
   setNotificationCount: (count) => ipcRenderer.send('set-notification-count', count),
   showNotification: (payload) => ipcRenderer.invoke('show-system-notification', payload),
   minimizeWindow: () => ipcRenderer.send('minimize-window'),

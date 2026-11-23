@@ -7,12 +7,72 @@ const { Readable, Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const crypto = require('crypto');
 const { compareReleaseVersions } = require('./lib/version');
-const { parseNexoDeepLink } = require('./lib/deeplink');
+const { parseHearthDeepLink } = require('./lib/deeplink');
+const brand = require('../shared/brand');
 
 // Windows связывает иконку окна и ярлык с этим ID. Задаём до app.whenReady(),
 // иначе Windows может закрепить процесс под общим значком Electron.
 if (process.platform === 'win32') app.setAppUserModelId('com.nexo.app');
-app.setName('Nexo');
+app.setName(brand.name);
+migrateLegacyUserData();
+
+function migrateLegacyUserData() {
+  const appDataPath = app.getPath('appData');
+  const legacyPath = path.join(appDataPath, 'Nexo');
+  const targetPath = path.join(appDataPath, 'Hearth');
+  const markerPath = path.join(targetPath, '.hearth-migration-v1');
+  const inProgressPath = path.join(targetPath, '.hearth-migration-in-progress');
+
+  app.setPath('userData', targetPath);
+
+  if (fs.existsSync(markerPath) || !fs.existsSync(legacyPath)) return;
+
+  let createdTarget = false;
+  try {
+    if (fs.existsSync(targetPath)) {
+      if (fs.existsSync(inProgressPath)) {
+        fs.rmSync(targetPath, { recursive: true, force: true });
+      } else {
+        return;
+      }
+    }
+
+    fs.mkdirSync(targetPath, { recursive: true });
+    createdTarget = true;
+    fs.writeFileSync(inProgressPath, new Date().toISOString(), 'utf8');
+
+    const cacheDirectories = new Set([
+      'Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'ShaderCache',
+      'GrShaderCache', 'blob_storage', 'CacheStorage'
+    ]);
+    fs.cpSync(legacyPath, targetPath, {
+      recursive: true,
+      filter: (sourcePath) => {
+        const relative = path.relative(legacyPath, sourcePath);
+        if (!relative) return true;
+        return !relative.split(path.sep).some((part) => cacheDirectories.has(part));
+      }
+    });
+
+    const databaseNames = ['app.db', 'nexo.db'];
+    for (const databaseName of databaseNames) {
+      for (const suffix of ['', '-wal', '-shm']) {
+        const oldFile = path.join(targetPath, databaseName + suffix);
+        const newFile = path.join(targetPath, 'hearth.db' + suffix);
+        if (fs.existsSync(oldFile) && !fs.existsSync(newFile)) fs.renameSync(oldFile, newFile);
+      }
+    }
+
+    fs.writeFileSync(markerPath, '1', 'utf8');
+    fs.rmSync(inProgressPath, { force: true });
+    console.log('Legacy Nexo user data copied to Hearth. The original folder was preserved.');
+  } catch (error) {
+    if (createdTarget) {
+      try { fs.rmSync(targetPath, { recursive: true, force: true }); } catch {}
+    }
+    console.warn('Hearth user-data migration failed; the original Nexo folder remains untouched:', error.message);
+  }
+}
 
 let mainWindow = null;
 let splashWindow = null;
@@ -71,7 +131,7 @@ function setupLogging() {
     logToFile('ERROR: ' + args.join(' '));
   };
 
-  console.log('=== Nexo Electron Process Starting ===');
+  console.log('=== Hearth Electron Process Starting ===');
   console.log('Process ID:', process.pid);
   console.log('Exec Path:', process.execPath);
   console.log('App Path:', app.getAppPath());
@@ -142,7 +202,7 @@ function getDesktopIconPath() {
   if (fs.existsSync(iconPath)) {
     const ico = nativeImage.createFromPath(iconPath);
     if (!ico.isEmpty()) return iconPath;
-    console.warn('Nexo ICO is unreadable; falling back to the PNG app icon:', iconPath);
+    console.warn('Hearth ICO is unreadable; falling back to the PNG app icon:', iconPath);
   }
 
   const pngPath = getIconPath('Nexo-Desctop-ico', 256);
@@ -150,7 +210,7 @@ function getDesktopIconPath() {
     const png = nativeImage.createFromPath(pngPath);
     if (!png.isEmpty()) return pngPath;
   }
-  console.error('No readable Nexo application icon was found.');
+  console.error('No readable Hearth application icon was found.');
   return iconPath;
 }
 
@@ -179,21 +239,21 @@ function getIconPath(iconName, size = 256) {
 
 function ensureDesktopShortcut() {
   if (process.platform !== 'win32' || !app.isPackaged) return;
-  const shortcutPath = path.join(app.getPath('desktop'), 'Nexo.lnk');
+  const shortcutPath = path.join(app.getPath('desktop'), 'Hearth.lnk');
   try {
     const shortcutAction = fs.existsSync(shortcutPath) ? 'update' : 'create';
     const created = shell.writeShortcutLink(shortcutPath, shortcutAction, {
       target: process.execPath,
       args: [],
       cwd: path.dirname(process.execPath),
-      description: 'Nexo — рабочее пространство для общения и совместной работы',
+      description: 'Hearth — рабочее пространство для общения и совместной работы',
       icon: getDesktopIconPath(),
       iconIndex: 0
     });
     if (created) console.log('Desktop shortcut created:', shortcutPath);
-    else console.warn('Windows did not create the Nexo desktop shortcut.');
+    else console.warn('Windows did not create the Hearth desktop shortcut.');
   } catch (error) {
-    console.warn('Could not create Nexo desktop shortcut:', error.message);
+    console.warn('Could not create Hearth desktop shortcut:', error.message);
   }
 }
 
@@ -218,10 +278,10 @@ function createTaskbarOverlay(count) {
 }
 // Тестовый аккаунт разработчика (dev@nexo.local с премиум-подпиской).
 // Включён при запуске из исходников (`npm start` / `electron:dev`). В установленной сборке
-// включается переменной NEXO_DEV_ACCOUNT=1 или пустым файлом dev-account.enabled в папке
-// пользовательских данных (Windows: %APPDATA%\Nexo). NEXO_DEV_ACCOUNT=0 выключает всегда.
+// включается переменной HEARTH_DEV_ACCOUNT=1 или пустым файлом dev-account.enabled в папке
+// пользовательских данных (Windows: %APPDATA%\Nexo). HEARTH_DEV_ACCOUNT=0 выключает всегда.
 function isDevAccountEnabled() {
-  const flag = process.env.NEXO_DEV_ACCOUNT;
+  const flag = process.env.HEARTH_DEV_ACCOUNT ?? process.env.NEXO_DEV_ACCOUNT;
   if (flag === 'false' || flag === '0') return false;
   if (flag === 'true' || flag === '1') return true;
   return !app.isPackaged || fs.existsSync(path.join(app.getPath('userData'), 'dev-account.enabled'));
@@ -261,7 +321,7 @@ function createTray() {
   
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Nexo',
+      label: 'Hearth',
       icon: nativeImage.createFromPath(getIconPath('Nexo-Desctop-ico', 16)),
       click: () => {
         if (mainWindow) {
@@ -300,7 +360,7 @@ function createTray() {
     }
   ]);
   
-  tray.setToolTip('Nexo');
+  tray.setToolTip('Hearth');
   tray.setContextMenu(contextMenu);
   
   tray.on('click', () => {
@@ -351,10 +411,10 @@ function setupIPCHandlers() {
 
   ipcMain.handle('show-system-notification', (_event, payload = {}) => {
     if (!Notification.isSupported()) return false;
-    const title = String(payload.title || 'Nexo').slice(0, 100);
+    const title = String(payload.title || 'Hearth').slice(0, 100);
     const body = String(payload.body || '').slice(0, 240);
     const notification = new Notification({ title, body, icon: getDesktopIconPath(), silent: true });
-    if (typeof payload.deepLink === 'string' && payload.deepLink.startsWith('nexo://')) {
+    if (typeof payload.deepLink === 'string' && (payload.deepLink.startsWith('hearth://') || payload.deepLink.startsWith('nexo://'))) {
       notification.on('click', () => dispatchDeepLink(payload.deepLink));
     }
     notification.show();
@@ -381,7 +441,7 @@ function setupIPCHandlers() {
 function updateTrayIcon() {
   if (!tray) return;
   tray.setImage(createTrayImage(notificationCount));
-  tray.setToolTip(notificationCount > 0 ? `Nexo · ${notificationCount} уведомлений` : 'Nexo');
+  tray.setToolTip(notificationCount > 0 ? `Hearth · ${notificationCount} уведомлений` : 'Hearth');
 }
 
 function setNotificationCount(count) {
@@ -398,7 +458,7 @@ function setNotificationCount(count) {
 }
 
 function dispatchDeepLink(rawUrl) {
-  const payload = parseNexoDeepLink(rawUrl);
+  const payload = parseHearthDeepLink(rawUrl);
   if (!payload) return false;
   try {
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.getURL().startsWith(SERVER_URL)) {
@@ -409,7 +469,7 @@ function dispatchDeepLink(rawUrl) {
     } else queuedDeepLink = payload;
     return true;
   } catch (error) {
-    console.warn('Failed to dispatch Nexo deep link:', error.message);
+    console.warn('Failed to dispatch Hearth deep link:', error.message);
     return false;
   }
 }
@@ -437,7 +497,7 @@ async function readExpectedSha256(release, asset) {
   if (typeof asset.digest === 'string' && /^sha256:[a-f0-9]{64}$/i.test(asset.digest)) return asset.digest.slice(7).toLowerCase();
   const checksum = (release.assets || []).find((item) => item.name === `${asset.name}.sha256`);
   if (!checksum?.browser_download_url) return null;
-  const response = await fetch(checksum.browser_download_url, { headers: { 'User-Agent': 'Nexo-Desktop-App' }, signal: AbortSignal.timeout(8000) });
+  const response = await fetch(checksum.browser_download_url, { headers: { 'User-Agent': 'Hearth-Desktop' }, signal: AbortSignal.timeout(8000) });
   if (!response.ok) return null;
   const match = (await response.text()).trim().match(/\b([a-f0-9]{64})\b/i);
   return match ? match[1].toLowerCase() : null;
@@ -446,14 +506,14 @@ async function downloadAndVerifyUpdate(asset, expectedHash, version) {
   const updatesDirectory = path.join(app.getPath('userData'), 'updates');
   fs.mkdirSync(updatesDirectory, { recursive: true });
   const safeVersion = version.replace(/[^a-zA-Z0-9.-]/g, '_');
-  const installerPath = path.join(updatesDirectory, `Nexo-${safeVersion}-Setup.exe`);
+  const installerPath = path.join(updatesDirectory, `Hearth-${safeVersion}-Setup.exe`);
   try {
     const stat = await fs.promises.stat(installerPath);
     if (stat.isFile() && stat.size === asset.size && stat.size > 1024) {
       const hash = crypto.createHash('sha256');
       for await (const chunk of fs.createReadStream(installerPath)) hash.update(chunk);
       if (hash.digest('hex') === expectedHash) {
-        sendUpdateStatus('downloaded', `Установщик Nexo ${version} уже загружен и проверен.`, version, 100);
+        sendUpdateStatus('downloaded', `Установщик Hearth ${version} уже загружен и проверен.`, version, 100);
         return installerPath;
       }
     }
@@ -465,7 +525,7 @@ async function downloadAndVerifyUpdate(asset, expectedHash, version) {
   }
   activeUpdateController = new AbortController();
   const response = await fetch(asset.browser_download_url, {
-    headers: { 'User-Agent': 'Nexo-Desktop-App' },
+    headers: { 'User-Agent': 'Hearth-Desktop' },
     signal: AbortSignal.any([activeUpdateController.signal, AbortSignal.timeout(20 * 60 * 1000)])
   });
   if (!response.ok || !response.body) throw new Error(`Не удалось скачать обновление (HTTP ${response.status}).`);
@@ -496,7 +556,7 @@ async function downloadAndVerifyUpdate(asset, expectedHash, version) {
 }
 async function installUpdate(installerPath, version, { silent = false } = {}) {
   if (silent) {
-    sendUpdateStatus('installing', `Устанавливаем Nexo ${version}…`, version);
+    sendUpdateStatus('installing', `Устанавливаем Hearth ${version}…`, version);
     const child = spawn(installerPath, ['/S', '--updated'], { detached: true, stdio: 'ignore', windowsHide: true });
     return new Promise((resolve) => {
       child.once('spawn', () => { app.isQuitting = true; app.quit(); resolve({ status: 'installing', version, message: 'Установка обновления запущена.' }); });
@@ -510,8 +570,8 @@ async function installUpdate(installerPath, version, { silent = false } = {}) {
     });
   }
   const choice = await dialog.showMessageBox(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
-    type: 'info', title: 'Обновление Nexo', message: `Доступна новая версия Nexo ${version}`,
-    detail: 'Обновление скачано и проверено. Nexo закроется на время установки.',
+    type: 'info', title: 'Обновление Hearth', message: `Доступна новая версия Hearth ${version}`,
+    detail: 'Обновление скачано и проверено. Hearth закроется на время установки.',
     buttons: ['Установить сейчас', 'Позже'], defaultId: 0, cancelId: 1, noLink: true
   });
   if (choice.response !== 0) return { status: 'downloaded', version, message: `Обновление ${version} готово к установке. Можно вернуться к нему позже.` };
@@ -524,8 +584,8 @@ async function checkForUpdates({ interactive = true, startup = false } = {}) {
   updateCheckPromise = (async () => {
     sendUpdateStatus('checking', 'Проверяем обновления…');
     try {
-      const response = await fetch('https://api.github.com/repos/Averyyyx/Nexo/releases?per_page=30', {
-        headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'Nexo-Desktop-App' }, signal: AbortSignal.timeout(8000)
+      const response = await fetch('https://api.github.com/repos/Averyyyx/Hearth/releases?per_page=30', {
+        headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'Hearth-Desktop' }, signal: AbortSignal.timeout(8000)
       });
       if (!response.ok) throw new Error(response.status === 404 ? 'Не удалось найти публичные Alpha-релизы Nexo.' : `Сервис обновлений временно недоступен (HTTP ${response.status}).`);
       const releases = await response.json();
@@ -540,7 +600,7 @@ async function checkForUpdates({ interactive = true, startup = false } = {}) {
       const current = app.getVersion().replace(/^v/, '');
       const version = String(latest.tag_name || '').replace(/^v/, '');
       if (!version || compareReleaseVersions(version, current) <= 0) {
-        const message = 'У вас последняя версия Nexo.';
+        const message = 'У вас последняя версия Hearth.';
         sendUpdateStatus('up-to-date', message, current);
         if (startup) await sleep(400);
         return { status: 'up-to-date', version: current, message };
@@ -661,8 +721,8 @@ function startServer() {
       SESSION_SECRET: process.env.SESSION_SECRET || secrets.SESSION_SECRET,
       JWT_SECRET: process.env.JWT_SECRET || secrets.JWT_SECRET,
       DATA_DIR: userDataDir,
-      DB_PATH: path.join(userDataDir, 'app.db'),
-      NEXO_DEV_ACCOUNT: isDevAccountEnabled() ? 'true' : 'false'
+      DB_PATH: path.join(userDataDir, 'hearth.db'),
+      HEARTH_DEV_ACCOUNT: isDevAccountEnabled() ? 'true' : 'false'
     },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc']
   });
@@ -739,7 +799,7 @@ function createSplashWindow() {
   if (process.platform === 'win32') {
     const splashIcon = nativeImage.createFromPath(splashIconPath);
     if (!splashIcon.isEmpty()) splashWindow.setIcon(splashIcon);
-    else console.warn('Nexo splash icon could not be loaded:', splashIconPath);
+    else console.warn('Hearth splash icon could not be loaded:', splashIconPath);
   }
 
   const splashPath = path.join(__dirname, 'splash.html');
@@ -779,7 +839,7 @@ function createWindow() {
       webSecurity: true,
       preload: path.join(__dirname, '..', 'preload', 'index.js')
     },
-    title: 'Nexo',
+    title: 'Hearth',
     show: false,
     backgroundColor: '#0D0A1A',
     icon: getDesktopIconPath()
@@ -822,12 +882,12 @@ function createWindow() {
         .replace(/>/g, '&gt;');
       mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(`
         <html>
-          <head><title>Nexo Error</title></head>
+          <head><title>Hearth Error</title></head>
           <body style="background: #1e1e1e; color: white; font-family: sans-serif; padding: 20px;">
-            <h1>Nexo Failed to Start</h1>
+            <h1>Hearth Failed to Start</h1>
             <p>Could not load the application. Error: ${safeMessage}</p>
             <p>Server URL: ${SERVER_URL}</p>
-            <p>Please check the log file in the Nexo user data folder for more details.</p>
+            <p>Please check the log file in the Hearth user data folder for more details.</p>
           </body>
         </html>
       `));
@@ -858,7 +918,7 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     try {
       const parsed = new URL(url);
-      if (parsed.protocol === 'nexo:') dispatchDeepLink(url);
+      if (parsed.protocol === 'hearth:') dispatchDeepLink(url);
       else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') void shell.openExternal(url);
     } catch { /* malformed URLs are denied */ }
     return { action: 'deny' };
@@ -869,7 +929,7 @@ function createWindow() {
     event.preventDefault();
     try {
       const parsed = new URL(url);
-      if (parsed.protocol === 'nexo:') dispatchDeepLink(url);
+      if (parsed.protocol === 'hearth:') dispatchDeepLink(url);
       else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') void shell.openExternal(url);
     } catch { /* malformed URLs are denied */ }
   });
@@ -881,7 +941,7 @@ if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.on('second-instance', (_event, commandLine) => {
-    const deepLink = commandLine.find((argument) => argument.startsWith('nexo://'));
+    const deepLink = commandLine.find((argument) => (argument.startsWith('hearth://') || argument.startsWith('nexo://')));
     if (deepLink) dispatchDeepLink(deepLink);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
@@ -898,10 +958,10 @@ app.whenReady().then(async () => {
     return;
   }
 
-  // Регистрируем nexo:// для ссылок на сообщения.
-  try { app.setAsDefaultProtocolClient('nexo'); } catch (error) { console.warn('Не удалось зарегистрировать nexo://:', error.message); }
+  // Регистрируем hearth:// для ссылок на сообщения.
+  try { app.setAsDefaultProtocolClient('hearth'); app.setAsDefaultProtocolClient('nexo'); } catch (error) { console.warn('Не удалось зарегистрировать hearth://:', error.message); }
 
-  const startupDeepLink = process.argv.find((argument) => argument.startsWith('nexo://'));
+  const startupDeepLink = process.argv.find((argument) => argument.startsWith('hearth://'));
   if (startupDeepLink) dispatchDeepLink(startupDeepLink);
 
   // Инициализируем логирование после того, как app готов
@@ -912,7 +972,7 @@ app.whenReady().then(async () => {
   setupIPCHandlers();
   
   try {
-    console.log('=== Nexo Electron App Starting ===');
+    console.log('=== Hearth Electron App Starting ===');
     console.log('App path:', app.getAppPath());
     console.log('User data:', app.getPath('userData'));
     console.log('Is packaged:', app.isPackaged);
@@ -966,9 +1026,9 @@ app.whenReady().then(async () => {
       }
     });
     
-    console.log('=== Nexo Started Successfully ===');
+    console.log('=== Hearth Started Successfully ===');
   } catch (error) {
-    console.error('=== Nexo Failed to Start ===');
+    console.error('=== Hearth Failed to Start ===');
     console.error('Error:', error);
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
@@ -976,9 +1036,9 @@ app.whenReady().then(async () => {
     // Показываем ошибку пользователю
     const errorHtml = `
       <html>
-        <head><title>Nexo Error</title></head>
+        <head><title>Hearth Error</title></head>
         <body style="background: #1e1e1e; color: white; font-family: sans-serif; padding: 40px;">
-          <h1 style="color: #ff6b6b;">Nexo Failed to Start</h1>
+          <h1 style="color: #ff6b6b;">Hearth Failed to Start</h1>
           <p><strong>Error:</strong> ${String(error.message).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
           <p><strong>Server URL:</strong> ${SERVER_URL}</p>
           <p><strong>Is Packaged:</strong> ${app.isPackaged}</p>
@@ -1029,8 +1089,10 @@ app.on('before-quit', () => {
 
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('hearth', process.execPath, [path.resolve(process.argv[1])]);
     app.setAsDefaultProtocolClient('nexo', process.execPath, [path.resolve(process.argv[1])]);
   }
 } else {
+  app.setAsDefaultProtocolClient('hearth');
   app.setAsDefaultProtocolClient('nexo');
 }

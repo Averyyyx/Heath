@@ -31,8 +31,8 @@ export const NEXO_SOUND_EVENTS: Array<{ key: SoundKind; label: string; descripti
   { key: 'voice-user-leave', label: 'Участник отключился', description: 'Тихий сигнал выхода участника' }
 ];
 
-const STORAGE_KEY = 'nexo.sound-preferences.v2';
-const LEGACY_STORAGE_KEY = 'nexo.sound-preferences.v1';
+const STORAGE_KEY = 'hearth.sound-preferences.v1';
+const LEGACY_STORAGE_KEYS = ['nexo.sound-preferences.v2', 'nexo.sound-preferences.v1'];
 const DEFAULT_EVENTS: Record<SoundKind, boolean> = {
   message: true, send: true, 'outgoing-ring': true, ring: true,
   'call-accepted': true, 'call-ended': true,
@@ -59,7 +59,9 @@ function clampVolume(value: unknown, fallback: number): number {
 
 export function getNexoSoundPreferences(): NexoSoundPreferences {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY) || '{}';
+    const legacyKey = LEGACY_STORAGE_KEYS.find((key) => localStorage.getItem(key));
+    const raw = localStorage.getItem(STORAGE_KEY) || (legacyKey ? localStorage.getItem(legacyKey) : null) || '{}';
+    if (!localStorage.getItem(STORAGE_KEY) && legacyKey) localStorage.setItem(STORAGE_KEY, raw);
     const saved = JSON.parse(raw) as Record<string, unknown>;
     const legacyEvents: Record<SoundKind, boolean> = {
       ...DEFAULT_EVENTS,
@@ -90,7 +92,7 @@ export function getNexoSoundPreferences(): NexoSoundPreferences {
 export function saveNexoSoundPreferences(next: NexoSoundPreferences): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nexo-sound-preferences-updated', { detail: next }));
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('hearth-sound-preferences-updated', { detail: next }));
   } catch { /* Storage may be unavailable */ }
 }
 
@@ -178,7 +180,7 @@ export function playNexoSound(kind: SoundKind): void {
   const preferences = getNexoSoundPreferences();
   if (!preferences.enabled || !preferences.events[kind]) return;
   const isCallSound = kind === 'ring' || kind === 'outgoing-ring' || kind === 'call-accepted' || kind === 'call-ended';
-  if (typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true' && !(isCallSound && preferences.allowCallsInDnd)) return;
+  if (typeof document !== 'undefined' && document.documentElement.dataset.hearthDnd === 'true' && !(isCallSound && preferences.allowCallsInDnd)) return;
   const audio = getAudioContext();
   if (!audio) return;
   const volume = kind === 'ring' || kind === 'outgoing-ring'
@@ -194,7 +196,7 @@ export function playNexoSound(kind: SoundKind): void {
 export function startNexoRingtone(): () => void {
   const preferences = getNexoSoundPreferences();
   if (!preferences.enabled || !preferences.events.ring) return () => {};
-  if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true') return () => {};
+  if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.hearthDnd === 'true') return () => {};
   let stopped = false;
   const play = () => { if (!stopped) playNexoSound('ring'); };
   play();
@@ -212,7 +214,7 @@ export function startNexoRingtone(): () => void {
 export function startNexoOutgoingTone(): () => void {
   const preferences = getNexoSoundPreferences();
   if (!preferences.enabled || !preferences.events['outgoing-ring']) return () => {};
-  if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.nexoDnd === 'true') return () => {};
+  if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.hearthDnd === 'true') return () => {};
   let stopped = false;
   const play = () => { if (!stopped) playNexoSound('outgoing-ring'); };
   play();

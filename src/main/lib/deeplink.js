@@ -1,9 +1,9 @@
 'use strict';
 
-function parseNexoDeepLink(rawUrl) {
+function parseHearthDeepLink(rawUrl) {
   try {
     const url = new URL(rawUrl);
-    if (url.protocol !== 'nexo:') return null;
+    if (url.protocol !== 'hearth:' && url.protocol !== 'nexo:') return null;
     const parts = url.pathname.split('/').filter(Boolean);
     if (url.hostname === 'dm' && /^\d+$/.test(parts[0] || '')) {
       if (parts.length === 1) return { type: 'dm', conversationId: Number(parts[0]) };
@@ -23,4 +23,4 @@ function parseNexoDeepLink(rawUrl) {
   }
 }
 
-module.exports = { parseNexoDeepLink };
+module.exports = { parseHearthDeepLink, parseNexoDeepLink: parseHearthDeepLink };

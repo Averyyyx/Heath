@@ -254,23 +254,23 @@ const selectActiveSubscription = db.prepare(`
 // Нужен, чтобы заходить в приложение с премиум-подпиской без оплаты и проверять
 // интерфейс. Это обычный пользователь: админских прав (баны, модерация, доступ
 // к чужим данным) он НЕ получает — в проекте такого понятия нет, и мы его не добавляем.
-// Включается только флагом NEXO_DEV_ACCOUNT=true (десктоп-сборка из исходников
+// Включается только флагом HEARTH_DEV_ACCOUNT=true (десктоп-сборка из исходников
 // включает его сама) и никогда — на боевом веб-деплое (HTTPS), чтобы не создать
 // аккаунт с известным паролем на публичном сервере.
 // ---------------------------------------------------------------------------
 function seedDevAccount() {
-  const flag = String(process.env.NEXO_DEV_ACCOUNT || '').toLowerCase();
+  const flag = String(process.env.HEARTH_DEV_ACCOUNT || process.env.NEXO_DEV_ACCOUNT || '').toLowerCase();
   if (flag !== 'true' && flag !== '1') return;
 
   const looksLikePublicDeployment =
     REQUIRE_HTTPS || String(process.env.CLIENT_ORIGIN || '').startsWith('https://');
   if (!isDesktop && looksLikePublicDeployment) {
-    console.warn('NEXO_DEV_ACCOUNT ignored: the dev account is never created on a public HTTPS deployment.');
+    console.warn('HEARTH_DEV_ACCOUNT ignored: the dev account is never created on a public HTTPS deployment.');
     return;
   }
 
-  const email = String(process.env.NEXO_DEV_EMAIL || 'dev@nexo.local').trim().toLowerCase();
-  const configuredPassword = process.env.NEXO_DEV_PASSWORD || '';
+  const email = String(process.env.HEARTH_DEV_EMAIL || process.env.NEXO_DEV_EMAIL || 'dev@hearth.local').trim().toLowerCase();
+  const configuredPassword = process.env.HEARTH_DEV_PASSWORD || process.env.NEXO_DEV_PASSWORD || '';
   let user = selectUserByEmail.get(email);
 
   if (!user) {
@@ -285,11 +285,11 @@ function seedDevAccount() {
       null
     );
     user = selectUserById.get(result.lastInsertRowid);
-    markProfile.run('Nexo Dev', user.username, '0001', '', '#D97757', 0, 0, 'Nexo Dev', user.username, user.id);
+    markProfile.run('Hearth Dev', user.username, '0001', '', '#D97757', 0, 0, 'Hearth Dev', user.username, user.id);
     user = selectUserById.get(user.id);
 
     if (configuredPassword) {
-      console.log(`Dev account created: ${email} (password from NEXO_DEV_PASSWORD)`);
+      console.log(`Dev account created: ${email} (password from HEARTH_DEV_PASSWORD)`);
     } else {
       // Сгенерированный пароль в логи не пишем — только в файл, доступный владельцу.
       const credentialsFile = path.join(dataDir, 'dev-account.txt');
@@ -299,7 +299,7 @@ function seedDevAccount() {
   } else if (configuredPassword && !bcrypt.compareSync(configuredPassword, user.password_hash || '')) {
     // Пароль из окружения — источник истины: меняем его в аккаунте, если он поменялся
     updatePasswordHash.run(bcrypt.hashSync(configuredPassword, 12), user.id);
-    console.log('Dev account password updated from NEXO_DEV_PASSWORD.');
+    console.log('Dev account password updated from HEARTH_DEV_PASSWORD.');
   }
 
   // Значки профиля
@@ -443,7 +443,7 @@ const sessionConfig = {
     ? new SQLiteSessionStore(db)
     : new RedisStore({
         client: redisClient,
-        prefix: process.env.SESSION_PREFIX || 'nexo:sess:'
+        prefix: process.env.SESSION_PREFIX || 'hearth:sess:'
       }),
   secret: process.env.SESSION_SECRET,
   resave: false,
@@ -1713,7 +1713,7 @@ app.post('/api/auth/2fa/initiate', ensureAuthenticated, async (req, res) => {
     return res.status(400).json({ message: 'Two-factor authentication already enabled.' });
   }
   const secret = speakeasy.generateSecret({
-    name: `Nexo (${req.user.email})`,
+    name: `Hearth (${req.user.email})`,
     length: 20
   });
   req.session.twofaSetup = {
