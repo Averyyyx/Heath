@@ -48,6 +48,9 @@ jobs:
       - name: Run tests and syntax checks
         run: npm test
 
+      - name: Check Hearth brand references
+        run: node scripts/check-brand.js
+
       - name: TypeScript no-emit check
         working-directory: src/renderer
         run: npx tsc --noEmit
