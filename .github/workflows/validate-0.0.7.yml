@@ -39,7 +39,7 @@ jobs:
       - name: Prepare static client for browser checks
         run: npm run prepare:public
       - name: Install Playwright
-        run: npm install --no-save playwright
+        run: npm install --no-save playwright @playwright/test
       - name: Install Chromium
         run: npx playwright install chromium
       - name: Run Playwright against a seeded Nexo server

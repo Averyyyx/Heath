@@ -1,5 +1,5 @@
 const { chromium, request } = require('playwright');
-const { expect } = require('playwright/test');
+const { expect } = require('@playwright/test');
 const Database = require('better-sqlite3');
 const fs = require('node:fs');
 const path = require('node:path');
