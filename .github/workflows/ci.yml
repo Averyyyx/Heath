@@ -83,18 +83,18 @@ jobs:
           $env:NODE_ENV = 'development'
           $env:USE_MEMORY_SESSION = 'true'
           $env:CLIENT_ORIGIN = 'http://localhost:4000'
-          $env:NEXO_DEV_ACCOUNT = 'true'
-          $env:NEXO_DEV_EMAIL = 'dev@nexo.local'
-          $env:NEXO_DEV_PASSWORD = 'Nexo-E2E-Password-2026!'
-          $env:SESSION_SECRET = 'nexo-e2e-temporary-session-secret'
-          $env:DB_PATH = Join-Path $env:RUNNER_TEMP 'nexo-e2e.db'
-          $env:DATA_DIR = Join-Path $env:RUNNER_TEMP 'nexo-e2e-data'
-          $env:NEXO_E2E_URL = 'http://localhost:4000'
-          $env:NEXO_E2E_EMAIL = 'dev@nexo.local'
-          $env:NEXO_E2E_PASSWORD = 'Nexo-E2E-Password-2026!'
-          $env:NEXO_E2E_SCREENSHOT_DIR = 'artifacts/baseline/shots'
-          $stdout = Join-Path $env:RUNNER_TEMP 'nexo-e2e-server.log'
-          $stderr = Join-Path $env:RUNNER_TEMP 'nexo-e2e-server-error.log'
+          $env:HEARTH_DEV_ACCOUNT = 'true'
+          $env:HEARTH_DEV_EMAIL = 'dev@hearth.local'
+          $env:HEARTH_DEV_PASSWORD = 'Hearth-E2E-Password-2026!'
+          $env:SESSION_SECRET = 'hearth-e2e-temporary-session-secret'
+          $env:DB_PATH = Join-Path $env:RUNNER_TEMP 'hearth-e2e.db'
+          $env:DATA_DIR = Join-Path $env:RUNNER_TEMP 'hearth-e2e-data'
+          $env:HEARTH_E2E_URL = 'http://localhost:4000'
+          $env:HEARTH_E2E_EMAIL = 'dev@hearth.local'
+          $env:HEARTH_E2E_PASSWORD = 'Hearth-E2E-Password-2026!'
+          $env:HEARTH_E2E_SCREENSHOT_DIR = 'artifacts/baseline/shots'
+          $stdout = Join-Path $env:RUNNER_TEMP 'hearth-e2e-server.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'hearth-e2e-server-error.log'
           $server = Start-Process -FilePath 'node' -ArgumentList @('src/server/index.js') -WorkingDirectory $env:GITHUB_WORKSPACE -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $ready = $false
@@ -124,8 +124,8 @@ jobs:
           path: |
             artifacts/baseline/**
             artifacts/current/**
-            ${{ runner.temp }}/nexo-e2e-server.log
-            ${{ runner.temp }}/nexo-e2e-server-error.log
+            ${{ runner.temp }}/hearth-e2e-server.log
+            ${{ runner.temp }}/hearth-e2e-server-error.log
           if-no-files-found: warn
           retention-days: 30
 
