@@ -20,6 +20,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Check references to removed root artifacts
+        shell: pwsh
+        run: |
+          $targets = @(
+            'AUDIT_REPORT.md',
+            'ELECTRON_FIX_REPORT.md',
+            'PROJECT_ANALYSIS.md',
+            'UNNECESSARY_FILES.md',
+            'GreetingScreen.png',
+            'Main2png',
+            'изображение.png',
+            'ROADMAP.md',
+            'DEV_ACCOUNT.md',
+            'setup-nexo-local.md'
+          )
+          foreach ($target in $targets) {
+            $matches = git grep -n -F -e $target HEAD -- . ':(exclude).github/workflows/validate-0.0.7.yml'
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -eq 0) {
+              $matches
+              throw "Reference to removed or moved root file found: $target"
+            }
+            if ($exitCode -gt 1) { throw "git grep failed for: $target" }
+          }
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
