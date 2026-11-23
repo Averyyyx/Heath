@@ -1,7 +1,7 @@
 'use strict';
 
 function createDatabase({ Database, path, dataDir, env = process.env }) {
-  const db = new Database(env.DB_PATH || path.join(dataDir, 'nexo.db'));
+  const db = new Database(env.DB_PATH || path.join(dataDir, 'hearth.db'));
   db.pragma('journal_mode = WAL');
   
   db.prepare(`
