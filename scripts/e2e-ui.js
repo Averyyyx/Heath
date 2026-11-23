@@ -46,6 +46,26 @@ async function assertActiveDmTabMatchesHeader(page) {
   if (tab !== header) throw new Error('Active DM tab title does not match chat header: tab="' + tab + '", header="' + header + '"');
 }
 
+async function verifyWhatsNew(page, screenshotDir) {
+  const initialModalCount = await page.getByRole('dialog', { name: 'Что нового' }).count();
+  if (initialModalCount !== 0) throw new Error('The first-ever launch must not show the What's New modal.');
+
+  await page.evaluate(() => localStorage.setItem('hearth.last-seen-version', '0.0.8-alpha'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('.hr-user-dock').waitFor({ state: 'visible', timeout: 20000 });
+
+  const modal = page.getByRole('dialog', { name: 'Что нового' });
+  await modal.waitFor({ state: 'visible', timeout: 15000 });
+  await expect(modal).toContainText('Nexo теперь Hearth');
+  await page.screenshot({ path: path.join(screenshotDir, 'whats-new-hearth-0.0.9.png'), fullPage: false });
+  await page.keyboard.press('Escape');
+  await modal.waitFor({ state: 'hidden', timeout: 5000 });
+
+  const seenVersion = await page.evaluate(() => localStorage.getItem('hearth.last-seen-version'));
+  if (seenVersion !== '0.0.9-alpha') throw new Error('Closing the What's New modal did not save the current version.');
+  await assertHearthBrand(page);
+}
+
 async function waitForStableModal(page, modal) {
   await modal.waitFor({ state: 'visible' });
   await page.waitForTimeout(450);
@@ -184,6 +204,8 @@ async function waitForStableModal(page, modal) {
       loginPage(pageB, emailB, passwordB),
       loginPage(pageC, emailC, passwordC)
     ]);
+    await verifyWhatsNew(pageA, screenshotDir);
+
     const mediaCheck = await pageB.evaluate(async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
