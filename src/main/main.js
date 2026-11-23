@@ -222,7 +222,7 @@ function createTaskbarOverlay(count) {
 // Тестовый аккаунт разработчика (dev@hearth.local с премиум-подпиской).
 // Включён при запуске из исходников (`npm start` / `electron:dev`). В установленной сборке
 // включается переменной HEARTH_DEV_ACCOUNT=1 или пустым файлом dev-account.enabled в папке
-// пользовательских данных (Windows: %APPDATA%\Nexo). HEARTH_DEV_ACCOUNT=0 выключает всегда.
+// пользовательских данных (Windows: %APPDATA%\Hearth). HEARTH_DEV_ACCOUNT=0 выключает всегда.
 function isDevAccountEnabled() {
   const flag = process.env.HEARTH_DEV_ACCOUNT;
   if (flag === 'false' || flag === '0') return false;
