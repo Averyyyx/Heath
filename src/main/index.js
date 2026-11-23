@@ -1,6 +1,6 @@
 const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog, nativeTheme, Notification } = require('electron');
 const path = require('path');
-const { fork, spawn } = require('child_process');
+const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
 const { Readable, Transform } = require('stream');
@@ -21,9 +21,6 @@ app.setPath('userData', migrateLegacyUserData({ appDataPath: app.getPath('appDat
 let mainWindow = null;
 let splashWindow = null;
 let tray = null;
-let serverProcess = null;
-let serverReady = false;
-let serverRestarts = 0;
 let updateCheckPromise = null;
 let backgroundUpdateTimer = null;
 let activeUpdateController = null;
@@ -31,7 +28,6 @@ let skipUpdateRequested = false;
 let pendingUpdateNotice = null;
 let releaseNotesText = '';
 let queuedDeepLink = null;
-const MAX_SERVER_RESTARTS = 5;
 let notificationCount = 0;
 const SERVER_PORT = process.env.PORT || 4000;
 
@@ -39,11 +35,26 @@ const SERVER_PORT = process.env.PORT || 4000;
 // Используем 127.0.0.1 для стабильности
 const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 
+const { createApplicationPaths } = require('./paths');
+const appPaths = createApplicationPaths({ app, path, process, mainDirectory: __dirname });
+const { createSecretsService } = require('./secrets');
+const { isDevAccountEnabled, getOrCreateSecrets } = createSecretsService({ app, fs, path, crypto, process });
+const { createServerProcessService } = require('./server-process');
+const serverService = createServerProcessService({
+  app,
+  path,
+  fs,
+  fork: require('child_process').fork,
+  http,
+  process,
+  paths: appPaths,
+  serverPort: SERVER_PORT,
+  serverUrl: SERVER_URL,
+  getOrCreateSecrets,
+  isDevAccountEnabled
+});
+
 const { setupLogging } = require('./lib/logging');
-
-const { createServerReadiness } = require('./lib/server-readiness');
-
-const { waitForServer } = createServerReadiness({ http, serverUrl: SERVER_URL, getServerProcess: () => serverProcess });
 
 const { createIconService } = require('./lib/icons');
 const {
@@ -61,42 +72,9 @@ const {
   nativeImage,
   shell,
   process,
-  devResourcesDir: path.join(__dirname, '..', '..', 'resources'),
+  devResourcesDir: appPaths.resourcesDirectory,
   getNotificationCount: () => notificationCount
 });
-
-function isDevAccountEnabled() {
-  const flag = process.env.HEARTH_DEV_ACCOUNT;
-  if (flag === 'false' || flag === '0') return false;
-  if (flag === 'true' || flag === '1') return true;
-  return !app.isPackaged || fs.existsSync(path.join(app.getPath('userData'), 'dev-account.enabled'));
-}
-
-// Секреты десктопного сервера генерируются один раз и хранятся в userData,
-// а не зашиты в код (иначе любой мог бы подделать сессию/JWT).
-function getOrCreateSecrets() {
-  const secretsFile = path.join(app.getPath('userData'), 'secrets.json');
-  let secrets = {};
-  try {
-    secrets = JSON.parse(fs.readFileSync(secretsFile, 'utf8'));
-  } catch {
-    secrets = {};
-  }
-
-  let changed = false;
-  for (const key of ['SESSION_SECRET', 'JWT_SECRET']) {
-    if (typeof secrets[key] !== 'string' || secrets[key].length < 32) {
-      secrets[key] = crypto.randomBytes(48).toString('hex');
-      changed = true;
-    }
-  }
-
-  if (changed) {
-    fs.mkdirSync(path.dirname(secretsFile), { recursive: true });
-    fs.writeFileSync(secretsFile, JSON.stringify(secrets), { mode: 0o600 });
-  }
-  return secrets;
-}
 
 function createTray() {
   console.log('Creating system tray...');
@@ -424,141 +402,6 @@ async function checkForUpdates({ interactive = true, startup = false } = {}) {
   try { return await updateCheckPromise; } finally { updateCheckPromise = null; }
 }
 
-function getServerRuntime() {
-  // И в разработке, и в упакованной сборке сервер запускается самим Electron как Node.
-  // Нативные модули (better-sqlite3) собираются под ABI Electron (postinstall:
-  // electron-builder install-app-deps), поэтому отдельный node.exe с другим ABI
-  // использовать нельзя: он не загрузит better_sqlite3.node.
-  return {
-    execPath: process.execPath,
-    useElectronAsNode: true
-  };
-}
-
-function startServer() {
-  const userDataDir = path.join(app.getPath('userData'), 'data');
-  
-  // Создаем директории для данных
-  if (!fs.existsSync(userDataDir)) {
-    fs.mkdirSync(userDataDir, { recursive: true });
-    console.log('Created userData directory:', userDataDir);
-  }
-  
-  const uploadsDir = path.join(userDataDir, 'uploads');
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-    console.log('Created uploads directory:', uploadsDir);
-  }
-  
-  const tmpDir = path.join(userDataDir, 'tmp');
-  if (!fs.existsSync(tmpDir)) {
-    fs.mkdirSync(tmpDir, { recursive: true });
-    console.log('Created tmp directory:', tmpDir);
-  }
-
-  // Определяем пути к server.js
-  let serverPath, serverCwd;
-  
-  if (app.isPackaged) {
-    // В packaged приложении
-    serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'src', 'server', 'index.js');
-    serverCwd = path.join(process.resourcesPath, 'app.asar.unpacked');
-    console.log('Using packaged application paths');
-  } else {
-    // В разработке
-    serverPath = path.join(__dirname, '..', 'server', 'index.js');
-    serverCwd = path.join(__dirname, '..', '..');
-    console.log('Using development paths');
-  }
-
-  const runtime = getServerRuntime();
-
-  console.log('Starting server with:');
-  console.log('  serverPath:', serverPath);
-  console.log('  serverCwd:', serverCwd);
-  console.log('  runtime:', runtime.execPath);
-  console.log('  userDataDir:', userDataDir);
-  console.log('  PORT:', SERVER_PORT);
-
-  // Проверяем существование server.js
-  if (!fs.existsSync(serverPath)) {
-    const error = `Server file not found: ${serverPath}`;
-    console.error(error);
-    throw new Error(error);
-  }
-
-  const secrets = getOrCreateSecrets();
-
-  // stdout/stderr сервера берём через pipe, чтобы они попадали в main.log
-  // (при stdio: 'inherit' потоков нет, и логи сервера терялись).
-  const child = fork(serverPath, [], {
-    cwd: serverCwd,
-    execPath: runtime.execPath,
-    env: {
-      ...process.env,
-      ...(runtime.useElectronAsNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
-      ELECTRON_DESKTOP: '1',
-      USE_MEMORY_SESSION: 'true',
-      PORT: String(SERVER_PORT),
-      HOST: '127.0.0.1',
-      NODE_ENV: 'production',
-      CLIENT_ORIGIN: SERVER_URL, // Используем локальный URL
-      SESSION_SECRET: process.env.SESSION_SECRET || secrets.SESSION_SECRET,
-      JWT_SECRET: process.env.JWT_SECRET || secrets.JWT_SECRET,
-      DATA_DIR: userDataDir,
-      DB_PATH: path.join(userDataDir, 'hearth.db'),
-      HEARTH_DEV_ACCOUNT: isDevAccountEnabled() ? 'true' : 'false'
-    },
-    stdio: ['ignore', 'pipe', 'pipe', 'ipc']
-  });
-  serverProcess = child;
-
-  child.on('error', (error) => {
-    console.error('Server process error:', error);
-  });
-
-  child.on('exit', (code, signal) => {
-    console.log(`Server process exited with code ${code} and signal ${signal}`);
-    if (serverProcess === child) {
-      serverProcess = null;
-    }
-
-    // Сервер упал уже после успешного запуска — поднимаем его снова (с ограничением),
-    // чтобы чаты не оставались мёртвыми до перезапуска приложения.
-    const crashed = code !== 0 && signal !== 'SIGTERM';
-    if (crashed && serverReady && !app.isQuitting) {
-      console.error('Server crashed! Exit code:', code);
-      if (serverRestarts < MAX_SERVER_RESTARTS) {
-        serverRestarts += 1;
-        const delay = 1000 * serverRestarts;
-        console.log(`Restarting server in ${delay} ms (attempt ${serverRestarts}/${MAX_SERVER_RESTARTS})`);
-        setTimeout(() => {
-          if (!app.isQuitting) {
-            try {
-              startServer();
-            } catch (error) {
-              console.error('Failed to restart server:', error);
-            }
-          }
-        }, delay);
-      } else {
-        console.error('Server restart limit reached; giving up.');
-      }
-    }
-  });
-
-  // Логируем stdout и stderr от сервера
-  child.stdout?.on('data', (data) => {
-    console.log('[Server stdout]', data.toString());
-  });
-
-  child.stderr?.on('data', (data) => {
-    console.error('[Server stderr]', data.toString());
-  });
-
-  console.log('Server process started with PID:', child.pid);
-}
-
 function createSplashWindow() {
   console.log('Creating splash window...');
   const splashIconPath = getDesktopIconPath();
@@ -574,7 +417,7 @@ function createSplashWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, '..', 'preload', 'splash.js')
+      preload: appPaths.splashPreload
     },
     show: false,
     backgroundColor: '#262624',
@@ -587,7 +430,7 @@ function createSplashWindow() {
     else console.warn('Hearth splash icon could not be loaded:', splashIconPath);
   }
 
-  const splashPath = path.join(__dirname, 'splash.html');
+  const splashPath = appPaths.splashHtml;
   console.log('Loading splash from:', splashPath);
   
   splashWindow.loadFile(splashPath);
@@ -622,7 +465,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
-      preload: path.join(__dirname, '..', 'preload', 'index.js')
+      preload: appPaths.mainPreload
     },
     title: 'Hearth',
     show: false,
@@ -774,7 +617,7 @@ app.whenReady().then(async () => {
     if (splashWindow) {
       splashWindow.webContents.send('loading-status', 'Запуск сервера...');
     }
-    startServer();
+    serverService.startServer();
 
     // Проверка релиза начинается на splash до создания основного окна.
     const startupUpdateTask = checkForUpdates({ interactive: false, startup: true });
@@ -784,8 +627,8 @@ app.whenReady().then(async () => {
     if (splashWindow) {
       splashWindow.webContents.send('loading-status', 'Ожидание сервера...');
     }
-    await waitForServer();
-    serverReady = true;
+    await serverService.waitForServer();
+    serverService.markReady();
     console.log('Server is ready!');
     const startupUpdateResult = await startupUpdateTask;
     if (startupUpdateResult?.status === 'installing' || app.isQuitting) return;
@@ -866,10 +709,7 @@ app.on('before-quit', () => {
   // Без этого флага обработчик 'close' окна отменяет закрытие (прячет в трей),
   // и приложение не завершается при выходе из меню, перезагрузке или выключении системы.
   app.isQuitting = true;
-  if (serverProcess) {
-    serverProcess.kill();
-    serverProcess = null;
-  }
+  serverService.stop();
 });
 
 if (process.defaultApp) {

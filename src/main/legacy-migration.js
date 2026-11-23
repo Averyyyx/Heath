@@ -44,8 +44,6 @@ function migrateLegacyUserData({
       }
     });
 
-    // Earlier desktop builds used both root-level and data/app.db layouts.
-    // Rename every database sidecar in the copied profile without touching the source.
     const databaseDirectories = [targetPath, path.join(targetPath, 'data')];
     for (const databaseDirectory of databaseDirectories) {
       if (!fs.existsSync(databaseDirectory)) continue;
@@ -72,10 +70,13 @@ function migrateLegacyUserData({
         : new Set();
 
       db.transaction(() => {
-        if (userColumns.size) {
-          db.prepare("UPDATE users SET email = 'dev@hearth.local' WHERE email = 'dev@nexo.local'").run();
+        if (userColumns.has('email')) {
+          const hearthAccount = db.prepare('SELECT id FROM users WHERE email = ?').get('dev@hearth.local');
+          if (!hearthAccount) {
+            db.prepare('UPDATE users SET email = ? WHERE email = ?').run('dev@hearth.local', 'dev@nexo.local');
+          }
           if (userColumns.has('display_name')) {
-            db.prepare("UPDATE users SET display_name = 'Hearth Dev' WHERE display_name = 'Nexo Dev'").run();
+            db.prepare('UPDATE users SET display_name = ? WHERE email = ?').run('Hearth Dev', 'dev@hearth.local');
           }
         }
         if (hasTable('http_sessions')) db.prepare('DELETE FROM http_sessions').run();

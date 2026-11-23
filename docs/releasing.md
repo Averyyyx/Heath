@@ -8,7 +8,7 @@ Hearth uses `.github/workflows/ci.yml` for validation and `.github/workflows/rel
 2. Add the user-visible changes to the top of `CHANGELOG.md`.
 3. Run `npm ci` and `npm ci --prefix src/renderer`.
 4. Require green CI, including tests, TypeScript, the application build, Windows installer packaging, packaged-file checks, E2E, inventory comparison, and visual comparison.
-5. Confirm that `appId: com.nexo.app` remains unchanged.
+5. Confirm that the installer application identifier remains unchanged so existing installations can update in place.
 
 ## Publish
 

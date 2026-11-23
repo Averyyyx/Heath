@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -33,16 +34,38 @@ jobs:
       - name: Install desktop dependencies
         run: npm ci
 
-      - name: Install client dependencies
+      - name: Install renderer dependencies
         run: npm ci --prefix src/renderer
 
-      - name: Capture baseline inventory
+      - name: Download Nexo 0.0.8 UI baseline
+        uses: actions/download-artifact@v4
+        with:
+          name: Nexo-0.0.8-UI-E2E
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 45150674684
+          path: artifacts/baseline/source
+
+      - name: Prepare baseline screenshots
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force artifacts/baseline, artifacts/current | Out-Null
-          node scripts/inventory.js --ref v0.0.8-alpha | Set-Content artifacts/baseline/inventory.json -Encoding utf8
-          node scripts/inventory.js | Set-Content artifacts/current/inventory.json -Encoding utf8
-          node scripts/inventory.js --compare artifacts/baseline/inventory.json
+          New-Item -ItemType Directory -Force artifacts/baseline/shots, artifacts/current/shots, artifacts/diff | Out-Null
+          $shots = Get-ChildItem -Path artifacts/baseline/source -Filter '*.png' -File -Recurse
+          if ($shots.Count -lt 30) { throw 'The historical UI baseline is missing or incomplete.' }
+          foreach ($shot in $shots) {
+            Copy-Item -LiteralPath $shot.FullName -Destination (Join-Path 'artifacts/baseline/shots' $shot.Name) -Force
+          }
+          foreach ($required in @('workspace-dark-1440x768.png', 'workspace-light-1440x900.png', 'settings-voice-dark-1440x900.png', 'incoming-call-light-1440x900.png', 'call-connected-dark-1440x900.png')) {
+            if (-not (Test-Path (Join-Path 'artifacts/baseline/shots' $required))) { throw "Baseline screenshot is missing: $required" }
+          }
+
+      - name: Compare API and event inventory with 0.0.8
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/inventory | Out-Null
+          node scripts/inventory.js --ref v0.0.8-alpha | Set-Content artifacts/inventory/baseline.json -Encoding utf8
+          node scripts/inventory.js | Set-Content artifacts/inventory/current.json -Encoding utf8
+          node scripts/inventory.js --compare artifacts/inventory/baseline.json
           if ($LASTEXITCODE -ne 0) { throw 'Baseline API/event inventory differs.' }
 
       - name: Run tests and syntax checks
@@ -66,7 +89,7 @@ jobs:
         run: |
           $app = Join-Path $env:GITHUB_WORKSPACE 'dist/win-unpacked'
           $unpacked = Join-Path $app 'resources/app.asar.unpacked'
-          foreach ($relative in @('src/server/index.js', 'src/shared/email-validation.js', 'src/shared/brand.js', 'public/index.html', 'node_modules/better-sqlite3/build/Release/better_sqlite3.node')) {
+          foreach ($relative in @('src/main/index.js', 'src/main/legacy-migration.js', 'src/server/index.js', 'src/shared/email-validation.js', 'src/shared/brand.js', 'public/index.html', 'node_modules/better-sqlite3/build/Release/better_sqlite3.node')) {
             $target = Join-Path $unpacked $relative
             if (-not (Test-Path $target)) { throw "Packaged file is missing: $relative" }
           }
@@ -74,13 +97,10 @@ jobs:
           $legacyExe = 'Ne' + 'xo.exe'
           if (Test-Path (Join-Path $app $legacyExe)) { throw 'Legacy executable must not be packaged.' }
 
-      - name: Install Playwright
-        run: npm install --no-save playwright @playwright/test
-
       - name: Install Chromium
         run: npx playwright install chromium
 
-      - name: Run baseline Playwright and capture screenshots
+      - name: Run Playwright E2E and capture current screenshots
         timeout-minutes: 8
         shell: pwsh
         run: |
@@ -96,7 +116,7 @@ jobs:
           $env:HEARTH_E2E_URL = 'http://localhost:4000'
           $env:HEARTH_E2E_EMAIL = 'dev@hearth.local'
           $env:HEARTH_E2E_PASSWORD = 'Hearth-E2E-Password-2026!'
-          $env:HEARTH_E2E_SCREENSHOT_DIR = 'artifacts/baseline/shots'
+          $env:HEARTH_E2E_SCREENSHOT_DIR = 'artifacts/current/shots'
           $stdout = Join-Path $env:RUNNER_TEMP 'hearth-e2e-server.log'
           $stderr = Join-Path $env:RUNNER_TEMP 'hearth-e2e-server-error.log'
           $server = Start-Process -FilePath 'node' -ArgumentList @('src/server/index.js') -WorkingDirectory $env:GITHUB_WORKSPACE -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
@@ -112,22 +132,27 @@ jobs:
             if (-not $ready) {
               if (Test-Path $stdout) { Get-Content $stdout }
               if (Test-Path $stderr) { Get-Content $stderr }
-              throw 'Baseline test server did not become ready.'
+              throw 'Hearth E2E server did not become ready.'
             }
             node scripts/e2e-ui.js
-            if ($LASTEXITCODE -ne 0) { throw 'Baseline Playwright UI regression failed.' }
+            if ($LASTEXITCODE -ne 0) { throw 'Hearth Playwright UI regression failed.' }
           } finally {
             Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
           }
 
-      - name: Upload baseline inventory and screenshots
+      - name: Compare UI screenshots against 0.0.8
+        run: npm run visual-diff
+
+      - name: Upload visual verification artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hearth-0.0.9-baseline
+          name: hearth-0.0.9-visual-verification
           path: |
             artifacts/baseline/**
             artifacts/current/**
+            artifacts/diff/**
+            artifacts/inventory/**
             ${{ runner.temp }}/hearth-e2e-server.log
             ${{ runner.temp }}/hearth-e2e-server-error.log
           if-no-files-found: warn
