@@ -621,7 +621,7 @@ function startServer() {
     console.log('Using packaged application paths');
   } else {
     // В разработке
-    serverPath = path.join(__dirname, '..', 'server.js');
+    serverPath = path.join(__dirname, '..', 'src', 'server', 'index.js');
     serverCwd = path.join(__dirname, '..');
     console.log('Using development paths');
   }

@@ -41,7 +41,7 @@ const NodeClam = require('clamscan');
 const multer = require('multer');
 const { Server } = require('socket.io');
 const { randomUUID, randomBytes } = require('crypto');
-const { isValidEmail } = require('./electron/email-validation');
+const { isValidEmail } = require('../../electron/email-validation');
 require('dotenv').config();
 
 const app = express();
@@ -50,10 +50,10 @@ const PORT = process.env.PORT || 4000;
 
 // Каталог данных. Сервер работает как отдельный процесс (Node/Electron-as-Node),
 // поэтому модуль 'electron' здесь недоступен: путь всегда передаёт main.js через DATA_DIR.
-const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
+const dataDir = process.env.DATA_DIR || path.resolve(__dirname, '..', '..', 'data');
 
 // public лежит рядом с server.js (и в dev, и в упакованном приложении)
-const publicDir = path.join(__dirname, 'public');
+const publicDir = path.resolve(__dirname, '..', '..', 'public');
 
 // Логируем путь к publicDir
 console.log('Public directory path:', publicDir);

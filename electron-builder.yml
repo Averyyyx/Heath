@@ -8,7 +8,7 @@ directories:
 
 files:
   - "package.json"
-  - "server.js"
+  - "src/server/**/*"
   - "electron/**/*"
   - "public/**/*"
   - "node_modules/**/*"
@@ -19,7 +19,7 @@ asar: true
 # Модули ищутся от этого каталога, а не из app.asar, поэтому node_modules нужно
 # распаковать целиком (раньше распаковывался только better-sqlite3, и express и др. не находились).
 asarUnpack:
-  - "server.js"
+  - "src/server/**/*"
   - "public/**/*"
   - "electron/**/*"
   - "node_modules/**/*"

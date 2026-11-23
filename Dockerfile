@@ -33,4 +33,4 @@ ENV PORT=4000
 ENV USE_MEMORY_SESSION=true
 
 # Запуск сервера
-CMD ["node", "server.js"]
+CMD ["node", "src/server/index.js"]
