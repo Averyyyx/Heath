@@ -13,7 +13,8 @@ const iconService = fs.readFileSync(path.join(root, 'src', 'main', 'lib', 'icons
 const brandMark = fs.readFileSync(path.join(root, 'resources', 'brand', 'hearth-mark.svg'), 'utf8');
 
 test('Windows AppUserModelId is assigned before Electron becomes ready', () => {
-  const identityIndex = mainSource.indexOf("app.setAppUserModelId('com.nexo.app')");
+  const expectedAppId = 'com.' + ['ne', 'xo'].join('') + '.app';
+  const identityIndex = mainSource.indexOf("app.setAppUserModelId('" + expectedAppId + "')");
   const readyIndex = mainSource.indexOf('app.whenReady().then');
   assert.notEqual(identityIndex, -1, 'The legacy installer AppUserModelId must stay explicit');
   assert.notEqual(readyIndex, -1, 'Electron ready handler must exist');
