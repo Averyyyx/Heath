@@ -1279,7 +1279,7 @@ if (githubReady) {
 }
 
 const { registerAuthRoutes } = require('./routes/auth');
-registerAuthRoutes({ app, authLimiter, zxcvbn, isValidEmail, selectUserByEmail, validatePasswordStrength, bcrypt, generateHandleFromEmail, insertUser, db, defaultAvatarColor, selectUserById, sanitizeUser, ensureAuthenticated, speakeasy, QRCode, updateTwoFactor, updatePasswordHash, passport });
+registerAuthRoutes({ app, authLimiter, isValidEmail, selectUserByEmail, validatePasswordStrength, bcrypt, generateHandleFromEmail, insertUser, db, defaultAvatarColor, selectUserById, sanitizeUser, ensureAuthenticated, speakeasy, QRCode, updateTwoFactor, updatePasswordHash, passport });
 
 const { registerProfileRoutes } = require('./routes/profile');
 registerProfileRoutes({ app, selectUserByUsername, ensureAuthenticated, friendActionLimiter, selectUserById, markProfile, randomDiscriminator, sanitizeUser, broadcastUserUpdate, upload, removeFileSafe, fileTypeFromFile, path, avatarsDir, sharp, db, fs, getUserSettings, updateUserSettingsRecord });
