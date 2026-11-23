@@ -1023,7 +1023,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       <div className="settings-section">
         <p className="eyebrow">Hearth Desktop</p>
         <h2>Обновления</h2>
-        {onShowWhatsNew && <Button variant="secondary" onClick={onShowWhatsNew}>Что нового</Button>}
+        {onShowWhatsNew && <Button variant="secondary" onClick={onShowWhatsNew}>Что нового в этой версии</Button>}
         <p className="muted">Hearth проверяет новые Alpha-релизы автоматически при запуске. Здесь можно запустить проверку вручную.</p>
         <div className="update-version-card">
           <div><span>Установленная версия</span><strong>{appVersion}</strong></div>

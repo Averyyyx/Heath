@@ -3,17 +3,6 @@ const LEGACY_SOUND_KEY = 'nexo.sound-preferences.v2';
 const HEARTH_SOUND_KEY = 'hearth.sound-preferences.v1';
 const MIGRATED_MARKER = 'hearth.migrated-from-legacy';
 
-export function hasLegacyLocalStorage(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    if (window.localStorage.getItem(MIGRATED_MARKER) === '1') return true;
-    return Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
-      .some((key) => Boolean(key && key.startsWith(LEGACY_PREFIX)));
-  } catch {
-    return false;
-  }
-}
-
 export function migrateLegacyLocalStorage(): void {
   if (typeof window === 'undefined') return;
   try {

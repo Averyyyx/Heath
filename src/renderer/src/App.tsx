@@ -33,7 +33,6 @@ import { Avatar } from './components/Avatar';
 import { DefaultAvatar } from './components/DefaultAvatar';
 import { WhatsNewModal } from './components/WhatsNewModal';
 import { WHATS_NEW } from './content/whats-new';
-import { hasLegacyLocalStorage } from './lib/legacy-migration';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
@@ -183,11 +182,11 @@ export default function App() {
       if (!release) return;
       const seenKey = 'hearth.last-seen-version';
       const seenVersion = localStorage.getItem(seenKey);
-      const hasLegacyStorage = hasLegacyLocalStorage();
-      if ((seenVersion && seenVersion !== appVersion) || (!seenVersion && hasLegacyStorage)) {
-        setShowWhatsNew(true);
+      if (!seenVersion) {
+        localStorage.setItem(seenKey, appVersion);
+        return;
       }
-      localStorage.setItem(seenKey, appVersion);
+      if (seenVersion !== appVersion) setShowWhatsNew(true);
     } catch {
       // The app should remain usable when browser storage is unavailable.
     }
@@ -1077,6 +1076,15 @@ export default function App() {
     }
   }
 
+  function closeWhatsNew() {
+    setShowWhatsNew(false);
+    try {
+      localStorage.setItem('hearth.last-seen-version', appVersion);
+    } catch {
+      // Storage may be unavailable.
+    }
+  }
+
   async function handleCheckUpdates() {
     if (!desktopApi?.checkForUpdates) return { status: 'unavailable', message: 'Проверка доступна в настольной версии Hearth.' };
     return desktopApi.checkForUpdates();
@@ -1521,7 +1529,7 @@ export default function App() {
         <button className="ghost-icon" aria-label="Позже" onClick={() => setNotificationUpdate(null)}><X size={14} /></button>
       </div>}
 
-      {showWhatsNew && <WhatsNewModal version={appVersion} onClose={() => setShowWhatsNew(false)} />}
+      {showWhatsNew && <WhatsNewModal version={appVersion} onClose={closeWhatsNew} />}
       {welcomeKind && <WelcomeOverlay kind={welcomeKind} name={welcomeName} onClose={() => setWelcomeKind(null)} />}
     </div>
   );
