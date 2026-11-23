@@ -33,7 +33,7 @@ win:
         - x64
   artifactName: "${productName}-${version}-Setup.${ext}"
   signAndEditExecutable: true
-  icon: "electron/icons/Nexo-Desctop-ico.ico"
+  icon: "src/main/icons/Nexo-Desctop-ico.ico"
 
 nsis:
   oneClick: false

@@ -133,8 +133,8 @@ function waitForServer(maxAttempts = 60, intervalMs = 500) {
 
 function getIconsDir() {
   return app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'icons')
-    : path.join(__dirname, '..', '..', 'electron', 'icons');
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'src', 'main', 'icons')
+    : path.join(__dirname, 'icons');
 }
 
 function getDesktopIconPath() {
@@ -742,7 +742,7 @@ function createSplashWindow() {
     else console.warn('Nexo splash icon could not be loaded:', splashIconPath);
   }
 
-  const splashPath = path.join(__dirname, '..', '..', 'electron', 'splash.html');
+  const splashPath = path.join(__dirname, 'splash.html');
   console.log('Loading splash from:', splashPath);
   
   splashWindow.loadFile(splashPath);
