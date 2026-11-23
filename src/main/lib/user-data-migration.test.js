@@ -17,6 +17,7 @@ test('migration copies durable user data, preserves secrets and skips Chromium c
   fs.mkdirSync(path.join(legacy, 'Local Storage'), { recursive: true });
   fs.mkdirSync(path.join(legacy, 'Session Storage'), { recursive: true });
   fs.mkdirSync(path.join(legacy, 'Cache'), { recursive: true });
+  fs.mkdirSync(path.join(legacy, 'data', 'uploads'), { recursive: true });
   fs.writeFileSync(path.join(legacy, 'secrets.json'), '{"secret":"keep"}');
   fs.writeFileSync(path.join(legacy, 'Local Storage', 'leveldb'), 'local');
   fs.writeFileSync(path.join(legacy, 'Session Storage', 'leveldb'), 'session');
@@ -24,6 +25,9 @@ test('migration copies durable user data, preserves secrets and skips Chromium c
   fs.writeFileSync(path.join(legacy, 'app.db'), 'database');
   fs.writeFileSync(path.join(legacy, 'app.db-wal'), 'wal');
   fs.writeFileSync(path.join(legacy, 'app.db-shm'), 'shm');
+  fs.writeFileSync(path.join(legacy, 'data', 'app.db'), 'nested-database');
+  fs.writeFileSync(path.join(legacy, 'data', 'app.db-wal'), 'nested-wal');
+  fs.writeFileSync(path.join(legacy, 'data', 'uploads', 'attachment.bin'), 'attachment');
   try {
     assert.equal(migrateLegacyUserData({ appDataPath: root, fs, path, logger: { log() {}, warn() {} } }), target);
     assert.equal(fs.readFileSync(path.join(target, 'secrets.json'), 'utf8'), '{"secret":"keep"}');
@@ -33,6 +37,9 @@ test('migration copies durable user data, preserves secrets and skips Chromium c
     assert.equal(fs.readFileSync(path.join(target, 'hearth.db'), 'utf8'), 'database');
     assert.equal(fs.readFileSync(path.join(target, 'hearth.db-wal'), 'utf8'), 'wal');
     assert.equal(fs.readFileSync(path.join(target, 'hearth.db-shm'), 'utf8'), 'shm');
+    assert.equal(fs.readFileSync(path.join(target, 'data', 'hearth.db'), 'utf8'), 'nested-database');
+    assert.equal(fs.readFileSync(path.join(target, 'data', 'hearth.db-wal'), 'utf8'), 'nested-wal');
+    assert.equal(fs.readFileSync(path.join(target, 'data', 'uploads', 'attachment.bin'), 'utf8'), 'attachment');
     assert.equal(fs.existsSync(path.join(target, '.hearth-migration-v1')), true);
     assert.equal(fs.existsSync(legacy), true);
   } finally {
