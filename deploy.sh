@@ -60,7 +60,7 @@ pm2 delete hearth 2>/dev/null || true
 
 # Запуск приложения
 echo "🚀 Запуск приложения..."
-pm2 start server.js --name hearth
+pm2 start src/server/index.js --name hearth
 
 # Сохранение PM2 конфигурации
 pm2 save
