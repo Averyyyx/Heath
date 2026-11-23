@@ -8,8 +8,8 @@ const { createServerConfig } = require('./config');
 test('server config preserves desktop session defaults and data paths', () => {
   const env = { ELECTRON_DESKTOP: '1' };
   const config = createServerConfig(env, path.join(__dirname, 'fixture'));
-  assert.equal(env.SESSION_SECRET, 'nexo-desktop-session-secret-change-in-production');
-  assert.equal(env.JWT_SECRET, 'nexo-desktop-jwt-secret-change-in-production');
+  assert.equal(env.SESSION_SECRET, 'hearth-desktop-session-secret-change-in-production');
+  assert.equal(env.JWT_SECRET, 'hearth-desktop-jwt-secret-change-in-production');
   assert.equal(env.CLIENT_ORIGIN, 'http://localhost:4000');
   assert.equal(env.NODE_ENV, 'production');
   assert.equal(config.isDesktop, true);

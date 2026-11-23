@@ -1,6 +1,6 @@
 appId: com.nexo.app
-productName: Nexo
-copyright: Copyright © 2026 Nexo
+productName: Hearth
+copyright: Copyright © 2026 Hearth
 
 directories:
   output: dist
@@ -40,7 +40,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Nexo
+  shortcutName: Hearth
   runAfterFinish: true
   deleteAppDataOnUninstall: false
 

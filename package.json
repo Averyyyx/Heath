@@ -1,6 +1,6 @@
 {
-  "name": "nexo",
-  "version": "0.0.8-alpha",
+  "name": "hearth",
+  "version": "0.0.9-alpha",
   "description": "A desktop communication and collaboration space for people and teams.",
   "main": "src/main/main.js",
   "scripts": {

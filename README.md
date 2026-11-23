@@ -1,6 +1,6 @@
-# Nexo
+# Hearth
 
-Nexo is a desktop communication application built with Electron, React, TypeScript, and Node.js.
+Hearth is a desktop communication application built with Electron, React, TypeScript, and Node.js.
 
 The current application includes user accounts, friends, direct messages, text and voice channels, notifications, sound preferences, and voice/video communication.
 

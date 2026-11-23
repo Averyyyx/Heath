@@ -1,15 +1,17 @@
 'use strict';
 
+const brand = require('../shared/brand');
+
 const path = require('node:path');
 
 function createServerConfig(env = process.env, baseDir = __dirname) {
   if (!env.SESSION_SECRET) {
     console.warn('WARNING: Using default SESSION_SECRET. Set SESSION_SECRET in production!');
-    env.SESSION_SECRET = 'nexo-desktop-session-secret-change-in-production';
+    env.SESSION_SECRET = 'hearth-desktop-session-secret-change-in-production';
   }
   if (!env.JWT_SECRET) {
     console.warn('WARNING: Using default JWT_SECRET. Set JWT_SECRET in production!');
-    env.JWT_SECRET = 'nexo-desktop-jwt-secret-change-in-production';
+    env.JWT_SECRET = 'hearth-desktop-jwt-secret-change-in-production';
   }
   if (!env.CLIENT_ORIGIN) env.CLIENT_ORIGIN = 'http://localhost:4000';
   if (!env.NODE_ENV) env.NODE_ENV = 'production';
@@ -44,7 +46,7 @@ function createServerConfig(env = process.env, baseDir = __dirname) {
     PASSWORD_MIN_SCORE: Number(env.PASSWORD_MIN_SCORE || 3),
     REQUIRE_HTTPS: env.REQUIRE_HTTPS === 'true',
     isProduction: env.NODE_ENV === 'production',
-    PREMIUM_BRAND: env.PREMIUM_BRAND || 'Nexo Pulse',
+    PREMIUM_BRAND: env.PREMIUM_BRAND || brand.premium,
     PREMIUM_BALANCE_TOKEN: env.PREMIUM_BALANCE_TOKEN || '',
     useMemorySession,
     useSQLiteSession
