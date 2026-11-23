@@ -54,6 +54,11 @@ function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
       }
     }
 
+    const migratedDatabase = path.join(targetPath, 'data', 'hearth.db');
+    if (!fs.existsSync(migratedDatabase)) {
+      throw new Error('The migrated Hearth database was not found: ' + migratedDatabase);
+    }
+
     fs.writeFileSync(markerPath, new Date().toISOString(), 'utf8');
     fs.rmSync(inProgressPath, { force: true });
     logger.log?.('Legacy user data copied to Hearth. The original folder was preserved.');
