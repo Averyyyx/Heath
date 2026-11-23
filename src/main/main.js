@@ -276,7 +276,7 @@ function createTaskbarOverlay(count) {
   if (!fs.existsSync(overlayPath)) return null;
   return nativeImage.createFromPath(overlayPath);
 }
-// Тестовый аккаунт разработчика (dev@nexo.local с премиум-подпиской).
+// Тестовый аккаунт разработчика (dev@hearth.local с премиум-подпиской).
 // Включён при запуске из исходников (`npm start` / `electron:dev`). В установленной сборке
 // включается переменной HEARTH_DEV_ACCOUNT=1 или пустым файлом dev-account.enabled в папке
 // пользовательских данных (Windows: %APPDATA%\Nexo). HEARTH_DEV_ACCOUNT=0 выключает всегда.
@@ -587,7 +587,7 @@ async function checkForUpdates({ interactive = true, startup = false } = {}) {
       const response = await fetch('https://api.github.com/repos/Averyyyx/Hearth/releases?per_page=30', {
         headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'Hearth-Desktop' }, signal: AbortSignal.timeout(8000)
       });
-      if (!response.ok) throw new Error(response.status === 404 ? 'Не удалось найти публичные Alpha-релизы Nexo.' : `Сервис обновлений временно недоступен (HTTP ${response.status}).`);
+      if (!response.ok) throw new Error(response.status === 404 ? 'Не удалось найти публичные Alpha-релизы Hearth.' : `Сервис обновлений временно недоступен (HTTP ${response.status}).`);
       const releases = await response.json();
       const latest = releases.filter((item) => !item.draft && item.prerelease)
         .sort((left, right) => compareReleaseVersions(right.tag_name, left.tag_name))[0];
@@ -628,7 +628,7 @@ async function checkForUpdates({ interactive = true, startup = false } = {}) {
       return { status: 'downloaded', version, message: `Обновление ${version} скачано и проверено.`, releaseNotes: releaseNotesText };
     } catch (error) {
       const message = error.name === 'TimeoutError' || error.name === 'AbortError'
-        ? 'Не удалось проверить обновления по тайм-ауту. Запуск Nexo продолжается.'
+        ? 'Не удалось проверить обновления по тайм-ауту. Запуск Hearth продолжается.'
         : (error.message || 'Не удалось проверить или скачать обновление.');
       console.warn('Update check failed:', error);
       sendUpdateStatus('error', message);
