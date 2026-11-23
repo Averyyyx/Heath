@@ -24,7 +24,7 @@ function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
 
     const cacheDirectories = new Set([
       'Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'ShaderCache',
-      'GrShaderCache', 'blob_storage', 'CacheStorage'
+      'GrShaderCache', 'blob_storage', 'CacheStorage', 'Session Storage', 'Cookies'
     ]);
     fs.cpSync(legacyPath, targetPath, {
       recursive: true,
