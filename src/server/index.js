@@ -22,7 +22,6 @@ const Database = require('better-sqlite3');
 const sharp = require('sharp');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
-const zxcvbn = require('zxcvbn');
 const { fileTypeFromFile } = require('file-type');
 const NodeClam = require('clamscan');
 const multer = require('multer');
@@ -2217,14 +2216,8 @@ function ensureFriends(userA, userB) {
   return existing && existing.status === 'accepted';
 }
 
-function validatePasswordStrength(password, identifier = '') {
-  const analysis = zxcvbn(password, identifier ? [identifier] : undefined);
-  if (analysis.score < PASSWORD_MIN_SCORE) {
-    const error = new Error('Password too weak. Use longer passphrases with symbols.');
-    error.statusCode = 400;
-    throw error;
-  }
-}
+const { createPasswordPolicy } = require('./services/password-policy');
+const { validatePasswordStrength } = createPasswordPolicy({ minimumScore: PASSWORD_MIN_SCORE });
 
 passport.serializeUser((user, done) => {
   done(null, user.id);
