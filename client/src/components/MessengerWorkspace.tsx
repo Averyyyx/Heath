@@ -343,7 +343,7 @@ export function MessengerWorkspace({
       setCallError(message || 'Не удалось начать звонок.');
       playNexoSound('error');
     };
-    const onCallTimeout = ({ conversationId, from }: { conversationId: number; from?: number }) => {
+    const onCallTimeout = ({ conversationId }: { conversationId: number; from?: number }) => {
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
       const current = callStateRef.current;
       // In a group call, another invitee timing out is informational only:
