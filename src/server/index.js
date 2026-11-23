@@ -212,6 +212,7 @@ const {
   PERMISSIONS
 } = createQueries(db);
 
+const { serializeAttachment, normalizeBadges } = require('./utils/serialization');
 const { createPermissionService } = require('./services/permissions');
 const { computeBasePermissions, hasPermission } = createPermissionService({
   selectServerMember,
@@ -1003,15 +1004,6 @@ function hydrateFriendship(record, currentUserId) {
   };
 }
 
-function serializeAttachment(raw) {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
 function getMessageReply(scope, replyToMessageId) {
   if (!replyToMessageId) return null;
   const row = scope === 'dm'
@@ -1277,16 +1269,6 @@ function listServerMembersSerialized(serverId) {
       position: role.position
     }))
   }));
-}
-
-function normalizeBadges(raw) {
-  if (!raw) return [];
-  try {
-    const value = JSON.parse(raw);
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
 }
 
 function getUserSettings(userId) {
