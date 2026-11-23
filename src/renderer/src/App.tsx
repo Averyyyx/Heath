@@ -32,6 +32,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { Avatar } from './components/Avatar';
 import { DefaultAvatar } from './components/DefaultAvatar';
 import { WhatsNewModal } from './components/WhatsNewModal';
+import { WHATS_NEW } from './content/whats-new';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
@@ -183,7 +184,9 @@ export default function App() {
   useEffect(() => {
     if (loading || !appVersion) return;
     try {
-      const seenKey = 'hearth.whats-new.seen-version';
+      const release = WHATS_NEW.find((entry) => entry.version === appVersion);
+      if (!release) return;
+      const seenKey = 'hearth.last-seen-version';
       const seenVersion = localStorage.getItem(seenKey);
       const hasLegacyNexoData = Object.keys(localStorage).some((key) => key.startsWith('nexo.'));
       if ((seenVersion && seenVersion !== appVersion) || (!seenVersion && hasLegacyNexoData)) {
