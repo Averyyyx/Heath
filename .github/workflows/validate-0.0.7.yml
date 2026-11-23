@@ -36,13 +36,14 @@ jobs:
             'setup-nexo-local.md'
           )
           foreach ($target in $targets) {
-            $matches = git grep -n -F -e $target HEAD -- . ':(exclude).github/workflows/validate-0.0.7.yml'
+            $grepOutput = git grep -n -F -e $target HEAD -- . ':(exclude).github/workflows/validate-0.0.7.yml'
             $exitCode = $LASTEXITCODE
             if ($exitCode -eq 0) {
-              $matches
+              $grepOutput
               throw "Reference to removed or moved root file found: $target"
             }
             if ($exitCode -gt 1) { throw "git grep failed for: $target" }
+            $global:LASTEXITCODE = 0
           }
       - name: Setup Node.js
         uses: actions/setup-node@v4
