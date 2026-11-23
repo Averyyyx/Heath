@@ -106,6 +106,21 @@ function inventory(sources) {
       if (!tables.has(match[1])) tables.set(match[1], new Set());
       tables.get(match[1]).add(match[2]);
     }
+
+    // The legacy 0.0.8 server declared compatibility columns through ensure*Column()
+    // helpers. Count those declarations as schema columns just like literal ALTER TABLE.
+    const ensuredTables = {
+      ServerMessage: 'server_messages',
+      User: 'users',
+      Channel: 'channels',
+      Server: 'servers',
+      Message: 'messages'
+    };
+    for (const match of content.matchAll(/ensure(ServerMessage|User|Channel|Server|Message)Column\\s*\\(\\s*(['"\\x60])([^'"\\x60]+)\\2/g)) {
+      const table = ensuredTables[match[1]];
+      if (!tables.has(table)) tables.set(table, new Set());
+      tables.get(table).add(match[3]);
+    }
   }
 
   return {
