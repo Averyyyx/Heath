@@ -33,6 +33,7 @@ import { Avatar } from './components/Avatar';
 import { DefaultAvatar } from './components/DefaultAvatar';
 import { WhatsNewModal } from './components/WhatsNewModal';
 import { WHATS_NEW } from './content/whats-new';
+import { hasLegacyLocalStorage } from './lib/legacy-migration';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
@@ -182,7 +183,7 @@ export default function App() {
       if (!release) return;
       const seenKey = 'hearth.last-seen-version';
       const seenVersion = localStorage.getItem(seenKey);
-      const hasLegacyNexoData = Object.keys(localStorage).some((key) => key.startsWith('nexo.'));
+      const hasLegacyNexoData = hasLegacyLocalStorage();
       if ((seenVersion && seenVersion !== appVersion) || (!seenVersion && hasLegacyNexoData)) {
         setShowWhatsNew(true);
       }

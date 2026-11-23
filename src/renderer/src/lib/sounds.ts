@@ -32,7 +32,6 @@ export const HEARTH_SOUND_EVENTS: Array<{ key: SoundKind; label: string; descrip
 ];
 
 const STORAGE_KEY = 'hearth.sound-preferences.v1';
-const LEGACY_STORAGE_KEYS = ['nexo.sound-preferences.v2', 'nexo.sound-preferences.v1'];
 const DEFAULT_EVENTS: Record<SoundKind, boolean> = {
   message: true, send: true, 'outgoing-ring': true, ring: true,
   'call-accepted': true, 'call-ended': true,
@@ -59,9 +58,7 @@ function clampVolume(value: unknown, fallback: number): number {
 
 export function getHearthSoundPreferences(): HearthSoundPreferences {
   try {
-    const legacyKey = LEGACY_STORAGE_KEYS.find((key) => localStorage.getItem(key));
-    const raw = localStorage.getItem(STORAGE_KEY) || (legacyKey ? localStorage.getItem(legacyKey) : null) || '{}';
-    if (!localStorage.getItem(STORAGE_KEY) && legacyKey) localStorage.setItem(STORAGE_KEY, raw);
+    const raw = localStorage.getItem(STORAGE_KEY) || '{}';
     const saved = JSON.parse(raw) as Record<string, unknown>;
     const legacyEvents: Record<SoundKind, boolean> = {
       ...DEFAULT_EVENTS,

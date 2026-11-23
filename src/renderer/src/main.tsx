@@ -1,5 +1,5 @@
 import './polyfills';
-import { migrateLegacyLocalStorage } from './lib/brand';
+import { migrateLegacyLocalStorage } from './lib/legacy-migration';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
