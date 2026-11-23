@@ -224,7 +224,7 @@ function createTaskbarOverlay(count) {
 // включается переменной HEARTH_DEV_ACCOUNT=1 или пустым файлом dev-account.enabled в папке
 // пользовательских данных (Windows: %APPDATA%\Nexo). HEARTH_DEV_ACCOUNT=0 выключает всегда.
 function isDevAccountEnabled() {
-  const flag = process.env.HEARTH_DEV_ACCOUNT ?? process.env.NEXO_DEV_ACCOUNT;
+  const flag = process.env.HEARTH_DEV_ACCOUNT;
   if (flag === 'false' || flag === '0') return false;
   if (flag === 'true' || flag === '1') return true;
   return !app.isPackaged || fs.existsSync(path.join(app.getPath('userData'), 'dev-account.enabled'));
@@ -357,7 +357,7 @@ function setupIPCHandlers() {
     const title = String(payload.title || 'Hearth').slice(0, 100);
     const body = String(payload.body || '').slice(0, 240);
     const notification = new Notification({ title, body, icon: getDesktopIconPath(), silent: true });
-    if (typeof payload.deepLink === 'string' && (payload.deepLink.startsWith('hearth://') || payload.deepLink.startsWith('nexo://'))) {
+    if (typeof payload.deepLink === 'string' && (payload.deepLink.startsWith('hearth://'))) {
       notification.on('click', () => dispatchDeepLink(payload.deepLink));
     }
     notification.show();
@@ -861,7 +861,7 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     try {
       const parsed = new URL(url);
-      if ((parsed.protocol === 'hearth:' || parsed.protocol === 'nexo:')) dispatchDeepLink(url);
+      if (parsed.protocol === 'hearth:') dispatchDeepLink(url);
       else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') void shell.openExternal(url);
     } catch { /* malformed URLs are denied */ }
     return { action: 'deny' };
@@ -872,7 +872,7 @@ function createWindow() {
     event.preventDefault();
     try {
       const parsed = new URL(url);
-      if ((parsed.protocol === 'hearth:' || parsed.protocol === 'nexo:')) dispatchDeepLink(url);
+      if (parsed.protocol === 'hearth:') dispatchDeepLink(url);
       else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') void shell.openExternal(url);
     } catch { /* malformed URLs are denied */ }
   });
@@ -884,7 +884,7 @@ if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.on('second-instance', (_event, commandLine) => {
-    const deepLink = commandLine.find((argument) => ((argument.startsWith('hearth://') || argument.startsWith('nexo://')) || argument.startsWith('nexo://')));
+    const deepLink = commandLine.find((argument) => argument.startsWith('hearth://'));
     if (deepLink) dispatchDeepLink(deepLink);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
@@ -902,7 +902,7 @@ app.whenReady().then(async () => {
   }
 
   // Регистрируем hearth:// для ссылок на сообщения.
-  try { app.setAsDefaultProtocolClient('hearth'); app.setAsDefaultProtocolClient('nexo'); } catch (error) { console.warn('Не удалось зарегистрировать hearth://:', error.message); }
+  try { app.setAsDefaultProtocolClient('hearth'); } catch (error) { console.warn('Не удалось зарегистрировать hearth://:', error.message); }
 
   const startupDeepLink = process.argv.find((argument) => argument.startsWith('hearth://'));
   if (startupDeepLink) dispatchDeepLink(startupDeepLink);
@@ -1033,9 +1033,7 @@ app.on('before-quit', () => {
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient('hearth', process.execPath, [path.resolve(process.argv[1])]);
-    app.setAsDefaultProtocolClient('nexo', process.execPath, [path.resolve(process.argv[1])]);
   }
 } else {
   app.setAsDefaultProtocolClient('hearth');
-  app.setAsDefaultProtocolClient('nexo');
 }

@@ -259,7 +259,7 @@ const selectActiveSubscription = db.prepare(`
 // аккаунт с известным паролем на публичном сервере.
 // ---------------------------------------------------------------------------
 function seedDevAccount() {
-  const flag = String(process.env.HEARTH_DEV_ACCOUNT || process.env.NEXO_DEV_ACCOUNT || '').toLowerCase();
+  const flag = String(process.env.HEARTH_DEV_ACCOUNT || '').toLowerCase();
   if (flag !== 'true' && flag !== '1') return;
 
   const looksLikePublicDeployment =
@@ -269,8 +269,8 @@ function seedDevAccount() {
     return;
   }
 
-  const email = String(process.env.HEARTH_DEV_EMAIL || process.env.NEXO_DEV_EMAIL || 'dev@hearth.local').trim().toLowerCase();
-  const configuredPassword = process.env.HEARTH_DEV_PASSWORD || process.env.NEXO_DEV_PASSWORD || '';
+  const email = String(process.env.HEARTH_DEV_EMAIL || 'dev@hearth.local').trim().toLowerCase();
+  const configuredPassword = process.env.HEARTH_DEV_PASSWORD || '';
   let user = selectUserByEmail.get(email);
 
   if (!user) {

@@ -183,8 +183,8 @@ export default function App() {
       if (!release) return;
       const seenKey = 'hearth.last-seen-version';
       const seenVersion = localStorage.getItem(seenKey);
-      const hasLegacyNexoData = hasLegacyLocalStorage();
-      if ((seenVersion && seenVersion !== appVersion) || (!seenVersion && hasLegacyNexoData)) {
+      const hasLegacyStorage = hasLegacyLocalStorage();
+      if ((seenVersion && seenVersion !== appVersion) || (!seenVersion && hasLegacyStorage)) {
         setShowWhatsNew(true);
       }
       localStorage.setItem(seenKey, appVersion);
