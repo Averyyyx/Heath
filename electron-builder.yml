@@ -11,7 +11,6 @@ files:
   - "src/server/**/*"
   - "src/main/**/*"
   - "src/preload/**/*"
-  - "electron/**/*"
   - "public/**/*"
   - "node_modules/**/*"
   - "!node_modules/**/{test,tests,__tests__,docs,example,examples}/**"
