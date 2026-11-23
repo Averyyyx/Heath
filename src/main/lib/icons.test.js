@@ -30,8 +30,8 @@ test('icon service resolves the generated ICO and size-specific PNG assets', () 
   try {
     fs.writeFileSync(path.join(resourcesDir, 'icon.ico'), 'ico');
     fs.writeFileSync(path.join(resourcesDir, 'icon-256.png'), 'png');
-    assert.equal(service.getDesktopIconPath(), path.join(root, 'icon.ico'));
-    assert.equal(service.getIconPath('icon', 256), path.join(root, 'icon-256.png'));
+    assert.equal(service.getDesktopIconPath(), path.join(resourcesDir, 'icon.ico'));
+    assert.equal(service.getIconPath('icon', 256), path.join(resourcesDir, 'icon-256.png'));
     assert.equal(service.getTrayIconPath(12), path.join(resourcesDir, 'tray-9-32.png'));
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

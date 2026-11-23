@@ -3,7 +3,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const server = fs.readFileSync(path.join(__dirname, '..', 'src', 'server', 'index.js'), 'utf8');
+const server = [
+  fs.readFileSync(path.join(__dirname, '..', 'src', 'server', 'index.js'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, '..', 'src', 'server', 'realtime', 'calls.js'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, '..', 'src', 'server', 'realtime', 'voice.js'), 'utf8')
+].join('\\n');
 const client = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/src/components/MessengerWorkspace.tsx'), 'utf8');
 const realtime = ['calls.js', 'voice.js'].map((name) => fs.readFileSync(path.join(__dirname, '..', 'src/server/realtime', name), 'utf8')).join('\n');
 
