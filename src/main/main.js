@@ -729,7 +729,7 @@ function createSplashWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, '..', '..', 'electron', 'splash-preload.js')
+      preload: path.join(__dirname, '..', 'preload', 'splash.js')
     },
     show: false,
     backgroundColor: '#262624',
@@ -777,7 +777,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
-      preload: path.join(__dirname, '..', '..', 'electron', 'preload.js')
+      preload: path.join(__dirname, '..', 'preload', 'index.js')
     },
     title: 'Nexo',
     show: false,

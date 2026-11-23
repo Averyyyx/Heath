@@ -10,6 +10,7 @@ files:
   - "package.json"
   - "src/server/**/*"
   - "src/main/**/*"
+  - "src/preload/**/*"
   - "electron/**/*"
   - "public/**/*"
   - "node_modules/**/*"
