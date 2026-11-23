@@ -9,6 +9,8 @@ const { createIconService } = require('./icons');
 
 function setup(platform = 'win32', packaged = true) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hearth-icons-'));
+  const assets = path.join(root, 'resources');
+  fs.mkdirSync(assets, { recursive: true });
   const nativeImage = {
     createFromPath: (file) => ({ file, isEmpty: () => false }),
     createEmpty: () => ({ empty: true })
