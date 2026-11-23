@@ -616,7 +616,7 @@ function startServer() {
   
   if (app.isPackaged) {
     // В packaged приложении
-    serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'server.js');
+    serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'src', 'server', 'index.js');
     serverCwd = path.join(process.resourcesPath, 'app.asar.unpacked');
     console.log('Using packaged application paths');
   } else {
