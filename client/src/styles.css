@@ -3602,3 +3602,10 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   .server-config .manager-card > label > textarea,
   .server-config .manager-card > label > select { max-width: 100%; }
 }
+
+/* Give the bottom identity card the sidebar's full width; keep its own 8px inset. */
+.nexo-sidebar .sidebar-user-area {
+  margin-left: -9px; margin-right: -9px; padding-left: 0; padding-right: 0;
+}
+.sidebar-user-area .nexo-user-dock { gap: 8px; padding: 6px 8px; }
+.sidebar-user-area .dock-user { flex: 1 1 0; min-width: 0; }
