@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('node:fs');
+
 function createDatabase({ Database, path, dataDir, env = process.env }) {
   const db = new Database(env.DB_PATH || path.join(dataDir, 'hearth.db'));
   db.pragma('journal_mode = WAL');
@@ -14,6 +16,19 @@ function createDatabase({ Database, path, dataDir, env = process.env }) {
   
   if (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'app_sessions'").get()) {
     db.prepare('INSERT OR IGNORE INTO http_sessions (sid, sess, expires_at) SELECT sid, sess, expires_at FROM app_sessions').run();
+  }
+
+  // A migrated 0.0.8 profile must require a fresh sign-in. Reset its old
+  // server sessions exactly once, after copying the legacy database.
+  const migrationMarker = path.join(path.dirname(dataDir), '.hearth-migration-v1');
+  const sessionResetMarker = path.join(path.dirname(dataDir), '.hearth-sessions-reset-v1');
+  if (env.ELECTRON_DESKTOP === '1' && fs.existsSync(migrationMarker) && !fs.existsSync(sessionResetMarker)) {
+    const hasLegacySessions = Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'app_sessions'").get());
+    db.transaction(() => {
+      db.prepare('DELETE FROM http_sessions').run();
+      if (hasLegacySessions) db.prepare('DELETE FROM app_sessions').run();
+    })();
+    fs.writeFileSync(sessionResetMarker, '1', 'utf8');
   }
   
   db.prepare(`
