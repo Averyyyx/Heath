@@ -58,10 +58,8 @@ jobs:
       - name: TypeScript no-emit check
         working-directory: client
         run: npx tsc --noEmit
-      - name: Build client (TypeScript + Vite)
-        run: npm run build --prefix client
-      - name: Prepare static client for browser checks
-        run: npm run prepare:public
+      - name: Build application (client + public)
+        run: npm run build:app
       - name: Install Playwright
         run: npm install --no-save playwright @playwright/test
       - name: Install Chromium
@@ -134,3 +132,13 @@ jobs:
             dist/*.exe.sha256
           if-no-files-found: error
           retention-days: 10
+
+  docker-build:
+    name: Docker clean-build verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build Docker image from a clean checkout
+        run: docker build --pull --tag nexo:0.0.8p .
