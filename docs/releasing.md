@@ -16,3 +16,11 @@ The release workflow can be started manually, by pushing a version tag matching 
 The workflow builds the Windows NSIS installer, calculates a SHA-256 checksum, uploads both as workflow artifacts, and publishes a GitHub prerelease with the installer, checksum, update metadata, and blockmap.
 
 The updater reads prerelease assets from the GitHub repository configured in `src/shared/brand.js`. The repository must be named `Hearth` before the updater can retrieve Hearth releases.
+
+## Что должен сделать владелец репозитория
+
+1. Открыть GitHub → Settings → General → Repository name и переименовать репозиторий из `Nexo` в `Hearth`. Не создавать новый репозиторий `Nexo`: это сохранит автоматическое перенаправление старых URL.
+2. В локальной копии выполнить в PowerShell: `git remote set-url origin https://github.com/Averyyyx/Hearth.git`.
+3. Переименовать локальную папку проекта в `hearth` и заново открыть её в редакторе.
+4. После зелёного CI слить `chore/0.0.9-restructure` в `main`, затем сделать отдельный release-коммит с префиксом `[release]`.
+5. Проверить опубликованный prerelease: в нём должны быть установщик Hearth и файл SHA-256 рядом с ним.
