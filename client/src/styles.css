@@ -2131,8 +2131,6 @@
 .chat-header .title { display: flex; min-width: 0; align-items: center; gap: 9px; font: 600 17px var(--font-serif); }
 .chat-header .title svg { color: var(--accent); }
 .chat-actions { display: flex; align-items: center; gap: 8px; }
-.chat-actions > .chat-action { display: inline-flex; height: 32px; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; white-space: nowrap; }
-.chat-actions > .chat-action > svg { width: 16px; height: 16px; flex: 0 0 16px; }
 .message-stream {
   display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 2px;
   padding: 18px clamp(14px, 3vw, 34px); overflow-y: auto;
@@ -3530,6 +3528,7 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 /* 0.0.8p — consistent icon buttons and compact identity dock */
 .ghost, .primary, .nexo-ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .nexo-ui-button > svg { width: 16px; height: 16px; flex: 0 0 16px; }
+.nexo-ui-button.sm { min-height: 32px; padding: 0 12px; white-space: nowrap; }
 .nexo-user-dock { gap: 8px; padding: 6px 8px; }
 .dock-user { min-width: 0; flex: 1 1 0; }
 .dock-user-copy { min-width: 0; flex: 1 1 0; }

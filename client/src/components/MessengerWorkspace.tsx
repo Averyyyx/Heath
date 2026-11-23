@@ -46,7 +46,7 @@ import type {
 } from '../types';
 import { apiFetch } from '../lib/api';
 import { Avatar } from './Avatar';
-import { Input, Textarea, Slider, Switch, Select } from './ui';
+import { Button, Input, Textarea, Slider, Switch, Select } from './ui';
 import { getSocket } from '../lib/socket';
 
 type WorkspaceMode = 'servers' | 'friends';
@@ -1392,14 +1392,14 @@ export function MessengerWorkspace({
                   {activeConversation.title}
                 </div>
                 <div className="chat-actions">
-                  <button type="button" className="ghost chat-action" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} data-tooltip="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
-                  <button type="button" className={pinnedPanelOpen ? 'ghost active chat-action' : 'ghost chat-action'} onClick={() => void togglePinnedPanel('dm')} data-tooltip="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
-                  <button type="button" className="ghost chat-action" onClick={() => startCall(activeConversation.id, { initiator: true }, 'audio')}>
+                  <Button type="button" variant="ghost" size="sm" className="chat-action" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} data-tooltip="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</Button>
+                  <Button type="button" variant="ghost" size="sm" className={pinnedPanelOpen ? 'active chat-action' : 'chat-action'} onClick={() => void togglePinnedPanel('dm')} data-tooltip="Закреплённые сообщения"><Pin size={16} />Закреплённые</Button>
+                  <Button type="button" variant="ghost" size="sm" className="chat-action" onClick={() => startCall(activeConversation.id, { initiator: true }, 'audio')}>
                     <Phone size={16} />Голос
-                  </button>
-                  <button type="button" className="ghost chat-action" onClick={() => startCall(activeConversation.id, { initiator: true }, 'video')}>
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="chat-action" onClick={() => startCall(activeConversation.id, { initiator: true }, 'video')}>
                     <Monitor size={16} />Видео
-                  </button>
+                  </Button>
                 </div>
               </header>
               {pinnedPanelOpen && <div className="pinned-messages-panel">
@@ -1567,12 +1567,12 @@ export function MessengerWorkspace({
                   <small>{activeChannel.topic}</small>
                 </div>
                 <div className="chat-actions">
-                  <button type="button" className="ghost chat-action" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} data-tooltip="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
-                  <button type="button" className={pinnedPanelOpen ? 'ghost active chat-action' : 'ghost chat-action'} onClick={() => void togglePinnedPanel('channel')} data-tooltip="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
-                  <button type="button" className={showMembersPanel ? 'ghost active chat-action' : 'ghost chat-action'} onClick={() => setShowMembersPanel((value) => !value)} data-tooltip="Показать участников" aria-label="Показать участников">
+                  <Button type="button" variant="ghost" size="sm" className="chat-action" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} data-tooltip="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</Button>
+                  <Button type="button" variant="ghost" size="sm" className={pinnedPanelOpen ? 'active chat-action' : 'chat-action'} onClick={() => void togglePinnedPanel('channel')} data-tooltip="Закреплённые сообщения"><Pin size={16} />Закреплённые</Button>
+                  <Button type="button" variant="ghost" size="sm" className={showMembersPanel ? 'active chat-action' : 'chat-action'} onClick={() => setShowMembersPanel((value) => !value)} data-tooltip="Показать участников" aria-label="Показать участников">
                     <Users size={16} />Участники
-                  </button>
-                  {onEditChannel && <button type="button" className="ghost chat-action" onClick={onEditChannel} data-tooltip="Настройки канала" aria-label="Настройки канала"><Settings size={16} />Канал</button>}
+                  </Button>
+                  {onEditChannel && <Button type="button" variant="ghost" size="sm" className="chat-action" onClick={onEditChannel} data-tooltip="Настройки канала" aria-label="Настройки канала"><Settings size={16} />Канал</Button>}
                 </div>
               </header>
               {pinnedPanelOpen && <div className="pinned-messages-panel">
