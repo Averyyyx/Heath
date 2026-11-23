@@ -1992,3 +1992,16 @@ html[data-reduce-motion="true"] .hr-root *, html[data-reduce-motion="true"] .hr-
 .hr-whats-new ul { display: grid; gap: 10px; margin: 0; padding-left: 20px; color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
 .hr-whats-new-note { margin: 18px 0 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .hr-whats-new-actions { display: flex; justify-content: flex-end; margin-top: 22px; }
+
+.hr-whats-new-release-notes {
+  max-height: 180px;
+  margin-top: 16px;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
