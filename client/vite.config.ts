@@ -3,6 +3,11 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [tailwindcss()],
+  resolve: {
+    alias: [
+      { find: /^process$/, replacement: 'process/browser' }
+    ]
+  },
   base: './',
   build: {
     outDir: 'dist',

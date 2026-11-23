@@ -17,6 +17,9 @@ import {
   Camera,
   CameraOff,
   ChevronUp,
+  Maximize2,
+  Minimize2,
+  MoreHorizontal,
   Mic,
   MicOff,
   Plus,
@@ -43,6 +46,7 @@ import type {
 } from '../types';
 import { apiFetch } from '../lib/api';
 import { Avatar } from './Avatar';
+import { Button, Input, Textarea, Slider, Switch, Select } from './ui';
 import { getSocket } from '../lib/socket';
 
 type WorkspaceMode = 'servers' | 'friends';
@@ -62,6 +66,7 @@ type MessengerWorkspaceProps = {
   deafened?: boolean;
   audioInputId?: string;
   audioOutputId?: string;
+  videoInputId?: string;
   pendingIncomingCall?: IncomingCall | null;
   onIncomingCallHandled?: () => void;
   onOpenSettings?: () => void;
@@ -77,8 +82,14 @@ type ChannelMessageStore = Record<number, ChannelMessage[]>;
 type CallState = {
   conversationId: number;
   peer: SimplePeer.Instance | null;
+  peerUserId?: number;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  peers?: Record<number, SimplePeer.Instance>;
+  remoteStreams?: Record<number, MediaStream>;
+  acceptedUserIds?: number[];
+  departedUserIds?: number[];
+  group?: boolean;
   isScreenSharing: boolean;
   initiator: boolean;
   mediaType?: 'audio' | 'video';
@@ -117,6 +128,7 @@ export function MessengerWorkspace({
   deafened = false,
   audioInputId = '',
   audioOutputId = '',
+  videoInputId = '',
   pendingIncomingCall = null,
   onIncomingCallHandled,
   onOpenSettings,
@@ -166,6 +178,7 @@ export function MessengerWorkspace({
   const pendingIncomingSignalRef = useRef<SignalData | null>(null);
   const awaitingCallAcceptRef = useRef<number | null>(null);
   const queuedCallSignalsRef = useRef<SignalData[]>([]);
+  const pendingGroupSignalsRef = useRef<Record<number, Array<{ from: number; payload: SignalData }>>>({});
   const callStateRef = useRef<CallState | null>(null);
   const previousChannelRef = useRef<number | null>(null);
   const typingTimerRef = useRef<number | null>(null);
@@ -191,15 +204,19 @@ export function MessengerWorkspace({
   useEffect(() => {
     if (callState) {
       callWasActiveRef.current = true;
+      const conversation = conversations.find((item) => item.id === callState.conversationId);
+      const isGroupCall = Boolean(callState.group || conversation?.type === 'group' || (conversation?.participants?.length || 0) > 2);
       window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: {
         active: true, conversationId: callState.conversationId,
-        title: 'Личный звонок', startedAt: callState.startedAt
+        title: isGroupCall ? conversation?.title || 'Групповой звонок' : conversation?.counterpart?.display_name || conversation?.counterpart?.username || 'Личный звонок',
+        group: isGroupCall,
+        startedAt: callState.startedAt
       } }));
     } else if (callWasActiveRef.current) {
       callWasActiveRef.current = false;
       window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: { active: false } }));
     }
-  }, [callState]);
+  }, [callState, conversations]);
 
   useEffect(() => {
     if (!pendingIncomingCall || pendingIncomingCall.conversationId !== openConversationId) return;
@@ -274,11 +291,27 @@ export function MessengerWorkspace({
       setRingtoneMuted(false);
       pendingIncomingSignalRef.current = null;
     };
-    const onCallSignal = ({ conversationId, payload }: { conversationId: number; payload: SignalData }) => {
+    const onCallSignal = ({ conversationId, from, payload }: { conversationId: number; from: number; payload: SignalData }) => {
       const current = callStateRef.current;
-      if (current?.conversationId === conversationId) current.peer?.signal(payload);
+      if (current?.conversationId !== conversationId) return;
+      if (current.group) {
+        const targetPeer = current.peers?.[from];
+        if (targetPeer) targetPeer.signal(payload);
+        else {
+          const pending = pendingGroupSignalsRef.current[conversationId] || [];
+          if (pending.length < 32) pendingGroupSignalsRef.current[conversationId] = [...pending, { from, payload }];
+        }
+      } else if (!current.peerUserId || current.peerUserId === from) current.peer?.signal(payload);
     };
-    const onCallAccept = ({ conversationId, mediaType }: { conversationId: number; mediaType?: 'audio' | 'video' }) => {
+    const onCallAccept = ({ conversationId, mediaType, acceptedParticipants }: {
+      conversationId: number; mediaType?: 'audio' | 'video'; acceptedParticipants?: number[]
+    }) => {
+      const groupCall = callStateRef.current;
+      if (groupCall?.conversationId === conversationId && groupCall.group && acceptedParticipants) {
+        ensureGroupPeers(conversationId, acceptedParticipants);
+        playNexoSound('call-accepted');
+        return;
+      }
       if (mediaType === 'audio' && callStateRef.current?.conversationId === conversationId) {
         const current = callStateRef.current;
         const videoTrack = current.localStream?.getVideoTracks()[0];
@@ -295,18 +328,28 @@ export function MessengerWorkspace({
       queued.forEach((payload) => socket.emit('call:signal', { conversationId, payload }));
       playNexoSound('call-accepted');
     };
-    const onCallReject = ({ conversationId }: { conversationId: number }) => {
+    const onCallReject = ({ conversationId, from }: { conversationId: number; from?: number }) => {
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
-      if (callStateRef.current?.conversationId === conversationId) endCall(false);
+      const current = callStateRef.current;
+      if (current?.conversationId === conversationId && current.group) {
+        const declined = conversations.find((item) => item.id === conversationId)?.participants.find((item) => item.id === from);
+        setCallError((declined?.display_name || declined?.username || 'Участник') + ' отклонил приглашение.');
+        return;
+      }
+      if (current?.conversationId === conversationId) endCall(false);
     };
     const onCallError = ({ conversationId, message }: { conversationId: number; message: string }) => {
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
       setCallError(message || 'Не удалось начать звонок.');
       playNexoSound('error');
     };
-    const onCallTimeout = ({ conversationId }: { conversationId: number }) => {
+    const onCallTimeout = ({ conversationId }: { conversationId: number; from?: number }) => {
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
-      if (callStateRef.current?.conversationId === conversationId) endCall(false);
+      const current = callStateRef.current;
+      // In a group call, another invitee timing out is informational only:
+      // keep the accepted participants connected and let other invites expire.
+      if (current?.group && current.conversationId === conversationId) return;
+      if (current?.conversationId === conversationId) endCall(false);
       if (incomingCall?.conversationId === conversationId) {
         setIncomingCall(null);
         pendingIncomingSignalRef.current = null;
@@ -317,6 +360,24 @@ export function MessengerWorkspace({
     const onCallEnd = ({ conversationId }: { conversationId: number }) => {
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
       if (incomingCall?.conversationId === conversationId) { setIncomingCall(null); onIncomingCallHandled?.(); }
+    };
+    const onCallParticipantLeft = ({ conversationId, userId }: { conversationId: number; userId: number }) => {
+      const current = callStateRef.current;
+      if (!current?.group || current.conversationId !== conversationId) return;
+      const peer = current.peers?.[userId];
+      const peers = { ...(current.peers || {}) };
+      const remoteStreams = { ...(current.remoteStreams || {}) };
+      delete peers[userId];
+      delete remoteStreams[userId];
+      const next = {
+        ...current, peers, remoteStreams,
+        acceptedUserIds: (current.acceptedUserIds || []).filter((id) => id !== userId),
+        departedUserIds: [...new Set([...(current.departedUserIds || []), userId])],
+        remoteStream: Object.values(remoteStreams)[0] || null
+      };
+      callStateRef.current = next;
+      setCallState(next);
+      peer?.destroy();
     };
     const onServerUpsert = ({ server }: { server: Server }) => {
       setServers((prev) => prev.some((item) => item.id === server.id)
@@ -382,6 +443,7 @@ export function MessengerWorkspace({
     socket.on('call:timeout', onCallTimeout);
     socket.on('call:error', onCallError);
     socket.on('call:end', onCallEnd);
+    socket.on('call:participant-left', onCallParticipantLeft);
     socket.on('server:upsert', onServerUpsert);
     socket.on('channel:message:new', onChannelMessage);
     socket.on('channel:reactions:update', onChannelReactionsUpdate);
@@ -408,6 +470,7 @@ export function MessengerWorkspace({
       socket.off('call:timeout', onCallTimeout);
       socket.off('call:error', onCallError);
       socket.off('call:end', onCallEnd);
+      socket.off('call:participant-left', onCallParticipantLeft);
       socket.off('server:upsert', onServerUpsert);
       socket.off('channel:message:new', onChannelMessage);
       socket.off('channel:reactions:update', onChannelReactionsUpdate);
@@ -1018,61 +1081,130 @@ export function MessengerWorkspace({
     }
   }
 
+  function ensureGroupPeers(conversationId: number, acceptedUserIds: number[]) {
+    const current = callStateRef.current;
+    if (!current || current.conversationId !== conversationId || !current.group || !current.localStream) return;
+    const peers = { ...(current.peers || {}) };
+    const remoteStreams = { ...(current.remoteStreams || {}) };
+    let changed = false;
+    for (const remoteId of acceptedUserIds) {
+      if (remoteId === user.id || peers[remoteId]) continue;
+      const peer = new SimplePeer({
+        initiator: user.id < remoteId,
+        trickle: false,
+        stream: current.localStream
+      });
+      peers[remoteId] = peer;
+      changed = true;
+      peer.on('signal', (payload) => {
+        socketRef.current?.emit('call:signal', { conversationId, to: remoteId, payload });
+      });
+      peer.on('stream', (stream) => {
+        const latest = callStateRef.current;
+        if (!latest || latest.conversationId !== conversationId || !latest.group) return;
+        const nextStreams = { ...(latest.remoteStreams || {}), [remoteId]: stream };
+        const nextPeers = latest.peers || {};
+        const next = { ...latest, remoteStreams: nextStreams, remoteStream: latest.remoteStream || stream, peers: nextPeers };
+        callStateRef.current = next;
+        setCallState(next);
+      });
+      peer.on('close', () => {
+        const latest = callStateRef.current;
+        if (!latest || latest.conversationId !== conversationId || !latest.group) return;
+        const nextPeers = { ...(latest.peers || {}) };
+        const nextStreams = { ...(latest.remoteStreams || {}) };
+        delete nextPeers[remoteId];
+        delete nextStreams[remoteId];
+        const firstStream = Object.values(nextStreams)[0] || null;
+        const next = { ...latest, peers: nextPeers, remoteStreams: nextStreams, remoteStream: firstStream };
+        callStateRef.current = next;
+        setCallState(next);
+      });
+      peer.on('error', (error) => {
+        console.error('Group call peer failed', remoteId, error);
+        peer.destroy();
+      });
+      const queued = pendingGroupSignalsRef.current[conversationId] || [];
+      const matchingSignals = queued.filter((signal) => signal.from === remoteId);
+      if (matchingSignals.length) {
+        pendingGroupSignalsRef.current[conversationId] = queued.filter((signal) => signal.from !== remoteId);
+        matchingSignals.forEach((signal) => peer.signal(signal.payload));
+      }
+    }
+    if (changed || acceptedUserIds.join(',') !== (current.acceptedUserIds || []).join(',')) {
+      const next = { ...current, peers, remoteStreams, acceptedUserIds: [...new Set(acceptedUserIds)] };
+      callStateRef.current = next;
+      setCallState(next);
+    }
+  }
+
   async function startCall(conversationId: number, options?: { initiator?: boolean; initialSignal?: SignalData }, mediaType: 'audio' | 'video' = 'audio'): Promise<boolean> {
     if (!socketRef.current) return false;
+    if (document.documentElement.dataset.nexoVoiceActive === 'true') {
+      if (!window.confirm('Выйти из голосового канала и начать личный звонок?')) return false;
+      const channelId = Number(document.documentElement.dataset.nexoVoiceChannelId);
+      if (Number.isInteger(channelId)) window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId, action: 'leave' } }));
+      await new Promise((resolve) => window.setTimeout(resolve, 180));
+    }
     setCallError('');
+    let mediaStream: MediaStream | null = null;
     try {
       const audioConstraint: MediaTrackConstraints | boolean = audioInputId ? { deviceId: { exact: audioInputId } } : true;
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint, video: mediaType === 'video' });
+      const videoConstraint: MediaTrackConstraints | boolean = mediaType === 'video' ? (videoInputId ? { deviceId: { exact: videoInputId } } : true) : false;
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint, video: videoConstraint });
       mediaStream.getAudioTracks().forEach((track) => { track.enabled = !micMuted; });
+      const conversation = conversations.find((item) => item.id === conversationId);
+      const isGroup = conversation?.type === 'group' || (conversation?.participants?.length || 0) > 2;
+      if (isGroup) {
+        const state: CallState = {
+          conversationId, peer: null, localStream: mediaStream, remoteStream: null,
+          peers: {}, remoteStreams: {}, acceptedUserIds: options?.initiator === false ? [] : [user.id],
+          group: true, isScreenSharing: false, initiator: options?.initiator ?? true,
+          mediaType, startedAt: Date.now()
+        };
+        callStateRef.current = state;
+        setCallState(state);
+        if (options?.initiator !== false) socketRef.current.emit('call:ring', { conversationId, mediaType });
+        return true;
+      }
+      const peerUserId = conversation?.participants?.find((participant) => participant.id !== user.id)?.id ?? conversation?.counterpart?.id;
       const peer = new SimplePeer({
         initiator: options?.initiator ?? true,
         trickle: false,
         stream: mediaStream
       });
-
       if (options?.initiator !== false) {
         awaitingCallAcceptRef.current = conversationId;
         queuedCallSignalsRef.current = [];
       }
       const state: CallState = {
-        conversationId,
-        peer,
-        localStream: mediaStream,
-        remoteStream: null,
-        isScreenSharing: false,
-        initiator: options?.initiator ?? true,
-        mediaType,
-        startedAt: Date.now()
+        conversationId, peer, peerUserId, localStream: mediaStream, remoteStream: null,
+        isScreenSharing: false, initiator: options?.initiator ?? true,
+        mediaType, startedAt: Date.now()
       };
       callStateRef.current = state;
       setCallState(state);
       if (options?.initiator !== false) socketRef.current.emit('call:ring', { conversationId, mediaType });
-
       peer.on('signal', (payload) => {
         if (awaitingCallAcceptRef.current === conversationId) {
           queuedCallSignalsRef.current.push(payload);
           return;
         }
-        socketRef.current?.emit('call:signal', { conversationId, payload });
+        socketRef.current?.emit('call:signal', { conversationId, to: peerUserId, payload });
       });
-
       peer.on('stream', (remoteStream) => {
-        callStateRef.current = callStateRef.current
-          ? { ...callStateRef.current, remoteStream }
-          : null;
+        callStateRef.current = callStateRef.current ? { ...callStateRef.current, remoteStream } : null;
         setCallState((prev) => (prev ? { ...prev, remoteStream } : prev));
       });
-
       peer.on('close', () => endCall());
       peer.on('error', (error) => {
         console.error(error);
         endCall();
       });
-
       if (options?.initialSignal) peer.signal(options.initialSignal);
       return true;
     } catch (error) {
+      mediaStream?.getTracks().forEach((track) => track.stop());
       const mediaError = error as DOMException;
       const message = mediaError?.name === 'NotAllowedError'
         ? 'Разрешите Nexo доступ к микрофону и камере в настройках Windows.'
@@ -1136,47 +1268,87 @@ export function MessengerWorkspace({
     if (!current) return;
     if (awaitingCallAcceptRef.current === current.conversationId) awaitingCallAcceptRef.current = null;
     queuedCallSignalsRef.current = [];
+    delete pendingGroupSignalsRef.current[current.conversationId];
     callStateRef.current = null;
     setCallState(null);
     if (notifyRemote) socketRef.current?.emit('call:end', { conversationId: current.conversationId });
     playNexoSound('call-ended');
     current.peer?.destroy();
+    Object.values(current.peers || {}).forEach((peer) => peer.destroy());
     current.localStream?.getTracks().forEach((track) => track.stop());
     current.remoteStream?.getTracks().forEach((track) => track.stop());
+    Object.values(current.remoteStreams || {}).forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
   }
 
-  function toggleCamera() {
-    const track = callStateRef.current?.localStream?.getVideoTracks()[0];
-    if (!track || callStateRef.current?.isScreenSharing) return;
-    track.enabled = !track.enabled;
-    setCallState((current) => current ? { ...current } : current);
+  async function toggleCamera() {
+    const current = callStateRef.current;
+    if (!current || current.isScreenSharing || !current.localStream) return;
+    const existingTrack = current.localStream.getVideoTracks()[0];
+    if (existingTrack) {
+      existingTrack.enabled = !existingTrack.enabled;
+      setCallState({ ...current });
+      return;
+    }
+    try {
+      const camera = await navigator.mediaDevices.getUserMedia({
+        video: videoInputId ? { deviceId: { exact: videoInputId } } : true,
+        audio: false
+      });
+      const track = camera.getVideoTracks()[0];
+      if (!track || callStateRef.current !== current) {
+        camera.getTracks().forEach((item) => item.stop());
+        return;
+      }
+      current.localStream.addTrack(track);
+      const peers = current.group ? Object.values(current.peers || {}) : current.peer ? [current.peer] : [];
+      peers.forEach((peer) => peer.addTrack(track, current.localStream!));
+      track.addEventListener('ended', () => {
+        if (current.localStream?.getTracks().includes(track)) current.localStream.removeTrack(track);
+        setCallState((state) => state ? { ...state } : state);
+      }, { once: true });
+      setCallState({ ...current });
+    } catch (error) {
+      setCallError((error as Error).message || 'Не удалось включить камеру.');
+    }
   }
 
   async function shareScreen() {
-    if (!callStateRef.current?.peer) return;
+    const current = callStateRef.current;
+    if (!current?.localStream || current.isScreenSharing) return;
     try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const screenTrack = screenStream.getVideoTracks()[0];
-      const localStream = callStateRef.current.localStream;
-      const currentVideo = localStream?.getVideoTracks()[0];
-
-      if (localStream && currentVideo) {
+      if (!screenTrack) return;
+      const localStream = current.localStream;
+      const currentVideo = localStream.getVideoTracks()[0] || null;
+      const peers = current.group ? Object.values(current.peers || {}) : current.peer ? [current.peer] : [];
+      const replaceTrack = (peer: SimplePeer.Instance, oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack) => {
+        const compatible = peer as SimplePeer.Instance & {
+          replaceTrack?: (previousTrack: MediaStreamTrack, nextTrack: MediaStreamTrack, stream: MediaStream) => void;
+        };
+        compatible.replaceTrack?.(oldTrack, newTrack, localStream);
+      };
+      if (currentVideo) {
         localStream.removeTrack(currentVideo);
         localStream.addTrack(screenTrack);
-        const peerWithReplace = callStateRef.current.peer as SimplePeer.Instance & {
-          replaceTrack?: (oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack, stream: MediaStream) => void;
-        };
-        peerWithReplace?.replaceTrack?.(currentVideo, screenTrack, localStream);
-        setCallState((prev) => (prev ? { ...prev, isScreenSharing: true } : prev));
-        screenTrack.onended = () => {
-          localStream.removeTrack(screenTrack);
-          localStream.addTrack(currentVideo);
-          peerWithReplace?.replaceTrack?.(screenTrack, currentVideo, localStream);
-          setCallState((prev) => (prev ? { ...prev, isScreenSharing: false } : prev));
-        };
+        peers.forEach((peer) => replaceTrack(peer, currentVideo, screenTrack));
+      } else {
+        localStream.addTrack(screenTrack);
+        peers.forEach((peer) => peer.addTrack(screenTrack, localStream));
       }
+      setCallState((prev) => (prev ? { ...prev, isScreenSharing: true } : prev));
+      screenTrack.onended = () => {
+        if (localStream.getTracks().includes(screenTrack)) localStream.removeTrack(screenTrack);
+        if (currentVideo) {
+          localStream.addTrack(currentVideo);
+          peers.forEach((peer) => replaceTrack(peer, screenTrack, currentVideo));
+        } else {
+          peers.forEach((peer) => { try { peer.removeTrack(screenTrack, localStream); } catch {} });
+        }
+        setCallState((prev) => (prev ? { ...prev, isScreenSharing: false } : prev));
+      };
     } catch (error) {
-      console.error('Share screen failed', error);
+      setCallError((error as Error).message || 'Не удалось начать демонстрацию экрана.');
     }
   }
 
@@ -1220,19 +1392,19 @@ export function MessengerWorkspace({
                   {activeConversation.title}
                 </div>
                 <div className="chat-actions">
-                  <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
-                  <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('dm')} title="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
-                  <button type="button" className="ghost" onClick={() => startCall(activeConversation.id, { initiator: true }, 'audio')}>
+                  <Button type="button" variant="ghost" size="sm" className="chat-action" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} data-tooltip="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</Button>
+                  <Button type="button" variant="ghost" size="sm" className={pinnedPanelOpen ? 'active chat-action' : 'chat-action'} onClick={() => void togglePinnedPanel('dm')} data-tooltip="Закреплённые сообщения"><Pin size={16} />Закреплённые</Button>
+                  <Button type="button" variant="ghost" size="sm" className="chat-action" onClick={() => startCall(activeConversation.id, { initiator: true }, 'audio')}>
                     <Phone size={16} />Голос
-                  </button>
-                  <button type="button" className="ghost" onClick={() => startCall(activeConversation.id, { initiator: true }, 'video')}>
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="chat-action" onClick={() => startCall(activeConversation.id, { initiator: true }, 'video')}>
                     <Monitor size={16} />Видео
-                  </button>
+                  </Button>
                 </div>
               </header>
               {pinnedPanelOpen && <div className="pinned-messages-panel">
                 <strong>Закреплённые сообщения</strong>
-                {pinnedMessages.length ? pinnedMessages.map((pin) => <button key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                {pinnedMessages.length ? pinnedMessages.map((pin) => <button className="pinned-message-item" key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
                   <span>{pin.author.display_name || pin.author.username}</span><small>{pin.content || 'Вложение'}</small>
                 </button>) : <p>Пока ничего не закреплено.</p>}
               </div>}
@@ -1247,17 +1419,18 @@ export function MessengerWorkspace({
                 onToggleCamera={toggleCamera}
                 audioOutputId={audioOutputId}
                 deafened={deafened}
+                participants={activeConversation.participants}
               />}
               {messageSearchOpen && <div className="message-search-panel">
                 <div className="message-search-input-wrap">
                   <Search size={15} />
-                  <input autoFocus value={messageSearchQuery} onChange={(event) => setMessageSearchQuery(event.target.value)}
+                  <Input autoFocus value={messageSearchQuery} onChange={(event) => setMessageSearchQuery(event.target.value)}
                     placeholder="Поиск по сообщениям и авторам…" aria-label="Поиск по сообщениям" />
                   <button type="button" className="ghost-icon" onClick={() => setMessageSearchOpen(false)} aria-label="Закрыть поиск"><X size={15} /></button>
                 </div>
                 {messageSearchQuery.trim() && <div className="message-search-results">
                   {messageSearchResults.length ? messageSearchResults.map((message) => (
-                    <button key={message.id} type="button" onClick={() => jumpToSearchResult(message.id)}>
+                    <button className="message-search-result" key={message.id} type="button" onClick={() => jumpToSearchResult(message.id)}>
                       <strong>{message.author.display_name || message.author.username}</strong>
                       <span>{message.content || 'Вложение'}</span>
                       <time>{new Date(message.created_at).toLocaleDateString('ru-RU')}</time>
@@ -1277,11 +1450,11 @@ export function MessengerWorkspace({
                     return (
                       <Fragment key={message.id}>
                         {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
-                        <article id={`nexo-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`dm:${message.id}`) ? 'message-arrived' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
+                        <article id={`nexo-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`dm:${message.id}`) ? 'message-arrived' : ''}`}
                           onContextMenu={(event) => openMessageMenu(event, message, 'dm')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
-                            {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                            {!grouped && <header><strong>{authorName}</strong><time className="message-time" data-tooltip={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.edited_at && <small className="message-edited-label">изменено</small>}
@@ -1315,7 +1488,7 @@ export function MessengerWorkspace({
                 )}
                 <label className="file-pill">
                   <Paperclip size={16} />
-                  <input
+                  <Input
                     type="file"
                     hidden
                     onChange={(event) => {
@@ -1324,8 +1497,8 @@ export function MessengerWorkspace({
                     }}
                   />
                 </label>
-                <button type="button" className="composer-code-button" title="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(false)}><Code size={16} /></button>
-                <textarea
+                <button type="button" className="composer-code-button" data-tooltip="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(false)}><Code size={16} /></button>
+                <Textarea
                   ref={composerRef}
                   placeholder="Напишите сообщение..."
                   value={composerText}
@@ -1394,17 +1567,17 @@ export function MessengerWorkspace({
                   <small>{activeChannel.topic}</small>
                 </div>
                 <div className="chat-actions">
-                  <button type="button" className="ghost" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} title="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</button>
-                  <button type="button" className={pinnedPanelOpen ? 'ghost active' : 'ghost'} onClick={() => void togglePinnedPanel('channel')} title="Закреплённые сообщения"><Pin size={16} />Закреплённые</button>
-                  <button type="button" className={showMembersPanel ? 'ghost active' : 'ghost'} onClick={() => setShowMembersPanel((value) => !value)} title="Показать участников" aria-label="Показать участников">
+                  <Button type="button" variant="ghost" size="sm" className="chat-action" onClick={() => { setMessageSearchOpen(true); setMessageSearchQuery(''); }} data-tooltip="Поиск по сообщениям (Ctrl+F)" aria-label="Поиск по сообщениям"><Search size={16} />Поиск</Button>
+                  <Button type="button" variant="ghost" size="sm" className={pinnedPanelOpen ? 'active chat-action' : 'chat-action'} onClick={() => void togglePinnedPanel('channel')} data-tooltip="Закреплённые сообщения"><Pin size={16} />Закреплённые</Button>
+                  <Button type="button" variant="ghost" size="sm" className={showMembersPanel ? 'active chat-action' : 'chat-action'} onClick={() => setShowMembersPanel((value) => !value)} data-tooltip="Показать участников" aria-label="Показать участников">
                     <Users size={16} />Участники
-                  </button>
-                  {onEditChannel && <button type="button" className="ghost" onClick={onEditChannel} title="Настройки канала" aria-label="Настройки канала"><Settings size={16} />Канал</button>}
+                  </Button>
+                  {onEditChannel && <Button type="button" variant="ghost" size="sm" className="chat-action" onClick={onEditChannel} data-tooltip="Настройки канала" aria-label="Настройки канала"><Settings size={16} />Канал</Button>}
                 </div>
               </header>
               {pinnedPanelOpen && <div className="pinned-messages-panel">
                 <strong>Закреплённые сообщения</strong>
-                {pinnedMessages.length ? pinnedMessages.map((pin) => <button key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-channel-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                {pinnedMessages.length ? pinnedMessages.map((pin) => <button className="pinned-message-item" key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-channel-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
                   <span>{pin.author.display_name || pin.author.username}</span><small>{pin.content || 'Вложение'}</small>
                 </button>) : <p>Пока ничего не закреплено.</p>}
               </div>}
@@ -1420,11 +1593,11 @@ export function MessengerWorkspace({
                     return (
                       <Fragment key={message.id}>
                         {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
-                        <article id={`nexo-channel-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`} title={new Date(message.created_at).toLocaleString('ru-RU')}
+                        <article id={`nexo-channel-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`}
                           onContextMenu={(event) => openMessageMenu(event, message, 'channel')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
-                            {!grouped && <header><strong>{authorName}</strong><time title={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
+                            {!grouped && <header><strong>{authorName}</strong><time data-tooltip={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
                             {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-channel-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.pin && <small className="message-pinned-label"><Pin size={11} />Закреплено</small>}
@@ -1453,7 +1626,7 @@ export function MessengerWorkspace({
               <div className="composer">
                 <label className="file-pill">
                   <Paperclip size={16} />
-                  <input
+                  <Input
                     type="file"
                     hidden
                     onChange={(event) => {
@@ -1462,8 +1635,8 @@ export function MessengerWorkspace({
                     }}
                   />
                 </label>
-                <button type="button" className="composer-code-button" title="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(true)}><Code size={16} /></button>
-                <textarea
+                <button type="button" className="composer-code-button" data-tooltip="Вставить блок кода" aria-label="Вставить блок кода" onClick={() => insertCodeBlock(true)}><Code size={16} /></button>
+                <Textarea
                   ref={channelComposerRef}
                   placeholder={`Сообщение #${activeChannel.name}`}
                   value={channelComposer}
@@ -1490,7 +1663,7 @@ export function MessengerWorkspace({
         </section>
         {showMembersPanel && (
           <aside className="channel-members-panel">
-            <header><strong>Участники</strong><button type="button" className="ghost-icon" aria-label="Закрыть участников" title="Закрыть" onClick={() => setShowMembersPanel(false)}><X size={15} /></button></header>
+            <header><strong>Участники</strong><button type="button" className="ghost-icon" aria-label="Закрыть участников" data-tooltip="Закрыть" onClick={() => setShowMembersPanel(false)}><X size={15} /></button></header>
             {membersLoading && <p className="muted">Загружаем участников…</p>}
             {membersError && <p className="status error">{membersError}</p>}
             {!membersLoading && !membersError && <div className="channel-member-list">
@@ -1534,21 +1707,21 @@ export function MessengerWorkspace({
           }} onPointerDown={(event) => event.stopPropagation()}>
             <div className="message-context-reactions" aria-label="Добавить реакцию">
               {['👍', '❤️', '😂', '😮', '😢', '🔥', '🎉', '👀'].map((emoji) => (
-                <button key={emoji} type="button" title={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
+                <button className="reaction-picker-button" key={emoji} type="button" data-tooltip={`Добавить реакцию ${emoji}`} onClick={() => void toggleMessageReaction(messageContext.message, messageContext.kind, emoji)}>{emoji}</button>
               ))}
             </div>
-            <button type="button" onClick={() => void toggleMessagePin(messageContext.message, messageContext.kind)}>
+            <button type="button" className="context-menu-action" onClick={() => void toggleMessagePin(messageContext.message, messageContext.kind)}>
               <Pin size={14} /><span>{messageContext.message.pin ? 'Открепить' : 'Закрепить'}</span>
             </button>
-            <button type="button" onClick={() => beginReplyMessage(messageContext.message, messageContext.kind)}>
+            <button type="button" className="context-menu-action" onClick={() => beginReplyMessage(messageContext.message, messageContext.kind)}>
               <MessageCircle size={14} /><span>Ответить</span>
             </button>
-            <button type="button" onClick={() => {
+            <button type="button" className="context-menu-action" onClick={() => {
               const value = messageContext.message.content || messageContext.message.attachment?.name || '';
               void copyText(value);
               setMessageContext(null);
             }}><Copy size={14} /><span>Копировать текст</span></button>
-            <button type="button" onClick={() => {
+            <button type="button" className="context-menu-action" onClick={() => {
               const message = messageContext.message;
               const link = messageContext.kind === 'dm' && 'conversation_id' in message
                 ? `nexo://dm/${message.conversation_id}/message/${message.id}`
@@ -1559,7 +1732,7 @@ export function MessengerWorkspace({
             {messageContext.message.author.id === user.id && (
               <>
                 {messageContext.message.content && (
-                  <button type="button" onClick={() => beginEditMessage(messageContext.message)}>
+                  <button type="button" className="context-menu-action" onClick={() => beginEditMessage(messageContext.message)}>
                     <Pencil size={14} /><span>Редактировать</span>
                   </button>
                 )}
@@ -1591,9 +1764,9 @@ export function MessengerWorkspace({
               {ringtoneMuted ? 'Включить звук звонка' : 'Отключить звук звонка'}
             </button>
             <div className="incoming-call-actions">
-              <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" title="Отклонить"><PhoneOff size={20} /></button>
-              {incomingCall.mediaType === 'video' && <button type="button" className="call-accept call-accept-audio" onClick={() => void acceptIncomingCall('audio')} aria-label="Принять без видео" title="Принять без видео"><Phone size={18} /><small>Без видео</small></button>}
-              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" title={callState ? 'Принять и завершить текущий' : 'Принять'}><Phone size={20} /></button>
+              <button type="button" className="call-reject" onClick={rejectIncomingCall} aria-label="Отклонить звонок" data-tooltip="Отклонить"><PhoneOff size={18} /><span>Отклонить</span></button>
+              {incomingCall.mediaType === 'video' && <button type="button" className="call-accept call-accept-audio" onClick={() => void acceptIncomingCall('audio')} aria-label="Принять без видео" data-tooltip="Принять без видео"><Phone size={18} /><span>Без видео</span></button>}
+              <button type="button" className="call-accept" onClick={() => void acceptIncomingCall()} aria-label="Принять звонок" data-tooltip={callState ? 'Принять и завершить текущий' : 'Принять'}><Phone size={18} /><span>Принять</span></button>
             </div>
           </motion.section>
         </motion.div>
@@ -1630,12 +1803,11 @@ function ServersRail({
       {servers.map((server) => (
         <button key={server.id} type="button"
           className={`server-circle ${activeServerId === server.id ? 'active' : ''}`}
-          onClick={() => onSelectServer(server.id)} title={server.name} aria-label={server.name}>
+          onClick={() => onSelectServer(server.id)} data-tooltip={server.name} aria-label={server.name}>
           {server.icon ? <img src={server.icon} alt="" /> : (server.name[0] || '?').toUpperCase()}
         </button>
       ))}
-      <button type="button" className="server-circle ghost" onClick={onCreateServer}
-        title="Создать пространство" aria-label="Создать пространство"><Plus size={18} /></button>
+      <button type="button" className="server-circle ghost" onClick={onCreateServer} data-tooltip="Создать пространство" aria-label="Создать пространство"><Plus size={18} /></button>
     </aside>
   );
 }
@@ -1657,7 +1829,7 @@ function ServerSidebar({
     <>
       <div className="channel-header">
         {server.name}
-        <button type="button" className="ghost-icon" title="Настройки пространства" onClick={onOpenSettings}>
+        <button type="button" className="ghost-icon" data-tooltip="Настройки пространства" onClick={onOpenSettings}>
           <Settings size={16} />
         </button>
       </div>
@@ -1678,7 +1850,7 @@ function ServerSidebar({
       <div className="channel-group">
         <p className="group-title">голосовые</p>
         {voiceChannels.map((channel) => (
-          <div key={channel.id} className="channel voice channel-unavailable" title="Голосовая связь в сообществах ещё не подключена">
+          <div key={channel.id} className="channel voice channel-unavailable" data-tooltip="Голосовая связь в сообществах ещё не подключена">
             <Volume2 size={14} />{channel.name}<small>позже</small>
           </div>
         ))}
@@ -1753,8 +1925,7 @@ function MessageReactions({ reactions, userId, onToggle }: {
     <div className="message-reactions" aria-label="Реакции на сообщение">
       {reactions.map((reaction) => (
         <button key={reaction.emoji} type="button"
-          className={reaction.user_ids.includes(userId) ? 'message-reaction active' : 'message-reaction'}
-          title={reaction.user_ids.includes(userId) ? 'Убрать реакцию' : 'Добавить реакцию'}
+          className={reaction.user_ids.includes(userId) ? 'message-reaction active' : 'message-reaction'} data-tooltip={reaction.user_ids.includes(userId) ? 'Убрать реакцию' : 'Добавить реакцию'}
           onClick={() => onToggle(reaction.emoji)}>
           <span>{reaction.emoji}</span><small>{reaction.count}</small>
         </button>
@@ -1765,7 +1936,7 @@ function MessageReactions({ reactions, userId, onToggle }: {
 
 function MessageReplyPreview({ replyTo, onClick }: { replyTo: MessageReply; onClick: () => void }) {
   return (
-    <button type="button" className="message-reply-preview" onClick={onClick} title="Перейти к исходному сообщению">
+    <button type="button" className="message-reply-preview" onClick={onClick} data-tooltip="Перейти к исходному сообщению">
       <span className="message-reply-author">{replyTo.author.display_name || replyTo.author.username}</span>
       <span className="message-reply-content">{replyTo.content || 'Сообщение без текста'}</span>
     </button>
@@ -1784,7 +1955,7 @@ function MessageContent({ content }: { content: string }) {
     const code = blocks[index + 2];
     if (code !== undefined) {
       result.push(<div className="message-code-block" key={`code-${index}`}>
-        <header><span>{language || 'CODE'}</span><button type="button" title="Копировать код" aria-label="Копировать код"
+        <header><span>{language || 'CODE'}</span><button type="button" className="code-copy-button" data-tooltip="Копировать код" aria-label="Копировать код"
           onClick={() => void copyText(code.trimEnd())}><Copy size={13} />Копировать</button></header>
         <pre><code>{code.replace(/\n$/, '')}</code></pre>
       </div>);
@@ -1810,10 +1981,11 @@ function AttachmentPreview({ attachment }: { attachment: Message['attachment'] |
 }
 
 function CallOverlay({
-  state, peer, currentUser, micMuted = false, onToggleMic, onHangUp, onShareScreen, onToggleCamera, audioOutputId, deafened
+  state, peer, currentUser, micMuted = false, onToggleMic, onHangUp, onShareScreen, onToggleCamera, audioOutputId, deafened, participants = []
 }: {
   state: CallState;
   peer: User | null;
+  participants?: User[];
   currentUser: User;
   micMuted?: boolean;
   onToggleMic?: () => void;
@@ -1825,26 +1997,83 @@ function CallOverlay({
 }) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [remoteVolume, setRemoteVolume] = useState(1);
+  const [noiseSuppression, setNoiseSuppression] = useState(true);
+  const [tileSize, setTileSize] = useState<'compact' | 'comfortable' | 'large'>('comfortable');
   const [clock, setClock] = useState(Date.now());
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideControlsTimerRef = useRef<number | null>(null);
   const peerName = peer?.display_name || peer?.username || 'Собеседник';
+  const groupUsers = state.group
+    ? participants.filter((item) => item.id !== currentUser.id && !(state.departedUserIds || []).includes(item.id))
+    : peer ? [peer] : [];
+  const groupStreams = state.remoteStreams || {};
   const cameraTrack = state.localStream?.getVideoTracks()[0];
   const cameraEnabled = Boolean(cameraTrack?.enabled && !state.isScreenSharing);
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await overlayRef.current?.requestFullscreen?.();
+    } catch (error) { console.warn('Fullscreen call view is unavailable:', error); }
+  }
+  useEffect(() => {
+    const sync = () => setFullscreen(document.fullscreenElement === overlayRef.current);
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
+    if (!fullscreen) {
+      setControlsVisible(true);
+      if (hideControlsTimerRef.current !== null) window.clearTimeout(hideControlsTimerRef.current);
+      hideControlsTimerRef.current = null;
+      return;
+    }
+    setControlsVisible(true);
+    hideControlsTimerRef.current = window.setTimeout(() => setControlsVisible(false), 3000);
+    return () => {
+      if (hideControlsTimerRef.current !== null) window.clearTimeout(hideControlsTimerRef.current);
+      hideControlsTimerRef.current = null;
+    };
+  }, [fullscreen]);
+
+  function revealCallControls() {
+    setControlsVisible(true);
+    if (hideControlsTimerRef.current !== null) window.clearTimeout(hideControlsTimerRef.current);
+    if (fullscreen) hideControlsTimerRef.current = window.setTimeout(() => setControlsVisible(false), 3000);
+  }
+  useEffect(() => {
+    state.localStream?.getAudioTracks().forEach((track) => { void track.applyConstraints({ noiseSuppression }).catch(() => {}); });
+  }, [state.localStream, noiseSuppression]);
+
+  useEffect(() => {
     if (localVideoRef.current && state.localStream) localVideoRef.current.srcObject = state.localStream;
   }, [state.localStream]);
   useEffect(() => {
     if (remoteVideoRef.current && state.remoteStream) remoteVideoRef.current.srcObject = state.remoteStream;
+    if (remoteAudioRef.current && state.remoteStream) remoteAudioRef.current.srcObject = state.remoteStream;
   }, [state.remoteStream]);
   useEffect(() => {
-    const video = remoteVideoRef.current as (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }) | null;
-    if (video?.setSinkId && audioOutputId) void video.setSinkId(audioOutputId).catch((error) => console.warn('Audio output selection failed:', error));
-  }, [audioOutputId, state.remoteStream]);
+    const media = overlayRef.current?.querySelectorAll('audio, video') || [];
+    media.forEach((element) => {
+      const output = element as HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
+      if (output.setSinkId && audioOutputId) void output.setSinkId(audioOutputId).catch((error) => console.warn('Audio output selection failed:', error));
+    });
+  }, [audioOutputId, state.remoteStream, state.remoteStreams]);
+
+  useEffect(() => {
+    const media = overlayRef.current?.querySelectorAll('audio, video') || [];
+    media.forEach((element) => { (element as HTMLMediaElement).volume = remoteVolume; });
+  }, [remoteVolume, state.remoteStream, state.remoteStreams]);
 
   const total = Math.max(0, Math.floor((clock - state.startedAt) / 1000));
   const duration = `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`;
@@ -1858,28 +2087,51 @@ function CallOverlay({
   );
 
   return (
-    <motion.section className="call-overlay"
+    <motion.section ref={overlayRef} className={`call-overlay ${fullscreen && !controlsVisible ? 'controls-hidden' : ''}`}
+      onMouseMove={revealCallControls} onPointerDown={revealCallControls}
       initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
       <div className="call-banner-participants">
         <div className="call-banner-person connected"><Avatar user={currentUser} size={64} showStatus /><small>Вы</small></div>
-        <div className={state.remoteStream ? 'call-banner-person connected' : 'call-banner-person pending'}><Avatar user={peer} size={64} showStatus /><small>{peerName}</small></div>
+        {state.group ? groupUsers.map((participant) => (
+          <div key={participant.id} className={groupStreams[participant.id] ? 'call-banner-person connected' : 'call-banner-person pending'}>
+            <Avatar user={participant} size={64} showStatus /><small>{participant.display_name || participant.username}</small>
+          </div>
+        )) : <div className={state.remoteStream ? 'call-banner-person connected' : 'call-banner-person pending'}><Avatar user={peer} size={64} showStatus /><small>{peerName}</small></div>}
       </div>
-      <div className="call-banner-media">
-        {state.remoteStream && <video ref={remoteVideoRef} className={state.remoteStream.getVideoTracks().length ? '' : 'call-audio-sink'} autoPlay playsInline muted={deafened} />}
-        {!state.remoteStream?.getVideoTracks().length && <span>{state.remoteStream ? 'На связи' : 'Подключаемся…'}</span>}
+      {state.group ? Object.entries(groupStreams).filter(([, stream]) => !stream.getVideoTracks().length).map(([id, stream]) => (
+        <audio key={id} className="call-audio-sink" autoPlay playsInline muted={deafened}
+          ref={(node) => { if (node && node.srcObject !== stream) node.srcObject = stream; }} />
+      )) : state.remoteStream && !state.remoteStream.getVideoTracks().length && <audio ref={remoteAudioRef} className="call-audio-sink" autoPlay playsInline muted={deafened} />}
+      {(state.remoteStream?.getVideoTracks().length || cameraTrack || Object.values(groupStreams).some((stream) => stream.getVideoTracks().length)) ? <div className={`call-banner-media ${tileSize} ${state.group ? 'group' : ''}`}>
+        {state.group ? Object.entries(groupStreams).filter(([, stream]) => stream.getVideoTracks().length).map(([id, stream]) => (
+          <video key={id} autoPlay playsInline muted={deafened} ref={(node) => { if (node && node.srcObject !== stream) node.srcObject = stream; }} />
+        )) : state.remoteStream?.getVideoTracks().length ? <video ref={remoteVideoRef} autoPlay playsInline muted={deafened} /> : null}
         {cameraTrack && <video ref={localVideoRef} className="call-local-preview" autoPlay playsInline muted />}
-      </div>
+      </div> : null}
       <div className="call-banner-controls">
-        <button type="button" className={micMuted ? 'call-control danger' : 'call-control'} onClick={onToggleMic} title={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
-          {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
-        </button>
-        <button type="button" className={cameraEnabled ? 'call-control' : 'call-control danger'} onClick={onToggleCamera}
-          disabled={!cameraTrack || state.isScreenSharing} title={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'} aria-label={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'}>
-          {cameraEnabled ? <Camera size={17} /> : <CameraOff size={17} />}
-        </button>
-        <button type="button" className="call-control" onClick={onShareScreen} title="Поделиться экраном" aria-label="Поделиться экраном"><Monitor size={17} /></button>
-        <button type="button" className="call-control call-hangup" onClick={() => onHangUp(true)} title="Завершить звонок" aria-label="Завершить звонок"><PhoneOff size={17} /></button>
-        <button type="button" className="call-control" onClick={() => setCollapsed(true)} title="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
+        <div className="call-control-group">
+          <button type="button" className={micMuted ? 'call-control danger' : 'call-control'} onClick={onToggleMic} data-tooltip={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} aria-label={micMuted ? 'Включить микрофон' : 'Выключить микрофон'}>
+            {micMuted ? <MicOff size={17} /> : <Mic size={17} />}
+          </button>
+          <button type="button" className={cameraEnabled ? 'call-control' : 'call-control danger'} onClick={onToggleCamera}
+            disabled={state.isScreenSharing} data-tooltip={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'} aria-label={cameraEnabled ? 'Выключить камеру' : 'Включить камеру'}>
+            {cameraEnabled ? <Camera size={17} /> : <CameraOff size={17} />}
+          </button>
+        </div>
+        <div className="call-control-group">
+          <button type="button" className="call-control" onClick={onShareScreen} data-tooltip="Поделиться экраном" aria-label="Поделиться экраном"><Monitor size={17} /></button>
+          <div className="call-more-wrap">
+            <button type="button" className="call-control" onClick={() => setMoreOpen((value) => !value)} data-tooltip="Дополнительные настройки" aria-label="Дополнительные настройки"><MoreHorizontal size={17} /></button>
+            {moreOpen && <div className="call-more-popover">
+              <div><span>Шумоподавление</span><Switch checked={noiseSuppression} onChange={setNoiseSuppression} label="Шумоподавление" /></div>
+              <Slider label="Громкость собеседника" min={0} max={1} step={0.05} value={remoteVolume} valueLabel={`${Math.round(remoteVolume * 100)}%`} onChange={setRemoteVolume} />
+              <label><span>Размер плитки</span><Select value={tileSize} onChange={(event) => setTileSize(event.target.value as typeof tileSize)}><option value="compact">Компактный</option><option value="comfortable">Обычный</option><option value="large">Крупный</option></Select></label>
+            </div>}
+          </div>
+          <button type="button" className="call-control" onClick={() => void toggleFullscreen()} data-tooltip={fullscreen ? 'Свернуть звонок' : 'Развернуть звонок'} aria-label={fullscreen ? 'Свернуть звонок' : 'Развернуть звонок'}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
+          <button type="button" className="call-control" onClick={() => setCollapsed(true)} data-tooltip="Свернуть панель звонка" aria-label="Свернуть панель звонка"><ChevronUp size={17} /></button>
+        </div>
+        <button type="button" className="call-control call-hangup" onClick={() => onHangUp(true)} data-tooltip="Завершить звонок" aria-label="Завершить звонок"><PhoneOff size={17} /></button>
       </div>
       <span className="call-banner-duration">{duration}</span>
     </motion.section>
@@ -1922,7 +2174,7 @@ function CreateServerModal({
         <form className="modal-form" onSubmit={handleSubmit}>
           <label>
             <span>Название</span>
-            <input
+            <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Например, Orbit Studio"
@@ -1933,7 +2185,7 @@ function CreateServerModal({
           </label>
           <label>
             <span>Описание</span>
-            <textarea
+            <Textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Для команды, сообщества или друзей."

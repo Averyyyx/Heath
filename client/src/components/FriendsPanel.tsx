@@ -5,6 +5,7 @@ import { Check, UserPlus, X, MessageCircle, Search, Users, Clock3 } from 'lucide
 import { apiFetch } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { Avatar } from './Avatar';
+import { Input } from './ui';
 import type { FriendPayload, FriendRecord, User } from '../types';
 
 type FriendsPanelProps = {
@@ -116,7 +117,7 @@ export function FriendsPanel({ user, onRefresh, onOpenConversation }: FriendsPan
           {view !== 'add' && (
             <div className="friends-search">
               <Search size={17} />
-              <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Поиск" aria-label="Поиск друзей" />
+              <Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Поиск" aria-label="Поиск друзей" />
             </div>
           )}
 
@@ -130,7 +131,7 @@ export function FriendsPanel({ user, onRefresh, onOpenConversation }: FriendsPan
                 <p>Введите точный логин человека. Запрос появится у него в списке ожидания.</p>
                 <form className="friends-add-form" onSubmit={handleAddFriend}>
                   <label htmlFor="friend-handle">Логин пользователя</label>
-                  <div><input id="friend-handle" value={handleQuery} onChange={(event) => setHandleQuery(event.target.value)}
+                  <div><Input id="friend-handle" value={handleQuery} onChange={(event) => setHandleQuery(event.target.value)}
                     placeholder="@username" required maxLength={25} autoFocus />
                     <button type="submit" className="primary" disabled={status.type === 'loading'}><UserPlus size={16} />Отправить запрос</button>
                   </div>
@@ -141,8 +142,8 @@ export function FriendsPanel({ user, onRefresh, onOpenConversation }: FriendsPan
                 <div className="friends-list-heading"><span>ВХОДЯЩИЕ ЗАПРОСЫ</span><b>{friends.incoming.length}</b></div>
                 {friends.incoming.length === 0 && <div className="friends-empty"><Clock3 size={25} /><strong>Нет ожидающих запросов</strong><span>Новые запросы появятся здесь.</span></div>}
                 {friends.incoming.map((record) => <FriendRow key={record.id} record={record} actions={<>
-                  <button type="button" className="friend-accept" onClick={() => void handleRespond(record.id, 'accept')} title="Принять запрос"><Check size={16} /></button>
-                  <button type="button" className="friend-decline" onClick={() => void handleRespond(record.id, 'decline')} title="Отклонить запрос"><X size={16} /></button>
+                  <button type="button" className="friend-accept" onClick={() => void handleRespond(record.id, 'accept')} data-tooltip="Принять запрос"><Check size={16} /></button>
+                  <button type="button" className="friend-decline" onClick={() => void handleRespond(record.id, 'decline')} data-tooltip="Отклонить запрос"><X size={16} /></button>
                 </>} />)}
                 <div className="friends-list-heading outgoing"><span>ОТПРАВЛЕННЫЕ ЗАПРОСЫ</span><b>{friends.outgoing.length}</b></div>
                 {friends.outgoing.length === 0 && <p className="friends-muted-line">Нет отправленных запросов.</p>}
@@ -156,7 +157,7 @@ export function FriendsPanel({ user, onRefresh, onOpenConversation }: FriendsPan
                   <div className="friends-empty"><Users size={26} /><strong>{view === 'online' ? 'Сейчас никого нет в сети' : 'Здесь пока пусто'}</strong><span>{view === 'online' ? 'Когда друзья появятся в сети, они будут показаны здесь.' : 'Добавьте знакомых, чтобы начать общаться в Nexo.'}</span></div>
                 )}
                 {shownFriends.map((record) => <FriendRow key={record.id} record={record} actions={
-                  <button type="button" className="friend-message" title="Написать сообщение" aria-label="Написать сообщение"
+                  <button type="button" className="friend-message" data-tooltip="Написать сообщение" aria-label="Написать сообщение"
                     onClick={() => onOpenConversation?.({ username: record.user.username })}><MessageCircle size={17} /></button>
                 } />)}
               </motion.section>
@@ -167,7 +168,7 @@ export function FriendsPanel({ user, onRefresh, onOpenConversation }: FriendsPan
         <aside className="discord-active-contacts">
           <h2>Активные контакты</h2>
           {onlineFriends.length === 0 ? <p>Пока никого нет в сети.</p> : onlineFriends.slice(0, 6).map((record) => (
-            <button type="button" key={record.id} onClick={() => onOpenConversation?.({ username: record.user.username })}>
+            <button type="button" className="active-contact-item" key={record.id} onClick={() => onOpenConversation?.({ username: record.user.username })}>
               <Avatar user={record.user} size={30} showStatus />
               <span><strong>{record.user.display_name || record.user.username}</strong><small>{record.user.custom_status || 'В сети'}</small></span>
             </button>
