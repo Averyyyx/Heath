@@ -23,7 +23,6 @@ asarUnpack:
   - "src/server/**/*"
   - "src/main/icons/**/*"
   - "public/**/*"
-  - "electron/**/*"
   - "node_modules/**/*"
 
 win:
