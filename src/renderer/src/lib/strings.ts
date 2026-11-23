@@ -7,14 +7,14 @@ export function detectLang(): Lang {
 }
 
 const ru = {
-  appName: 'Nexo',
+  appName: 'Hearth',
   loadingSession: 'Загружаем сессию…',
   logout: 'Выйти',
   windowMinimize: 'Свернуть',
   windowMaximize: 'Развернуть',
   windowClose: 'Закрыть',
   loginTitle: 'Войдите, чтобы продолжить',
-  registerTitle: 'Создайте аккаунт Nexo',
+  registerTitle: 'Создайте аккаунт Hearth',
   loginSubtitle: 'Сообщества, звонки и репозитории — всё в одном месте.',
   registerSubtitle: 'Сначала зарегистрируйтесь, затем выберите отображаемое имя и ник.',
   email: 'Email',
@@ -38,14 +38,14 @@ const ru = {
 export type StringKey = keyof typeof ru;
 
 const en: Record<StringKey, string> = {
-  appName: 'Nexo',
+  appName: 'Hearth',
   loadingSession: 'Loading session…',
   logout: 'Log out',
   windowMinimize: 'Minimize',
   windowMaximize: 'Maximize',
   windowClose: 'Close',
   loginTitle: 'Log in to continue',
-  registerTitle: 'Create your Nexo account',
+  registerTitle: 'Create your Hearth account',
   loginSubtitle: 'Communities, calls and repositories — all in one place.',
   registerSubtitle: 'Register first, then pick a display name and handle.',
   email: 'Email',

@@ -69,7 +69,7 @@
   }
 }
 
-/* ==================== Nexo 0.0.11 Alpha workspace ==================== */
+/* ==================== Hearth 0.0.11 Alpha workspace ==================== */
 .app-root {
   width: 100%;
   height: 100dvh;
@@ -201,7 +201,7 @@
   .friends-sidebar { flex-basis: 210px; }
 }
 
-/* Friends panels: retain Nexo palette and typography, improve spacing and hierarchy. */
+/* Friends panels: retain Hearth palette and typography, improve spacing and hierarchy. */
 .friends-quick-panel {
   display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden;
   background: var(--bg-secondary); color: var(--text);
@@ -314,7 +314,7 @@
   .friends-quick-header { padding-left: 12px; padding-right: 12px; }
 }
 
-/* ==================== Nexo 0.0.3 · unified workspace ==================== */
+/* ==================== Hearth 0.0.3 · unified workspace ==================== */
 .app-root {
   display: flex;
   flex-direction: column;
@@ -665,7 +665,7 @@
   border-radius: inherit; background: var(--accent); }
 .loading-footnote { margin-top: 22px; color: var(--text-faint); font-size: 12px; letter-spacing: .15em; }
 
-/* ================= Nexo 0.0.4 · tabbed workbench ================= */
+/* ================= Hearth 0.0.4 · tabbed workbench ================= */
 .app-root.hr-root { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .hr-titlebar {
   flex: 0 0 40px; height: 40px; min-height: 40px; padding: 0 12px;
@@ -1004,7 +1004,7 @@
   .message-code-block *, .composer-code-button { transition-duration: .01ms !important; }
 }
 
-/* ================= Nexo 0.0.5 · Discord-inspired workspace ================= */
+/* ================= Hearth 0.0.5 · Discord-inspired workspace ================= */
 .hr-titlebar .brand-image { width: 27px; height: 27px; display: block; object-fit: contain; border-radius: 8px; }
 .hr-titlebar .titlebar-brand { align-items: center; gap: 9px; }
 .hr-titlebar .titlebar-current { display: none; }
@@ -1190,7 +1190,7 @@ html[data-reduce-motion="true"] .hr-root *, html[data-reduce-motion="true"] .hr-
 .hotkeys-settings .settings-group { margin-top: 18px; }
 .hotkeys-settings .settings-nav-group { margin: 0 0 7px; }
 
-/* Nexo 0.0.6 — restore the original tree-and-tabs workspace */
+/* Hearth 0.0.6 — restore the original tree-and-tabs workspace */
 .hr-tabbar { display: flex !important; }
 .hr-workbench { display: flex; min-height: 0; overflow: hidden; }
 .hr-sidebar {
@@ -1308,7 +1308,7 @@ html[data-reduce-motion="true"] .hr-root *, html[data-reduce-motion="true"] .hr-
 }
 .sidebar-toggle-button:hover { border-color: var(--border); background: var(--surface-hover); color: var(--text); }
 
-/* Nexo 0.0.7 — compact dock and distinct unread / mention signals */
+/* Hearth 0.0.7 — compact dock and distinct unread / mention signals */
 .hr-user-dock {
   min-height: 52px;
   gap: 6px;
@@ -1348,7 +1348,7 @@ html[data-reduce-motion="true"] .hr-root *, html[data-reduce-motion="true"] .hr-
 .sidebar-row-text small, .sidebar-row.disabled small { font-size: 12px; }
 .sidebar-section-toggle small { font-size: 12px; }
 
-/* Compact Nexo dock: one row, readable labels, three equal controls. */
+/* Compact Hearth dock: one row, readable labels, three equal controls. */
 .hr-sidebar .sidebar-user-area { padding: 8px; }
 .hr-user-dock {
   box-sizing: border-box; display: flex; width: 100%; height: 52px; min-height: 52px;
@@ -1458,7 +1458,7 @@ html[data-reduce-motion="true"] .hr-root *, html[data-reduce-motion="true"] .hr-
 
 .incoming-call-busy-note { margin: 0; color: var(--text-muted); font-size: 12px; text-align: center; }
 
-/* Nexo 0.0.7 final layout safeguards */
+/* Hearth 0.0.7 final layout safeguards */
 .sidebar-row.has-unread::before,
 .sidebar-row.has-mention::after { z-index: 1; pointer-events: none; }
 .sidebar-row.has-mention::after { left: 2px; }
@@ -1596,7 +1596,7 @@ html[data-reduce-motion="true"] .hr-root *, html[data-reduce-motion="true"] .hr-
 }
 
 
-/* Nexo 0.0.8 — compact, pinned account dock and active call strip */
+/* Hearth 0.0.8 — compact, pinned account dock and active call strip */
 .sidebar-user-area { margin-top: auto !important; padding-top: 8px; overflow: visible; }
 .sidebar-user-area .hr-user-dock { height: 52px; min-height: 52px; flex: 0 0 52px; }
 .sidebar-user-area .dock-user { cursor: default; }
@@ -1635,7 +1635,7 @@ html[data-reduce-motion="true"] .hr-root *, html[data-reduce-motion="true"] .hr-
 .active-call-strip .hangup:hover { background: var(--danger); color: white; }
 
 
-/* Nexo 0.0.8 — voice channels */
+/* Hearth 0.0.8 — voice channels */
 .sidebar-voice-channel { display: flex; flex-direction: column; gap: 2px; }
 .sidebar-voice-channel .voice-channel-row { min-height: 34px; }
 .sidebar-voice-channel .voice-channel-row > small { margin-left: auto; color: var(--text-faint); font-size: 12px; }
@@ -1741,7 +1741,7 @@ html[data-reduce-motion="true"] .hr-root *, html[data-reduce-motion="true"] .hr-
 @keyframes hr-modal-in { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: scale(1); } }
 
 
-/* Incoming call buttons now have clear text labels; message times use Nexo tooltips. */
+/* Incoming call buttons now have clear text labels; message times use Hearth tooltips. */
 .message-body header .message-time { position: relative; opacity: 0; transition: opacity 120ms ease; }
 .message-row:hover .message-body header .message-time,
 .message-row:focus-within .message-body header .message-time { opacity: 1; }
@@ -1819,7 +1819,7 @@ html[data-reduce-motion="true"] .hr-root *, html[data-reduce-motion="true"] .hr-
 .voice-room-more-popover .hr-select { min-height: 32px; background: #302d2b; color: #f4f0e9; }
 
 
-/* Native checkbox/range inputs inside legacy settings now share the Nexo control treatment. */
+/* Native checkbox/range inputs inside legacy settings now share the Hearth control treatment. */
 .hr-input[type="checkbox"] {
   appearance: none; display: inline-flex; width: 36px; height: 20px; min-height: 20px; flex: 0 0 36px;
   align-items: center; padding: 2px; border: 0; border-radius: 99px; background: var(--border-strong);
@@ -1834,7 +1834,7 @@ html[data-reduce-motion="true"] .hr-root *, html[data-reduce-motion="true"] .hr-
 .hr-field .hr-field-control .hr-input, .hr-field .hr-field-control .hr-textarea { width: 100%; }
 
 
-/* Unified Nexo tooltips (replaces browser-native title popups). */
+/* Unified Hearth tooltips (replaces browser-native title popups). */
 [data-tooltip]:not(.dock-icon):not(.message-time) { position: relative; }
 [data-tooltip]:not(.dock-icon):not(.message-time)::after {
   position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: 1800;

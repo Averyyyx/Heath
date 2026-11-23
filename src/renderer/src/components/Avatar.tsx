@@ -19,7 +19,7 @@ const statusClass: Record<UserStatus, string> = {
 };
 
 export function Avatar({ user, name, size = 36, showStatus = false, className = '' }: AvatarProps) {
-  const title = name || user?.display_name || user?.username || 'Nexo user';
+  const title = name || user?.display_name || user?.username || 'Hearth user';
   const initial = useMemo(() => Array.from(title.trim())[0]?.toLocaleUpperCase('ru-RU') || 'N', [title]);
   const style: CSSProperties = {
     width: size,

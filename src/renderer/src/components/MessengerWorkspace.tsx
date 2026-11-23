@@ -1169,9 +1169,9 @@ export function MessengerWorkspace({
 
   async function startCall(conversationId: number, options?: { initiator?: boolean; initialSignal?: SignalData }, mediaType: 'audio' | 'video' = 'audio'): Promise<boolean> {
     if (!socketRef.current) return false;
-    if (document.documentElement.dataset.nexoVoiceActive === 'true') {
+    if (document.documentElement.dataset.hearthVoiceActive === 'true') {
       if (!window.confirm('Выйти из голосового канала и начать личный звонок?')) return false;
-      const channelId = Number(document.documentElement.dataset.nexoVoiceChannelId);
+      const channelId = Number(document.documentElement.dataset.hearthVoiceChannelId);
       if (Number.isInteger(channelId)) window.dispatchEvent(new CustomEvent('hearth-voice-action', { detail: { channelId, action: 'leave' } }));
       await new Promise((resolve) => window.setTimeout(resolve, 180));
     }

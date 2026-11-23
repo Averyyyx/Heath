@@ -154,7 +154,7 @@ export function FriendsPanel({ user, onRefresh, onOpenConversation }: FriendsPan
                 <div className="friends-list-heading"><span>{title.toUpperCase()}</span><b>{shownFriends.length}</b></div>
                 {loading && <p className="friends-muted-line">Загружаем список…</p>}
                 {!loading && shownFriends.length === 0 && (
-                  <div className="friends-empty"><Users size={26} /><strong>{view === 'online' ? 'Сейчас никого нет в сети' : 'Здесь пока пусто'}</strong><span>{view === 'online' ? 'Когда друзья появятся в сети, они будут показаны здесь.' : 'Добавьте знакомых, чтобы начать общаться в Nexo.'}</span></div>
+                  <div className="friends-empty"><Users size={26} /><strong>{view === 'online' ? 'Сейчас никого нет в сети' : 'Здесь пока пусто'}</strong><span>{view === 'online' ? 'Когда друзья появятся в сети, они будут показаны здесь.' : 'Добавьте знакомых, чтобы начать общаться в Hearth.'}</span></div>
                 )}
                 {shownFriends.map((record) => <FriendRow key={record.id} record={record} actions={
                   <button type="button" className="friend-message" data-tooltip="Написать сообщение" aria-label="Написать сообщение"
