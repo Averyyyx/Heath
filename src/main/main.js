@@ -9,70 +9,14 @@ const crypto = require('crypto');
 const { compareReleaseVersions } = require('./lib/version');
 const { parseHearthDeepLink } = require('./lib/deeplink');
 const brand = require('../shared/brand');
+const { migrateLegacyUserData } = require('./lib/user-data-migration');
 
 // Windows связывает иконку окна и ярлык с этим ID. Задаём до app.whenReady(),
 // иначе Windows может закрепить процесс под общим значком Electron.
 if (process.platform === 'win32') app.setAppUserModelId('com.nexo.app');
 app.setName(brand.name);
-migrateLegacyUserData();
+app.setPath('userData', migrateLegacyUserData({ appDataPath: app.getPath('appData'), fs, path, logger: console }));
 
-function migrateLegacyUserData() {
-  const appDataPath = app.getPath('appData');
-  const legacyPath = path.join(appDataPath, 'Nexo');
-  const targetPath = path.join(appDataPath, 'Hearth');
-  const markerPath = path.join(targetPath, '.hearth-migration-v1');
-  const inProgressPath = path.join(targetPath, '.hearth-migration-in-progress');
-
-  app.setPath('userData', targetPath);
-
-  if (fs.existsSync(markerPath) || !fs.existsSync(legacyPath)) return;
-
-  let createdTarget = false;
-  try {
-    if (fs.existsSync(targetPath)) {
-      if (fs.existsSync(inProgressPath)) {
-        fs.rmSync(targetPath, { recursive: true, force: true });
-      } else {
-        return;
-      }
-    }
-
-    fs.mkdirSync(targetPath, { recursive: true });
-    createdTarget = true;
-    fs.writeFileSync(inProgressPath, new Date().toISOString(), 'utf8');
-
-    const cacheDirectories = new Set([
-      'Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'ShaderCache',
-      'GrShaderCache', 'blob_storage', 'CacheStorage'
-    ]);
-    fs.cpSync(legacyPath, targetPath, {
-      recursive: true,
-      filter: (sourcePath) => {
-        const relative = path.relative(legacyPath, sourcePath);
-        if (!relative) return true;
-        return !relative.split(path.sep).some((part) => cacheDirectories.has(part));
-      }
-    });
-
-    const databaseNames = ['app.db', 'nexo.db'];
-    for (const databaseName of databaseNames) {
-      for (const suffix of ['', '-wal', '-shm']) {
-        const oldFile = path.join(targetPath, databaseName + suffix);
-        const newFile = path.join(targetPath, 'hearth.db' + suffix);
-        if (fs.existsSync(oldFile) && !fs.existsSync(newFile)) fs.renameSync(oldFile, newFile);
-      }
-    }
-
-    fs.writeFileSync(markerPath, '1', 'utf8');
-    fs.rmSync(inProgressPath, { force: true });
-    console.log('Legacy Nexo user data copied to Hearth. The original folder was preserved.');
-  } catch (error) {
-    if (createdTarget) {
-      try { fs.rmSync(targetPath, { recursive: true, force: true }); } catch {}
-    }
-    console.warn('Hearth user-data migration failed; the original Nexo folder remains untouched:', error.message);
-  }
-}
 
 let mainWindow = null;
 let splashWindow = null;
