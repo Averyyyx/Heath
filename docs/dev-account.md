@@ -12,8 +12,8 @@
 
 | Как запускаете | Что делать |
 | --- | --- |
-| `npm start` / `npm run electron:dev` (из исходников) | Ничего: аккаунт создаётся сам. Файл с паролем: `%APPDATA%\Nexo\data\dev-account.txt` |
-| Установленное приложение (.exe) | Создайте пустой файл `%APPDATA%\Nexo\dev-account.enabled` и перезапустите приложение |
+| `npm start` / `npm run electron:dev` (из исходников) | Ничего: аккаунт создаётся сам. Файл с паролем: `%APPDATA%\Hearth\data\dev-account.txt` |
+| Установленное приложение (.exe) | Создайте пустой файл `%APPDATA%\Hearth\dev-account.enabled` и перезапустите приложение |
 | Только сервер (`npm run dev`) | Задайте `HEARTH_DEV_ACCOUNT=true` (PowerShell: `$env:HEARTH_DEV_ACCOUNT="true"; npm run dev`). Файл с паролем: `data/dev-account.txt` в папке проекта |
 
 Выключить: переменная `HEARTH_DEV_ACCOUNT=0` (или удалить файл `dev-account.enabled`).
