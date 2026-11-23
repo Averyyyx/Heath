@@ -31,6 +31,9 @@ jobs:
         run: npm ci --prefix client
       - name: Run tests and syntax checks
         run: npm test
+      - name: TypeScript no-emit check
+        working-directory: client
+        run: npx tsc --noEmit
       - name: Build client (TypeScript + Vite)
         run: npm run build --prefix client
       - name: Prepare static client for browser checks

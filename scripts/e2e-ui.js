@@ -361,17 +361,27 @@ async function waitForStableModal(page, modal) {
         const dock = element.querySelector('.nexo-user-dock');
         const avatar = dock?.querySelector('.nexo-avatar');
         const copy = dock?.querySelector('.dock-user-copy');
+        const name = dock?.querySelector('.dock-user-copy strong');
+        const identity = dock?.querySelector('.dock-user');
+        const previousName = name?.textContent || '';
+        if (name) name.textContent = 'ABCDEFGHIJKL';
+        const twelveCharNameFits = Boolean(name) && name.scrollWidth <= name.clientWidth + 1;
+        if (name) name.textContent = previousName;
         const buttons = Array.from(dock?.querySelectorAll('.dock-actions > button') || []);
         const dockRect = dock?.getBoundingClientRect();
         return {
           width: element.getBoundingClientRect().width,
           avatarWidth: avatar?.getBoundingClientRect().width || 0,
           copyWidth: copy?.getBoundingClientRect().width || 0,
+          twelveCharNameFits,
+          ariaLabel: identity?.getAttribute('aria-label') || '',
+          title: identity?.getAttribute('title') || '',
+          loginTitle: identity?.querySelector('small')?.getAttribute('title') || '',
           buttons: buttons.length,
           buttonsInside: Boolean(dockRect) && buttons.every((button) => button.getBoundingClientRect().left >= dockRect.left && button.getBoundingClientRect().right <= dockRect.right)
         };
       });
-      if (Math.abs(dockLayout.width - width) > 1 || dockLayout.avatarWidth < 35 || dockLayout.copyWidth < 1 || dockLayout.buttons !== 3 || !dockLayout.buttonsInside) {
+      if (Math.abs(dockLayout.width - width) > 1 || dockLayout.avatarWidth < 35 || dockLayout.copyWidth < 1 || dockLayout.buttons !== 3 || !dockLayout.buttonsInside || (width >= 264 && !dockLayout.twelveCharNameFits) || !dockLayout.ariaLabel.includes('@') || !dockLayout.title.includes('@') || !dockLayout.loginTitle.includes('@')) {
         throw new Error('User dock layout failed at sidebar width ' + width + 'px: ' + JSON.stringify(dockLayout));
       }
     }
