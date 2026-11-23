@@ -1020,7 +1020,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   function renderUpdates() {
     return (
       <div className="settings-section">
-        <p className="eyebrow">NEXO DESKTOP</p>
+        <p className="eyebrow">Nexo Desktop</p>
         <h2>Обновления</h2>
         <p className="muted">Nexo проверяет новые Alpha-релизы автоматически при запуске. Здесь можно запустить проверку вручную.</p>
         <div className="update-version-card">
@@ -1208,7 +1208,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   function renderAccount() {
     return (
       <div className="settings-section account-settings">
-        <p className="eyebrow">АККАУНТ</p>
+        <p className="eyebrow">Аккаунт</p>
         <h2>Моя учётная запись</h2>
         <div className="account-identity">
           <Avatar user={user} size={64} showStatus />
@@ -1273,7 +1273,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   function renderProfileSettings() {
     return (
       <div className="settings-section profile-settings">
-        <p className="eyebrow">ПУБЛИЧНЫЙ ПРОФИЛЬ</p>
+        <p className="eyebrow">Публичный профиль</p>
         <h2>Профиль</h2>
         <div className="profile-card-preview">
           <Avatar user={{ ...user, display_name: accountName, username: accountHandle, avatar_color: profileColor, avatar_preset: profileAvatarPreset, avatar_url: avatarPreview || (profileAvatarPreset !== (user.avatar_preset ?? 0) ? '' : user.avatar_url) }} size={58} />

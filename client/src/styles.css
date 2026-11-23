@@ -3573,3 +3573,33 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
 /* Respect the full supported sidebar width range and the fixed 28px dock controls. */
 .nexo-sidebar { min-width: 220px; }
 .sidebar-user-area .dock-icon { width: 28px; height: 28px; flex: 0 0 28px; }
+
+/* Consistent left-label/right-control rows across the remaining settings sections. */
+.settings-section > .eyebrow { text-transform: none; letter-spacing: normal; font-size: 12px; color: var(--text-muted); }
+.settings-section .settings-group > label:not(.settings-toggle-row):not(.sound-volume):not(.file-upload-button):not(.nexo-field) {
+  display: grid; grid-template-columns: 220px minmax(0, 320px); align-items: center; gap: 12px;
+}
+.settings-section .settings-group > label:not(.settings-toggle-row):not(.sound-volume):not(.file-upload-button):not(.nexo-field) > input:not([type="checkbox"]):not([type="range"]),
+.settings-section .settings-group > label:not(.settings-toggle-row):not(.sound-volume):not(.file-upload-button):not(.nexo-field) > textarea,
+.settings-section .settings-group > label:not(.settings-toggle-row):not(.sound-volume):not(.file-upload-button):not(.nexo-field) > select {
+  width: 100%; max-width: 320px; min-width: 0;
+}
+.server-config .manager-card > label {
+  display: grid; grid-template-columns: 220px minmax(0, 320px); align-items: center; gap: 12px;
+}
+.server-config .manager-card > label > input,
+.server-config .manager-card > label > textarea,
+.server-config .manager-card > label > select { width: 100%; max-width: 320px; min-width: 0; }
+.update-auto-download, .settings-section > .toggle {
+  display: flex; flex-direction: row-reverse; align-items: center; justify-content: space-between; gap: 14px;
+}
+@media (max-width: 760px) {
+  .settings-section .settings-group > label:not(.settings-toggle-row):not(.sound-volume):not(.file-upload-button):not(.nexo-field),
+  .server-config .manager-card > label { grid-template-columns: minmax(0, 1fr); gap: 7px; }
+  .settings-section .settings-group > label:not(.settings-toggle-row):not(.sound-volume):not(.file-upload-button):not(.nexo-field) > input:not([type="checkbox"]):not([type="range"]),
+  .settings-section .settings-group > label:not(.settings-toggle-row):not(.sound-volume):not(.file-upload-button):not(.nexo-field) > textarea,
+  .settings-section .settings-group > label:not(.settings-toggle-row):not(.sound-volume):not(.file-upload-button):not(.nexo-field) > select,
+  .server-config .manager-card > label > input,
+  .server-config .manager-card > label > textarea,
+  .server-config .manager-card > label > select { max-width: 100%; }
+}
