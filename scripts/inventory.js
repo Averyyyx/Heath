@@ -23,7 +23,7 @@ function readSources() {
   const allowed = /\.(?:cjs|js|mjs|ts|tsx|jsx)$/i;
   const sources = [];
   for (const file of files.sort()) {
-    if (!allowed.test(file) || file.includes('/node_modules/')) continue;
+    if (!allowed.test(file) || file.includes('/node_modules/') || /(?:^|\\/)(?:tests?|__tests__)(?:\\/|$)/i.test(file) || /\\.(?:test|spec)\\.[^.]+$/i.test(file)) continue;
     try {
       const content = sourceRef
         ? git(['show', sourceRef + ':' + file])
