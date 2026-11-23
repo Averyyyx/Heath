@@ -861,7 +861,7 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     try {
       const parsed = new URL(url);
-      if (parsed.protocol === 'hearth:') dispatchDeepLink(url);
+      if ((parsed.protocol === 'hearth:' || parsed.protocol === 'nexo:')) dispatchDeepLink(url);
       else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') void shell.openExternal(url);
     } catch { /* malformed URLs are denied */ }
     return { action: 'deny' };
@@ -872,7 +872,7 @@ function createWindow() {
     event.preventDefault();
     try {
       const parsed = new URL(url);
-      if (parsed.protocol === 'hearth:') dispatchDeepLink(url);
+      if ((parsed.protocol === 'hearth:' || parsed.protocol === 'nexo:')) dispatchDeepLink(url);
       else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') void shell.openExternal(url);
     } catch { /* malformed URLs are denied */ }
   });
@@ -884,7 +884,7 @@ if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.on('second-instance', (_event, commandLine) => {
-    const deepLink = commandLine.find((argument) => (argument.startsWith('hearth://') || argument.startsWith('nexo://')));
+    const deepLink = commandLine.find((argument) => ((argument.startsWith('hearth://') || argument.startsWith('nexo://')) || argument.startsWith('nexo://')));
     if (deepLink) dispatchDeepLink(deepLink);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
