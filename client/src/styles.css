@@ -2131,6 +2131,8 @@
 .chat-header .title { display: flex; min-width: 0; align-items: center; gap: 9px; font: 600 17px var(--font-serif); }
 .chat-header .title svg { color: var(--accent); }
 .chat-actions { display: flex; align-items: center; gap: 8px; }
+.chat-actions > .chat-action { display: inline-flex; height: 32px; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; white-space: nowrap; }
+.chat-actions > .chat-action > svg { width: 16px; height: 16px; flex: 0 0 16px; }
 .message-stream {
   display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 2px;
   padding: 18px clamp(14px, 3vw, 34px); overflow-y: auto;
@@ -3522,4 +3524,48 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   flex: 1 1 180px;
   border-radius: 9px;
   background: #090909;
+}
+
+
+/* 0.0.8p — consistent icon buttons and compact identity dock */
+.ghost, .primary, .nexo-ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.nexo-ui-button > svg { width: 16px; height: 16px; flex: 0 0 16px; }
+.nexo-user-dock { gap: 8px; padding: 8px; }
+.dock-user { min-width: 0; flex: 1 1 0; }
+.dock-user-copy { min-width: 0; flex: 1 1 0; }
+.dock-user-copy strong { font-size: 14px; line-height: 18px; }
+.dock-user-copy small { font-size: 12px; line-height: 15px; }
+.dock-icon { width: 28px; height: 28px; flex: 0 0 28px; }
+.settings-device-row {
+  display: grid; grid-template-columns: 220px minmax(0, 320px); align-items: center;
+  justify-content: space-between; gap: 16px;
+}
+.settings-device-row > span { width: 220px; min-width: 220px; white-space: nowrap; }
+.settings-device-row .nexo-select-wrap { position: relative; display: block; width: 320px; max-width: 100%; min-width: 0; }
+.settings-device-row .nexo-select-wrap select, .settings-device-row select {
+  width: 100%; min-width: 0; max-width: 100%; padding-right: 36px;
+}
+.settings-device-row .nexo-select-wrap > svg {
+  position: absolute; top: 50%; right: 11px; transform: translateY(-50%); pointer-events: none;
+}
+.discord-settings-page > .eyebrow { text-transform: none; letter-spacing: normal; font-size: 12px; color: var(--text-muted); }
+.settings-section .settings-group > .nexo-field {
+  display: grid; grid-template-columns: 220px minmax(0, 320px); align-items: center; gap: 12px;
+}
+.settings-section .settings-group > .nexo-field > span { white-space: nowrap; }
+.settings-section .settings-group > .nexo-field .nexo-field-control { min-width: 0; width: 100%; }
+.settings-section .settings-group > .nexo-field .nexo-field-control > input,
+.settings-section .settings-group > .nexo-field .nexo-field-control > textarea,
+.settings-section .settings-group > .nexo-field .nexo-field-control > .nexo-select-wrap { width: 100%; max-width: 100%; }
+.account-settings .settings-group > label {
+  display: grid; grid-template-columns: 220px minmax(0, 320px); align-items: center; gap: 12px;
+}
+.account-settings .settings-group > label > input { width: 100%; min-width: 0; }
+@media (max-width: 760px) {
+  .settings-device-row { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+  .settings-device-row > span { width: 100%; min-width: 0; }
+  .settings-device-row .nexo-select-wrap { width: 100%; }
+  .settings-section .settings-group > .nexo-field,
+  .account-settings .settings-group > label { grid-template-columns: minmax(0, 1fr); gap: 7px; }
+  .settings-section .settings-group > .nexo-field > span { white-space: normal; }
 }

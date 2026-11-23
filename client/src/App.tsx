@@ -408,7 +408,7 @@ export default function App() {
       setTabs((current) => current.map((tab) => {
         const conversation = conversations.find((item) => item.id === tab.targetId);
         const counterpart = conversation?.counterpart || conversation?.participants.find((participant) => participant.id !== user.id);
-        return tab.kind === 'dm' && counterpart?.id === updated.id
+        return tab.kind === 'dm' && conversation?.type !== 'group' && counterpart?.id === updated.id
           ? { ...tab, title: updated.display_name || updated.username }
           : tab;
       }));
@@ -723,8 +723,9 @@ export default function App() {
   function openDmTab(conversation: Conversation, background = false, messageId?: number) {
     if (!background) setUnreadDmCounts((current) => current[conversation.id] ? { ...current, [conversation.id]: 0 } : current);
     const person = conversation.counterpart || conversation.participants.find((participant) => participant.id !== user?.id);
+    const title = conversation.type === 'group' ? (conversation.title || 'Групповая беседа') : (person?.display_name || person?.username || conversation.title || 'Диалог');
     openTab({
-      id: `dm:${conversation.id}`, kind: 'dm', title: person?.display_name || person?.username || conversation.title || 'Диалог',
+      id: `dm:${conversation.id}`, kind: 'dm', title,
       targetId: conversation.id, messageId
     }, background);
   }
@@ -1329,9 +1330,9 @@ export default function App() {
                     </div>}
                     
                     <div className="nexo-user-dock">
-                      <div className="dock-user" aria-label={`${user.display_name || user.username}, @${user.username}`}>
+                      <div className="dock-user" title={`${user.display_name || user.username} · @${user.username}`} aria-label={`${user.display_name || user.username}, @${user.username}`}>
                         <Avatar user={user} size={36} showStatus />
-                        <span className="dock-user-copy"><strong>{user.display_name || user.username}</strong><small>{user.custom_status || `@${user.username}`}</small></span>
+                        <span className="dock-user-copy"><strong title={user.display_name || user.username}>{user.display_name || user.username}</strong><small title={`@${user.username}`}>{user.custom_status || `@${user.username}`}</small></span>
                       </div>
                       <div className="dock-actions">
                         <button type="button" className={micMuted ? 'dock-icon danger' : 'dock-icon'}

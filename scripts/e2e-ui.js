@@ -1,4 +1,5 @@
 const { chromium, request } = require('playwright');
+const { expect } = require('playwright/test');
 const Database = require('better-sqlite3');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -26,6 +27,18 @@ async function openDm(page, otherName) {
   await row.waitFor({ state: 'visible', timeout: 20000 });
   await row.click();
   await page.locator('.chat-header:visible').waitFor({ state: 'visible', timeout: 15000 });
+}
+
+async function assertActiveDmTabMatchesHeader(page) {
+  const header = (await page.locator('.chat-header:visible .title').innerText()).trim();
+  const tab = (await page.locator('.nexo-tab.active .tab-title').innerText()).trim();
+  if (tab !== header) throw new Error('Active DM tab title does not match chat header: tab="' + tab + '", header="' + header + '"');
+}
+
+async function waitForStableModal(page, modal) {
+  await modal.waitFor({ state: 'visible' });
+  await page.waitForTimeout(450);
+  await expect.poll(async () => Number(await modal.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
 }
 
 (async () => {
@@ -175,12 +188,16 @@ async function openDm(page, otherName) {
       openDm(pageA, userB.display_name || userB.username),
       openDm(pageB, userA.display_name || userA.username)
     ]);
+    await Promise.all([assertActiveDmTabMatchesHeader(pageA), assertActiveDmTabMatchesHeader(pageB)]);
     if (await pageA.locator('.sidebar-section-toggle small').filter({ hasText: '0' }).count()) {
       throw new Error('An empty sidebar section still displays a zero counter.');
     }
 
     await pageA.locator('.chat-header:visible .chat-actions button').filter({ hasText: 'Голос' }).click();
-    await pageB.locator('.incoming-call-card').waitFor({ state: 'visible', timeout: 20000 });
+    const incomingCard = pageB.locator('.incoming-call-card');
+    await incomingCard.waitFor({ state: 'visible', timeout: 20000 });
+    await pageB.waitForTimeout(450);
+    await expect.poll(async () => Number(await incomingCard.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
     await pageA.locator('.call-overlay').waitFor({ state: 'visible', timeout: 15000 });
     if (await pageA.locator('.call-banner-person.pending').count() < 1) {
       throw new Error('The caller did not show the remote participant as pending before acceptance.');
@@ -189,6 +206,17 @@ async function openDm(page, otherName) {
     await pageB.screenshot({ path: path.join(screenshotDir, 'incoming-call-light-1440x900.png'), fullPage: false });
     await pageB.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
     await pageB.screenshot({ path: path.join(screenshotDir, 'incoming-call-dark-1440x900.png'), fullPage: false });
+    const incomingBeforeDrag = await incomingCard.boundingBox();
+    if (!incomingBeforeDrag) throw new Error('Incoming-call window has no bounding box.');
+    await pageB.mouse.move(incomingBeforeDrag.x + incomingBeforeDrag.width / 2, incomingBeforeDrag.y + 22);
+    await pageB.mouse.down();
+    await pageB.mouse.move(incomingBeforeDrag.x + incomingBeforeDrag.width / 2 - 55, incomingBeforeDrag.y - 23, { steps: 8 });
+    await pageB.mouse.up();
+    await expect.poll(async () => {
+      const moved = await incomingCard.boundingBox();
+      return moved ? Math.abs(moved.x - incomingBeforeDrag.x) + Math.abs(moved.y - incomingBeforeDrag.y) : 0;
+    }).toBeGreaterThan(20);
+    await pageB.screenshot({ path: path.join(screenshotDir, 'incoming-call-dragged-dark-1440x900.png'), fullPage: false });
     await pageB.locator('.incoming-call-actions .call-accept').click();
     await Promise.all([
       pageA.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }),
@@ -226,6 +254,7 @@ async function openDm(page, otherName) {
       openDm(pageB, groupTitle),
       openDm(pageC, groupTitle)
     ]);
+    await Promise.all([assertActiveDmTabMatchesHeader(pageA), assertActiveDmTabMatchesHeader(pageB), assertActiveDmTabMatchesHeader(pageC)]);
     await pageA.locator('.chat-header:visible .chat-actions button').filter({ hasText: 'Голос' }).click();
     await Promise.all([
       pageB.locator('.incoming-call-card').waitFor({ state: 'visible', timeout: 20000 }),
@@ -266,7 +295,7 @@ async function openDm(page, otherName) {
     await serverHead.waitFor({ state: 'visible', timeout: 15000 });
     await pageA.locator('.sidebar-section').filter({ hasText: 'Пространства' }).locator('button[aria-label="Создать пространство"]').click();
     const createSpaceModal = pageA.locator('.modal-panel').filter({ hasText: 'Создать пространство' });
-    await createSpaceModal.waitFor({ state: 'visible' });
+    await waitForStableModal(pageA, createSpaceModal);
     await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await pageA.screenshot({ path: path.join(screenshotDir, 'create-space-light-1440x900.png'), fullPage: false });
     await createSpaceModal.locator('button[aria-label="Закрыть"]').click();
@@ -274,14 +303,14 @@ async function openDm(page, otherName) {
     await serverHead.click({ button: 'right' });
     await pageA.locator('.nexo-context-menu').getByRole('button', { name: 'Создать канал' }).click();
     const createChannelModal = pageA.locator('.modal-panel').filter({ hasText: 'Создать канал' });
-    await createChannelModal.waitFor({ state: 'visible' });
+    await waitForStableModal(pageA, createChannelModal);
     await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await pageA.screenshot({ path: path.join(screenshotDir, 'create-channel-light-1440x900.png'), fullPage: false });
     await createChannelModal.locator('button[aria-label="Закрыть"]').click();
     await pageA.locator('.sidebar-row').filter({ hasText: 'e2e-chat' }).click({ button: 'right' });
     await pageA.locator('.nexo-context-menu').getByRole('button', { name: 'Настройки канала' }).click();
     const channelSettingsModal = pageA.locator('.modal-panel').filter({ hasText: 'Настройки канала' });
-    await channelSettingsModal.waitFor({ state: 'visible' });
+    await waitForStableModal(pageA, channelSettingsModal);
     await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
     await pageA.screenshot({ path: path.join(screenshotDir, 'channel-settings-light-1440x900.png'), fullPage: false });
     await channelSettingsModal.locator('button[aria-label="Закрыть"]').click();

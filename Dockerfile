@@ -6,17 +6,19 @@ RUN apk add --no-cache python3 make g++
 # Рабочая директория
 WORKDIR /app
 
-# Копирование package files
+# Копирование package files и зависимостей клиента
 COPY package*.json ./
+COPY client/package*.json ./client/
 
-# Установка зависимостей
+# Установка серверных и клиентских зависимостей
 RUN npm ci --only=production
+RUN npm install --prefix client
 
 # Копирование исходных файлов
 COPY . .
 
-# Сборка клиента
-RUN npm run build:client
+# Генерация настоящего public/ перед запуском контейнера
+RUN npm run build:app
 
 # Создание директорий
 RUN mkdir -p data uploads tmp

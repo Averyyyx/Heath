@@ -1340,7 +1340,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   function renderVoice() {
     return (
       <div className="settings-section discord-settings-page">
-        <p className="eyebrow">ГОЛОС И ВИДЕО</p>
+        <p className="eyebrow">Голос и видео</p>
         <h2>Устройства</h2>
         <p className="muted">Выберите устройства, которые Nexo будет использовать для микрофона и вывода звука. Список обновляется при подключении или отключении оборудования.</p>
         <div className="settings-group voice-device-list">
@@ -1362,7 +1362,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   function renderNotifications() {
     return (
       <div className="settings-section discord-settings-page">
-        <p className="eyebrow">НАСТРОЙКИ ПРИЛОЖЕНИЯ</p>
+        <p className="eyebrow">Настройки приложения</p>
         <h2>Уведомления и звуки</h2>
         <p className="muted">Единая звуковая палитра Nexo. Каждый сигнал можно отдельно отключить и прослушать.</p>
         <div className="settings-group sound-settings-list">
@@ -1402,7 +1402,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   function renderAccessibility() {
     return (
       <div className="settings-section discord-settings-page">
-        <p className="eyebrow">НАСТРОЙКИ ПРИЛОЖЕНИЯ</p>
+        <p className="eyebrow">Настройки приложения</p>
         <h2>Специальные возможности</h2>
         <p className="muted">Управляйте движением интерфейса и визуальными эффектами.</p>
         {settings ? (
@@ -1438,7 +1438,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
     ];
     return (
       <div className="settings-section discord-settings-page hotkeys-settings">
-        <p className="eyebrow">НАСТРОЙКИ ПРИЛОЖЕНИЯ</p>
+        <p className="eyebrow">Настройки приложения</p>
         <h2>Горячие клавиши</h2>
         <p className="muted">Быстро перемещайтесь по Nexo без мыши. На macOS сочетания используют Command вместо Ctrl.</p>
         {groups.map((group) => (

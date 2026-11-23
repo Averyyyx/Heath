@@ -1,4 +1,6 @@
 node_modules/
+public/
+artifacts/
 dist/
 dist_*/
 build/
@@ -34,3 +36,4 @@ icudtl.dat
 resources.pak
 LICENSE.electron.txt
 LICENSES.chromium.html
+.DS_Store

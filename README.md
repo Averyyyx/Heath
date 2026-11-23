@@ -17,6 +17,13 @@ We are actively developing **Nexo AI Agents** driven by dedicated LLM APIs to fa
 2. Context-aware developer co-pilot subroutines integrated directly into the chat view.
 
 
+## Документация проекта
+
+- [План развития](docs/roadmap.md)
+- [Тестовый аккаунт разработчика](docs/dev-account.md)
+- [Локальная настройка и запуск](docs/local-setup.md)
+- [Лицензионные уведомления Chromium](docs/licenses-chromium.html)
+
 ## Проверка интерфейса 0.0.8
 
 Для проверки интерфейса подготовлен Playwright-сценарий `scripts/e2e-ui.js`; Windows CI запускает его на временной SQLite-базе и сохраняет скриншоты как артефакт.

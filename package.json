@@ -13,7 +13,7 @@
     "build:app": "npm run build:client && npm run prepare:public",
     "electron:build": "npm run build:app && electron-builder build --win --publish never",
     "electron:dev": "electron .",
-    "electron:package": "electron-builder build --dir",
+    "electron:package": "npm run build:app && electron-builder build --dir",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [],
