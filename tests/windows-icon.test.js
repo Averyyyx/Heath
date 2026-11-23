@@ -9,6 +9,7 @@ const root = path.join(__dirname, '..');
 const mainSource = fs.readFileSync(path.join(root, 'src', 'main', 'main.js'), 'utf8');
 const builder = fs.readFileSync(path.join(root, 'electron-builder.yml'), 'utf8');
 const iconBuilder = fs.readFileSync(path.join(root, 'scripts', 'build-icons.js'), 'utf8');
+const iconService = fs.readFileSync(path.join(root, 'src', 'main', 'lib', 'icons.js'), 'utf8');
 const brandMark = fs.readFileSync(path.join(root, 'resources', 'brand', 'hearth-mark.svg'), 'utf8');
 
 test('Windows AppUserModelId is assigned before Electron becomes ready', () => {
@@ -20,10 +21,12 @@ test('Windows AppUserModelId is assigned before Electron becomes ready', () => {
 });
 
 test('splash, window, and tray use generated Hearth artwork', () => {
-  assert.ok(mainSource.includes("'icon.ico'"));
-  assert.match(mainSource, /getIconPath\('icon', 256\)/);
-  assert.ok(mainSource.includes("'tray-32.png'"));
-  assert.match(mainSource, /taskbar-badge-/);
+  assert.match(mainSource, /createIconService/);
+  assert.ok(iconService.includes("'icon.ico'"));
+  assert.match(iconService, /getIconPath\('icon', 256\)/);
+  assert.ok(iconService.includes("'tray-32.png'"));
+  assert.match(iconService, /taskbar-badge-/);
+  assert.match(iconService, /path.join\(process.resourcesPath, 'resources'\)/);
   assert.match(builder, /productName: Hearth/);
   assert.ok(builder.includes('icon.ico'));
   assert.match(builder, /extraResources:/);
@@ -31,5 +34,4 @@ test('splash, window, and tray use generated Hearth artwork', () => {
   assert.match(iconBuilder, /makeIco/);
   assert.ok(iconBuilder.includes('icon.ico'));
   assert.match(brandMark, /#C4623F/);
-  assert.match(mainSource, /icon:\\s*getDesktopIconPath\(\)/);
 });
