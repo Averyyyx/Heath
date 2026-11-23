@@ -14,7 +14,7 @@ Hearth is a desktop communication application. The 0.0.9 codebase keeps the exis
 
 The desktop app stores its profile under the operating system's Hearth application-data directory. SQLite data is stored in `hearth.db`; uploaded files and generated assets are kept under the configured data directory.
 
-The first Hearth launch copies durable data from the previous profile directory. Chromium cache directories are skipped, while local/session storage and secrets are retained. The previous profile directory is intentionally preserved as a rollback copy.
+The first Hearth launch copies durable data from the previous profile directory. Chromium caches, cookies, and transient session storage are skipped so users sign in again. Local storage, settings, secrets, databases, and uploaded files are retained. The previous profile directory is intentionally preserved as a rollback copy.
 
 ## Compatibility
 
