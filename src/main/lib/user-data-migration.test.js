@@ -80,3 +80,23 @@ test('migration resumes after a marked partial destination and rolls forward cle
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('migration failure falls back to the original profile instead of opening an empty one', () => {
+  const { root, legacy, target } = fixture();
+  fs.mkdirSync(legacy, { recursive: true });
+  fs.writeFileSync(path.join(legacy, 'settings.json'), 'keep-existing-profile');
+  const failingFs = { ...fs, cpSync() { throw new Error('simulated disk failure'); } };
+  try {
+    const result = migrateLegacyUserData({
+      appDataPath: root,
+      fs: failingFs,
+      path,
+      logger: { log() {}, warn() {} }
+    });
+    assert.equal(result, legacy);
+    assert.equal(fs.readFileSync(path.join(legacy, 'settings.json'), 'utf8'), 'keep-existing-profile');
+    assert.equal(fs.existsSync(target), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
