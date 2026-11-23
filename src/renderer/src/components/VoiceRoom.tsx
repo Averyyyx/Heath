@@ -4,7 +4,7 @@ import { Camera, CameraOff, Mic, MicOff, MonitorUp, PhoneOff, Volume2, VolumeX, 
 import type { Channel, Server, User, VoiceState } from '../types';
 import { apiFetch } from '../lib/api';
 import { getSocket } from '../lib/socket';
-import { playNexoSound } from '../lib/sounds';
+import { playHearthSound } from '../lib/sounds';
 import { Avatar } from './Avatar';
 import { Select, Slider, Switch } from './ui';
 
@@ -239,8 +239,8 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
     };
     const onState = ({ channelId, participants: next }: { channelId: number; participants: VoiceMember[] }) => {
       if (channelId === channel.id && !disposed) setParticipants((current) => {
-        if (next.length > current.length) playNexoSound('voice-user-join');
-        if (next.length < current.length) playNexoSound('voice-user-leave');
+        if (next.length > current.length) playHearthSound('voice-user-join');
+        if (next.length < current.length) playHearthSound('voice-user-leave');
         return next;
       });
     };
@@ -280,7 +280,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
         joinedRef.current = true;
         setJoinedAt(Date.now());
         setParticipants(payload.participants || []);
-        playNexoSound('voice-join');
+        playHearthSound('voice-join');
         socket.emit('channel:join', { serverId: server.id, channelId: channel.id });
         window.dispatchEvent(new CustomEvent('hr-voice-state', { detail: {
           active: true, serverId: server.id, channelId: channel.id, serverName: server.name,
@@ -315,7 +315,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       screenRef.current?.getTracks().forEach((track) => track.stop());
       cameraRef.current?.getTracks().forEach((track) => track.stop());
       if (joinedRef.current) {
-        playNexoSound('voice-leave');
+        playHearthSound('voice-leave');
         socket.emit('channel:leave', channel.id);
         void apiFetch(`/api/servers/${server.id}/channels/${channel.id}/voice/leave`, { method: 'POST' })
           .then((response) => response.json().catch(() => ({})))
