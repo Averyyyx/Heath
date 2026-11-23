@@ -34,5 +34,5 @@ test('application forms use the shared UI controls outside the UI primitives fol
       }
     }
   }
-  assert.deepEqual(unstyledButtons, [], 'Buttons must have an explicit Nexo class and use custom tooltips.');
+  assert.deepEqual(unstyledButtons, [], 'Buttons must have an explicit Hearth class and use custom tooltips.');
 });

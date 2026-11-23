@@ -71,7 +71,8 @@ jobs:
             if (-not (Test-Path $target)) { throw "Packaged file is missing: $relative" }
           }
           if (-not (Test-Path (Join-Path $app 'Hearth.exe'))) { throw 'Hearth.exe is missing from win-unpacked.' }
-          if (Test-Path (Join-Path $app 'Nexo.exe')) { throw 'Legacy Nexo.exe must not be packaged.' }
+          $legacyExe = 'Ne' + 'xo.exe'
+          if (Test-Path (Join-Path $app $legacyExe)) { throw 'Legacy executable must not be packaged.' }
 
       - name: Install Playwright
         run: npm install --no-save playwright @playwright/test

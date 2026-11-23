@@ -92,7 +92,7 @@ export function LoginPanel({ onSuccess }: LoginPanelProps) {
     <div className="panel login">
       <div className="login-panel">
         <div>
-          <p className="eyebrow">NEXO ACCOUNT</p>
+          <p className="eyebrow">HEARTH ACCOUNT</p>
           <h1>{mode === 'login' ? t('loginTitle') : t('registerTitle')}</h1>
           <p className="muted">{mode === 'login' ? t('loginSubtitle') : t('registerSubtitle')}</p>
         </div>
