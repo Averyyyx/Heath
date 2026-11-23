@@ -3,9 +3,10 @@ import { useEffect } from 'react';
 type WhatsNewModalProps = {
   version: string;
   onClose: () => void;
+  releaseNotes?: string;
 };
 
-export function WhatsNewModal({ version, onClose }: WhatsNewModalProps) {
+export function WhatsNewModal({ version, onClose, releaseNotes = '' }: WhatsNewModalProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -26,6 +27,7 @@ export function WhatsNewModal({ version, onClose }: WhatsNewModalProps) {
           <li>После переноса может потребоваться войти в аккаунт ещё раз.</li>
         </ul>
         <p className="hr-whats-new-note">Не удаляйте старую папку Nexo, пока не убедитесь, что ваши данные и настройки на месте.</p>
+        {releaseNotes.trim() && <div className="hr-whats-new-release-notes" aria-label="Примечания к выпуску">{releaseNotes}</div>}
         <div className="hr-whats-new-actions">
           <button type="button" className="primary" onClick={onClose}>Понятно</button>
         </div>

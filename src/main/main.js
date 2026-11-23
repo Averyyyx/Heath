@@ -366,6 +366,21 @@ function setupIPCHandlers() {
   });
 
   ipcMain.handle('get-app-version', () => app.getVersion());
+  ipcMain.handle('get-release-notes', async (_event, version) => {
+    try {
+      const safeVersion = String(version || '').replace(/[^0-9A-Za-z.+-]/g, '');
+      if (!safeVersion) return '';
+      const response = await fetch('https://api.github.com/repos/Averyyyx/Hearth/releases/tags/v' + safeVersion, {
+        headers: { 'User-Agent': brand.userAgent, Accept: 'application/vnd.github+json' },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) return '';
+      const release = await response.json();
+      return typeof release.body === 'string' ? release.body : '';
+    } catch {
+      return '';
+    }
+  });
   ipcMain.handle('check-for-updates', () => checkForUpdates({ interactive: true }));
   ipcMain.handle('get-update-preferences', () => getUpdatePreferences());
   ipcMain.on('set-update-preferences', (_event, value) => { setUpdatePreferences(value); });

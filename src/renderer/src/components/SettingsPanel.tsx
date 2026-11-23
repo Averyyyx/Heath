@@ -35,6 +35,7 @@ type SettingsPanelProps = {
   onLogout?: () => void;
   appVersion?: string;
   onCheckUpdates?: () => Promise<{ status: string; version?: string; message: string; releaseNotes?: string }>;
+  onShowWhatsNew?: () => void;
   audioInputId?: string;
   audioOutputId?: string;
   videoInputId?: string;
@@ -112,7 +113,7 @@ const PERMISSION_FLAGS = [
   { label: 'Транслировать экран', value: 1 << 9 }
 ];
 
-export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.9-alpha', onCheckUpdates, audioInputId = '', audioOutputId = '', videoInputId = '', onVideoInputChange, onAudioInputChange, onAudioOutputChange }: SettingsPanelProps) {
+export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.9-alpha', onCheckUpdates, onShowWhatsNew, audioInputId = '', audioOutputId = '', videoInputId = '', onVideoInputChange, onAudioInputChange, onAudioOutputChange }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [soundPreferences, setSoundPreferences] = useState<HearthSoundPreferences>(() => getHearthSoundPreferences());
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
@@ -1022,6 +1023,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       <div className="settings-section">
         <p className="eyebrow">Hearth Desktop</p>
         <h2>Обновления</h2>
+        {onShowWhatsNew && <Button variant="secondary" onClick={onShowWhatsNew}>Что нового</Button>}
         <p className="muted">Hearth проверяет новые Alpha-релизы автоматически при запуске. Здесь можно запустить проверку вручную.</p>
         <div className="update-version-card">
           <div><span>Установленная версия</span><strong>{appVersion}</strong></div>

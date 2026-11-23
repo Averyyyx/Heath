@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('hearthAPI', {
   maximizeWindow: () => ipcRenderer.send('maximize-window'),
   closeWindow: () => ipcRenderer.send('close-window'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getReleaseNotes: (version) => ipcRenderer.invoke('get-release-notes', version),
   setWindowTheme: (theme) => ipcRenderer.send('set-window-theme', theme),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   getUpdatePreferences: () => ipcRenderer.invoke('get-update-preferences'),

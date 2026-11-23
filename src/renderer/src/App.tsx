@@ -151,6 +151,7 @@ export default function App() {
   const [createChannelUserLimit, setCreateChannelUserLimit] = useState(8);
   const [appVersion, setAppVersion] = useState('0.0.9-alpha');
   const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [whatsNewNotes, setWhatsNewNotes] = useState('');
 
   const desktopApi = typeof window !== 'undefined' ? window.hearthAPI : undefined;
   const tabStripRef = useRef<HTMLDivElement>(null);
@@ -173,6 +174,11 @@ export default function App() {
   useEffect(() => {
     desktopApi?.getAppVersion?.().then(setAppVersion).catch(() => {});
   }, [desktopApi]);
+
+  useEffect(() => {
+    if (!appVersion || !desktopApi?.getReleaseNotes) return;
+    desktopApi.getReleaseNotes(appVersion).then(setWhatsNewNotes).catch(() => setWhatsNewNotes(''));
+  }, [appVersion, desktopApi]);
 
   useEffect(() => {
     if (loading || !appVersion) return;
@@ -1419,7 +1425,7 @@ export default function App() {
                     }}
                     micMuted={micMuted} onToggleMic={() => setMic(!micMuted)} deafened={deafened} audioInputId={audioInputId} audioOutputId={audioOutputId} videoInputId={videoInputId} />}
                   {tab.kind === 'settings' && <SettingsPanel key={tab.id} user={user} onUserUpdate={(nextUser) => setUser(nextUser)}
-                    initialSection={tab.initialSection || 'account'} appVersion={appVersion} onCheckUpdates={handleCheckUpdates}
+                    initialSection={tab.initialSection || 'account'} appVersion={appVersion} onCheckUpdates={handleCheckUpdates} onShowWhatsNew={() => setShowWhatsNew(true)}
                     audioInputId={audioInputId} audioOutputId={audioOutputId} videoInputId={videoInputId}
                     onVideoInputChange={(id) => { setVideoInputId(id); localStorage.setItem(`hearth.video-input.${user.id}`, id); }}
                     onAudioInputChange={(id) => { setAudioInputId(id); localStorage.setItem(`hearth.audio-input.${user.id}`, id); }}
@@ -1517,7 +1523,7 @@ export default function App() {
         <button className="ghost-icon" aria-label="Позже" onClick={() => setNotificationUpdate(null)}><X size={14} /></button>
       </div>}
 
-      {showWhatsNew && <WhatsNewModal version={appVersion} onClose={() => setShowWhatsNew(false)} />}
+      {showWhatsNew && <WhatsNewModal version={appVersion} releaseNotes={whatsNewNotes} onClose={() => setShowWhatsNew(false)} />}
       {welcomeKind && <WelcomeOverlay kind={welcomeKind} name={welcomeName} onClose={() => setWelcomeKind(null)} />}
     </div>
   );
