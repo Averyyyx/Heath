@@ -5,7 +5,7 @@ Hearth is a Windows desktop messenger for developers. The application keeps its 
 ## Runtime
 
 - **Electron main process** — `src/main/index.js` owns the application lifecycle, native windows, system tray, IPC, deep links, server process, and updater.
-- **Preload** — `src/preload/index.js` exposes the restricted `window.hearthAPI` bridge. The splash window uses `src/preload/splash.js`.
+- **Preload** — `src/preload/preload.js` exposes the restricted `window.hearthAPI` bridge. The splash window uses `src/preload/splash-preload.js`.
 - **Renderer** — `src/renderer/src` contains the React application, feature components, shared client utilities, and CSS layers.
 - **Embedded server** — `src/server/index.js` starts Express and Socket.IO on `127.0.0.1:4000`. It handles HTTP API requests, account data, message delivery, presence, and call signalling.
 - **WebRTC** — media is exchanged between call participants. Socket.IO carries signalling; the local server is not a central media relay.

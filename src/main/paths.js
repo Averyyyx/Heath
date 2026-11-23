@@ -13,11 +13,11 @@ function createApplicationPaths({ app, path, process, mainDirectory = __dirname 
     projectRoot,
     resourcesDirectory: appResourcesDirectory,
     splashHtml: path.join(mainDirectory, 'splash.html'),
-    mainPreload: path.join(mainDirectory, '..', 'preload', 'index.js'),
-    splashPreload: path.join(mainDirectory, '..', 'preload', 'splash.js'),
+    mainPreload: path.join(mainDirectory, '..', 'preload', 'preload.js'),
+    splashPreload: path.join(mainDirectory, '..', 'preload', 'splash-preload.js'),
     serverPath: app.isPackaged
-      ? path.join(unpackedDirectory, 'src', 'server', 'index.js')
-      : path.join(mainDirectory, '..', 'server', 'index.js'),
+      ? path.join(unpackedDirectory, 'src', 'server', 'preload.js')
+      : path.join(mainDirectory, '..', 'server', 'preload.js'),
     serverWorkingDirectory: unpackedDirectory
   });
 }

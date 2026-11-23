@@ -12,7 +12,6 @@ const { migrateLegacyUserData } = require('./legacy-migration');
 // иначе Windows может закрепить процесс под общим значком Electron.
 if (process.platform === 'win32') app.setAppUserModelId('com.nexo.app');
 app.setName(brand.name);
-app.setPath('userData', migrateLegacyUserData({ appDataPath: app.getPath('appData'), fs, path, logger: console }));
 
 
 let mainWindow = null;
@@ -182,6 +181,9 @@ if (!gotSingleInstanceLock) {
 
 // Инициализация приложения Electron
 app.whenReady().then(async () => {
+  // Migrate the previous user profile before any service or window uses userData.
+  app.setPath('userData', migrateLegacyUserData({ appDataPath: app.getPath('appData'), fs, path, logger: console }));
+
   if (!gotSingleInstanceLock) {
     return;
   }
