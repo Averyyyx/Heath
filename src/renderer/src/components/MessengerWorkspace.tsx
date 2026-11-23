@@ -62,6 +62,22 @@ import {
 } from './messenger/MessageComponents';
 
 
+async function copyText(value: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    const field = document.createElement('textarea');
+    field.value = value;
+    field.setAttribute('readonly', '');
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    document.body.appendChild(field);
+    field.select();
+    document.execCommand('copy');
+    field.remove();
+  }
+}
+
 type WorkspaceMode = 'servers' | 'friends';
 
 type MessengerWorkspaceProps = {
@@ -1737,8 +1753,8 @@ export function MessengerWorkspace({
             <button type="button" className="context-menu-action" onClick={() => {
               const message = messageContext.message;
               const link = messageContext.kind === 'dm' && 'conversation_id' in message
-                ? `nexo://dm/${message.conversation_id}/message/${message.id}`
-                : `nexo://channel/${(message as ChannelMessage).server_id}/${(message as ChannelMessage).channel_id}/message/${message.id}`;
+                ? `hearth://dm/${message.conversation_id}/message/${message.id}`
+                : `hearth://channel/${(message as ChannelMessage).server_id}/${(message as ChannelMessage).channel_id}/message/${message.id}`;
               void copyText(link);
               setMessageContext(null);
             }}><LinkIcon /><span>Копировать ссылку</span></button>
