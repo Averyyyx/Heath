@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:22-alpine
 
 # Установка зависимостей для better-sqlite3
 RUN apk add --no-cache python3 make g++
@@ -11,13 +11,14 @@ COPY package*.json ./
 COPY client/package*.json ./client/
 
 # Установка серверных и клиентских зависимостей
-RUN npm ci --only=production
-RUN npm install --prefix client
+RUN npm ci --only=production --ignore-scripts
+RUN npm ci --prefix client
 
 # Копирование исходных файлов
 COPY . .
 
-# Генерация настоящего public/ перед запуском контейнера
+# Сборка нативных модулей сервера и генерация настоящего public/
+RUN npm rebuild better-sqlite3 sqlite3
 RUN npm run build:app
 
 # Создание директорий

@@ -3540,7 +3540,7 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   display: grid; grid-template-columns: 220px minmax(0, 320px); align-items: center;
   justify-content: space-between; gap: 16px;
 }
-.settings-device-row > span { width: 220px; min-width: 220px; white-space: nowrap; }
+.settings-device-row > span:first-child { width: 220px; min-width: 220px; white-space: nowrap; }
 .settings-device-row .nexo-select-wrap { position: relative; display: block; width: 320px; max-width: 100%; min-width: 0; }
 .settings-device-row .nexo-select-wrap select, .settings-device-row select {
   width: 100%; min-width: 0; max-width: 100%; padding-right: 36px;
@@ -3569,3 +3569,7 @@ html[data-reduce-motion="true"] .nexo-root *, html[data-reduce-motion="true"] .n
   .account-settings .settings-group > label { grid-template-columns: minmax(0, 1fr); gap: 7px; }
   .settings-section .settings-group > .nexo-field > span { white-space: normal; }
 }
+
+/* Respect the full supported sidebar width range and the fixed 28px dock controls. */
+.nexo-sidebar { min-width: 220px; }
+.sidebar-user-area .dock-icon { width: 28px; height: 28px; flex: 0 0 28px; }

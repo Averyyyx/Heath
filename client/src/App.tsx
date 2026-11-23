@@ -417,6 +417,17 @@ export default function App() {
     return () => { socket.off('user:update', onUserUpdate); };
   }, [user?.id, conversations]);
 
+  // Keep restored/open group tabs in sync when the conversation title changes.
+  useEffect(() => {
+    setTabs((current) => current.map((tab) => {
+      if (tab.kind !== 'dm') return tab;
+      const conversation = conversations.find((item) => item.id === tab.targetId);
+      if (conversation?.type !== 'group') return tab;
+      const title = conversation.title || 'Групповая беседа';
+      return tab.title === title ? tab : { ...tab, title };
+    }));
+  }, [conversations]);
+
   useEffect(() => {
     if (!desktopApi?.onDeepLink) return;
     return desktopApi.onDeepLink((payload) => setPendingDeepLink(payload));

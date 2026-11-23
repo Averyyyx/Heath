@@ -352,6 +352,31 @@ async function waitForStableModal(page, modal) {
     }
 
     await pageA.evaluate(() => { document.body.style.zoom = '1'; });
+    const sidebar = pageA.locator('.nexo-sidebar');
+    const originalSidebarWidth = await sidebar.evaluate((element) => element.getBoundingClientRect().width);
+    for (const width of [220, 264, 360]) {
+      await sidebar.evaluate((element, nextWidth) => { element.style.width = nextWidth + 'px'; }, width);
+      await pageA.waitForTimeout(180);
+      const dockLayout = await sidebar.evaluate((element) => {
+        const dock = element.querySelector('.nexo-user-dock');
+        const avatar = dock?.querySelector('.nexo-avatar');
+        const copy = dock?.querySelector('.dock-user-copy');
+        const buttons = Array.from(dock?.querySelectorAll('.dock-actions > button') || []);
+        const dockRect = dock?.getBoundingClientRect();
+        return {
+          width: element.getBoundingClientRect().width,
+          avatarWidth: avatar?.getBoundingClientRect().width || 0,
+          copyWidth: copy?.getBoundingClientRect().width || 0,
+          buttons: buttons.length,
+          buttonsInside: Boolean(dockRect) && buttons.every((button) => button.getBoundingClientRect().left >= dockRect.left && button.getBoundingClientRect().right <= dockRect.right)
+        };
+      });
+      if (Math.abs(dockLayout.width - width) > 1 || dockLayout.avatarWidth < 35 || dockLayout.copyWidth < 1 || dockLayout.buttons !== 3 || !dockLayout.buttonsInside) {
+        throw new Error('User dock layout failed at sidebar width ' + width + 'px: ' + JSON.stringify(dockLayout));
+      }
+    }
+    await sidebar.evaluate((element, width) => { element.style.width = width + 'px'; }, originalSidebarWidth);
+    await pageA.waitForTimeout(180);
     await pageA.locator('.dock-user').click();
     if (await pageA.locator('.dock-account-menu, .dock-menu-profile').count()) {
       throw new Error('Legacy account menu is still present.');
