@@ -1,23 +1,40 @@
 # Architecture
 
-Hearth is a desktop communication application. The 0.0.9 codebase keeps the existing Electron, React, TypeScript, Node.js, Express, Socket.IO, and SQLite stack.
+Hearth is a Windows desktop messenger for developers. The application keeps its existing Electron, React, TypeScript, Vite, Node.js, Express, Socket.IO, SQLite, and WebRTC stack.
 
-## Runtime layers
+## Runtime
 
-- **Electron main** — `src/main/main.js` owns the desktop lifecycle, windows, tray, updater, deep links, and the local server process.
-- **Preload** — `src/preload/index.js` exposes the limited `window.hearthAPI` bridge through Electron's context bridge. The splash window uses `src/preload/splash.js`.
-- **Renderer** — `src/renderer/src` contains the React application, UI components, feature components, shared client utilities, and CSS layers.
-- **Server** — `src/server/index.js` starts Express and Socket.IO. Database schema and queries live in `src/server/db`; authentication, session middleware, services, and utilities are split into their respective directories.
-- **Shared code** — `src/shared` contains brand configuration and validation shared by desktop and server code.
+- **Electron main process** — `src/main/index.js` owns the application lifecycle, native windows, system tray, IPC, deep links, server process, and updater.
+- **Preload** — `src/preload/index.js` exposes the restricted `window.hearthAPI` bridge. The splash window uses `src/preload/splash.js`.
+- **Renderer** — `src/renderer/src` contains the React application, feature components, shared client utilities, and CSS layers.
+- **Embedded server** — `src/server/index.js` starts Express and Socket.IO on `127.0.0.1:4000`. It handles HTTP API requests, account data, message delivery, presence, and call signalling.
+- **WebRTC** — media is exchanged between call participants. Socket.IO carries signalling; the local server is not a central media relay.
+- **Shared code** — `src/shared` contains application identity, brand configuration, and validation shared by the desktop process and server.
+
+## Project layout
+
+- `docs` — architecture, development, release, test-account, and engineering notes.
+- `resources` — Hearth branding, Windows application icons, and installer assets.
+- `scripts` — icon generation, public asset preparation, source inventory, E2E, and visual-difference tools.
+- `src/main` — Electron desktop lifecycle and supporting modules.
+- `src/preload` — isolated bridges between Electron and the renderer.
+- `src/server` — embedded HTTP and real-time server, database, middleware, routes, services, and socket handlers.
+- `src/renderer` — the Vite and React client, with its own package and lock file.
+- `src/shared` — values and validation used by the desktop and server.
+- `tests` — integration and cross-module tests.
+
+The root package remains the desktop/server dependency root so Electron Builder and native modules use one root `node_modules`. The renderer has a separate package and lock file because Vite builds it independently. npm workspaces are not used.
 
 ## Data
 
-The desktop app stores its profile under the operating system's Hearth application-data directory. The SQLite database is stored at `data/hearth.db`; uploaded files and generated assets are kept under the same data directory.
+The desktop profile is stored under `%APPDATA%\\Hearth`. The database is `%APPDATA%\\Hearth\\data\\hearth.db`; uploaded files and temporary data are kept under the same `data` directory. Desktop secrets are stored in `%APPDATA%\\Hearth\\secrets.json`, and application logs are kept in the profile's `logs` directory.
 
-On the first Hearth launch, the app copies the previous Nexo profile before starting the server. It retains settings, Local Storage, Session Storage, cookies, secrets, the SQLite database, and uploaded files. Only Chromium cache directories are excluded. The database and service account are updated in the copied profile, old HTTP sessions are cleared, and the original Nexo directory is preserved as a rollback copy.
+On the first launch after the rename, the app copies the previous profile into the Hearth profile before starting the server. It retains settings, Local Storage, Session Storage, cookies, secrets, the SQLite database, and uploaded files. Only Chromium cache directories are excluded. The copied database and developer account are updated, old HTTP sessions are cleared, and the original profile is preserved as a rollback copy.
 
-## Compatibility
+## Updates
 
-- The Electron application ID remains stable so existing Windows installations can update in place.
-- The application uses the `hearth://` deep-link protocol.
-- Existing HTTP routes and Socket.IO event names are preserved during the structural refactor.
+The desktop updater checks GitHub Releases, downloads the Windows setup executable and its SHA-256 checksum, verifies the installer, then starts the Windows installer quietly. The installer identifier remains stable so an update can replace an existing installation.
+
+## Boundaries and limitations
+
+Each desktop installation runs its own local server and stores its own SQLite database. There is no shared central Hearth server. Group calls currently use a peer-to-peer mesh and are intended for a small group of participants.

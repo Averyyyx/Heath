@@ -8,12 +8,11 @@ const patterns = legacyTokens.map((token) => new RegExp(token, 'i'));
 const allowedFiles = new Set([
   'package-lock.json',
   'src/renderer/package-lock.json',
-  'src/main/lib/user-data-migration.js',
-  'src/main/lib/user-data-migration.test.js',
+  'src/main/legacy-migration.js',
   'src/renderer/src/lib/legacy-migration.ts',
-  'src/server/db/migrations.js',
-  'src/server/db/migrations.test.js',
+  'tests/legacy-migration.test.js',
   'src/renderer/src/content/whats-new.ts',
+  'electron-builder.yml',
   'CHANGELOG.md'
 ]);
 const appId = 'com.' + legacyTokens[0] + '.app';
@@ -34,7 +33,7 @@ for (const file of files) {
   }
   const lines = content.split(/\r?\n/);
   lines.forEach((line, index) => {
-    if ((file === 'src/main/main.js' || file === 'electron-builder.yml') && line.includes(appId)) return;
+    if ((file === 'src/main/index.js' || file === 'electron-builder.yml') && line.includes(appId)) return;
     for (const pattern of patterns) {
       if (pattern.test(line)) {
         violations.push(file + ':' + (index + 1) + ': ' + line.trim());

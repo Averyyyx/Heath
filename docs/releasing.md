@@ -1,26 +1,30 @@
 # Releasing
 
-Hearth uses the GitHub Actions workflow `.github/workflows/release.yml` for Windows Alpha releases.
+Hearth uses `.github/workflows/ci.yml` for validation and `.github/workflows/release.yml` for Windows Alpha releases.
 
 ## Before release
 
-1. Update the root and renderer package versions together.
-2. Update `CHANGELOG.md` with user-visible changes.
-3. Run `npm test`, `npm run build:app`, and the Windows CI checks.
-4. Confirm the stable Electron application ID remains unchanged to preserve in-place upgrades.
+1. Update the version in the root and renderer `package.json` files and both lock files.
+2. Add the user-visible changes to the top of `CHANGELOG.md`.
+3. Run `npm ci` and `npm ci --prefix src/renderer`.
+4. Require green CI, including tests, TypeScript, the application build, Windows installer packaging, packaged-file checks, E2E, inventory comparison, and visual comparison.
+5. Confirm that `appId: com.nexo.app` remains unchanged.
 
 ## Publish
 
-The release workflow can be started manually, by pushing a version tag matching `v*`, or after a successful CI run on `main` whose release commit message starts with `[release]`.
+The Release workflow supports a manual run, a pushed `v*` tag, and a successful CI run on `main` whose commit message contains `[release]`.
 
-The workflow builds the Windows NSIS installer, calculates a SHA-256 checksum, uploads both as workflow artifacts, and publishes a GitHub prerelease with the installer, checksum, update metadata, and blockmap.
+It builds the Windows x64 NSIS installer and the adjacent SHA-256 file. For version 0.0.9 the expected assets are:
 
-The updater reads prerelease assets from the GitHub repository configured in `src/shared/brand.js`. The repository must be named `Hearth` before the updater can retrieve Hearth releases.
+- `Hearth-0.0.9-Setup.exe`
+- `Hearth-0.0.9-Setup.exe.sha256`
+
+Both files are published as a GitHub prerelease. The updater reads prerelease assets from the repository configured in `src/shared/brand.js`.
 
 ## Что должен сделать владелец репозитория
 
-1. Открыть GitHub → Settings → General → Repository name и установить имя репозитория `Hearth`, сохранив существующий репозиторий и автоматическое перенаправление старых URL.
+1. В GitHub открыть Settings → General → Repository name и переименовать существующий репозиторий в `Hearth`. Нужно переименовать именно существующий репозиторий, чтобы GitHub сохранил перенаправление старых адресов. Не создавать новый репозиторий со старым именем.
 2. В локальной копии выполнить в PowerShell: `git remote set-url origin https://github.com/Averyyyx/Hearth.git`.
-3. Переименовать локальную папку проекта в `hearth` и заново открыть её в редакторе.
-4. После зелёного CI слить `chore/0.0.9-restructure` в `main`, затем сделать отдельный release-коммит с префиксом `[release]`.
-5. Проверить опубликованный prerelease: в нём должны быть установщик Hearth и файл SHA-256 рядом с ним.
+3. Переименовать локальную папку проекта в `hearth` и заново открыть её в VS Code.
+4. После всех зелёных проверок слить `chore/0.0.9-restructure` в `main`, дождаться зелёного CI и сделать отдельный коммит с `[release]` в сообщении.
+5. После публикации проверить, что в GitHub prerelease есть оба файла: установщик и checksum с указанными выше именами.

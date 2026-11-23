@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const { compareReleaseVersions } = require('./lib/version');
 const { parseHearthDeepLink } = require('./lib/deeplink');
 const brand = require('../shared/brand');
-const { migrateLegacyUserData } = require('./lib/user-data-migration');
+const { migrateLegacyUserData } = require('./legacy-migration');
 
 // Windows связывает иконку окна и ярлык с этим ID. Задаём до app.whenReady(),
 // иначе Windows может закрепить процесс под общим значком Electron.

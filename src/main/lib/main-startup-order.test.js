@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 test('Electron initializes server readiness only after its URL and factory exist', () => {
-  const mainPath = path.join(__dirname, '..', 'main.js');
+  const mainPath = path.join(__dirname, '..', 'index.js');
   const source = fs.readFileSync(mainPath, 'utf8');
   const positions = [
     source.indexOf('const SERVER_PORT ='),

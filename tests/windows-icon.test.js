@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
-const mainSource = fs.readFileSync(path.join(root, 'src', 'main', 'main.js'), 'utf8');
+const mainSource = fs.readFileSync(path.join(root, 'src', 'main', 'index.js'), 'utf8');
 const builder = fs.readFileSync(path.join(root, 'electron-builder.yml'), 'utf8');
 const iconBuilder = fs.readFileSync(path.join(root, 'scripts', 'build-icons.js'), 'utf8');
 const iconService = fs.readFileSync(path.join(root, 'src', 'main', 'lib', 'icons.js'), 'utf8');

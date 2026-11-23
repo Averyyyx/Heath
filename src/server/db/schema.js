@@ -1,7 +1,5 @@
 'use strict';
 
-const fs = require('node:fs');
-
 function createDatabase({ Database, path, dataDir, env = process.env }) {
   const db = new Database(env.DB_PATH || path.join(dataDir, 'hearth.db'));
   db.pragma('journal_mode = WAL');
@@ -18,14 +16,6 @@ function createDatabase({ Database, path, dataDir, env = process.env }) {
     db.prepare('INSERT OR IGNORE INTO http_sessions (sid, sess, expires_at) SELECT sid, sess, expires_at FROM app_sessions').run();
   }
 
-  // Both marker names are supported so profiles created by earlier alpha builds
-  // still receive the one-time cleanup after the legacy database is copied.
-  const migrationMarkers = [
-    path.join(path.dirname(dataDir), '.migrated-from-legacy'),
-    path.join(path.dirname(dataDir), '.hearth-migration-v1')
-  ];
-  const migratedLegacyProfile = env.ELECTRON_DESKTOP === '1' && migrationMarkers.some((marker) => fs.existsSync(marker));
-  const sessionResetMarker = path.join(path.dirname(dataDir), '.hearth-sessions-reset-v1');
   
   db.prepare(`
     CREATE TABLE IF NOT EXISTS users (
@@ -59,17 +49,6 @@ function createDatabase({ Database, path, dataDir, env = process.env }) {
   
   ensureUserColumn('display_name', `display_name TEXT DEFAULT ''`);
 
-  // Apply all account and session renames together, once per copied profile.
-  if (migratedLegacyProfile && !fs.existsSync(sessionResetMarker)) {
-    const hasLegacySessions = Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'app_sessions'").get());
-    db.transaction(() => {
-      db.prepare("UPDATE users SET email = 'dev@hearth.local' WHERE email = 'dev@nexo.local'").run();
-      db.prepare("UPDATE users SET display_name = 'Hearth Dev' WHERE display_name = 'Nexo Dev'").run();
-      db.prepare('DELETE FROM http_sessions').run();
-      if (hasLegacySessions) db.prepare('DELETE FROM app_sessions').run();
-    })();
-    fs.writeFileSync(sessionResetMarker, '1', 'utf8');
-  }
   ensureUserColumn('discriminator', `discriminator TEXT DEFAULT '0001'`);
   ensureUserColumn('profile_complete', `profile_complete INTEGER DEFAULT 0`);
   ensureUserColumn('bio', `bio TEXT DEFAULT ''`);

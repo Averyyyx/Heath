@@ -1,16 +1,20 @@
 'use strict';
 
-function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
+function migrateLegacyUserData({
+  appDataPath,
+  fs,
+  path,
+  Database = require('better-sqlite3'),
+  logger = console
+}) {
   const legacyPath = path.join(appDataPath, 'Nexo');
   const targetPath = path.join(appDataPath, 'Hearth');
   const markerPath = path.join(targetPath, '.migrated-from-legacy');
-  const previousMarkerPath = path.join(targetPath, '.hearth-migration-v1');
   const databasePath = path.join(targetPath, 'data', 'hearth.db');
   const inProgressPath = path.join(targetPath, '.hearth-migration-in-progress');
 
   if (
     fs.existsSync(markerPath) ||
-    fs.existsSync(previousMarkerPath) ||
     fs.existsSync(databasePath) ||
     !fs.existsSync(legacyPath)
   ) return targetPath;
@@ -41,7 +45,7 @@ function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
     });
 
     // Earlier desktop builds used both root-level and data/app.db layouts.
-    // Keep those profiles compatible while renaming the database in the copy.
+    // Rename every database sidecar in the copied profile without touching the source.
     const databaseDirectories = [targetPath, path.join(targetPath, 'data')];
     for (const databaseDirectory of databaseDirectories) {
       if (!fs.existsSync(databaseDirectory)) continue;
@@ -54,9 +58,31 @@ function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
       }
     }
 
-    const migratedDatabase = path.join(targetPath, 'data', 'hearth.db');
-    if (!fs.existsSync(migratedDatabase)) {
-      throw new Error('The migrated Hearth database was not found: ' + migratedDatabase);
+    if (!fs.existsSync(databasePath)) {
+      throw new Error('The copied SQLite database was not found: ' + databasePath);
+    }
+
+    const db = new Database(databasePath);
+    try {
+      const hasTable = (name) => Boolean(
+        db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(name)
+      );
+      const userColumns = hasTable('users')
+        ? new Set(db.prepare('PRAGMA table_info(users)').all().map((column) => column.name))
+        : new Set();
+
+      db.transaction(() => {
+        if (userColumns.size) {
+          db.prepare("UPDATE users SET email = 'dev@hearth.local' WHERE email = 'dev@nexo.local'").run();
+          if (userColumns.has('display_name')) {
+            db.prepare("UPDATE users SET display_name = 'Hearth Dev' WHERE display_name = 'Nexo Dev'").run();
+          }
+        }
+        if (hasTable('http_sessions')) db.prepare('DELETE FROM http_sessions').run();
+        if (hasTable('app_sessions')) db.prepare('DELETE FROM app_sessions').run();
+      })();
+    } finally {
+      db.close();
     }
 
     fs.writeFileSync(markerPath, new Date().toISOString(), 'utf8');

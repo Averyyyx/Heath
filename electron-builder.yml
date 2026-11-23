@@ -1,6 +1,7 @@
+# Installer identifier is retained for in-place upgrades of existing installations.
 appId: com.nexo.app
 productName: Hearth
-copyright: Copyright © 2026 Hearth
+copyright: Copyright © 2026 Averyyyx
 
 directories:
   output: dist
@@ -55,7 +56,7 @@ nsis:
   deleteAppDataOnUninstall: false
 
 extraMetadata:
-  main: src/main/main.js
+  main: src/main/index.js
 
 # Нативные модули пересобираются под Electron в postinstall (electron-builder install-app-deps)
 npmRebuild: false
