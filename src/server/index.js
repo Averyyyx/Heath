@@ -1561,11 +1561,7 @@ io.on('connection', (socket) => {
   });
 });
 
-function sanitizeUser(user) {
-  if (!user) return null;
-  const { password_hash, twofa_secret, ...rest } = user;
-  return rest;
-}
+const { sanitizeUser } = require('./utils/users');
 
 function broadcastUserUpdate(updatedUser) {
   if (!updatedUser || !io) return;
@@ -1581,12 +1577,7 @@ function broadcastUserUpdate(updatedUser) {
   io.to(getUserRoom(updatedUser.id)).emit('user:update', { user: updatedUser });
 }
 
-function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated && req.isAuthenticated()) {
-    return next();
-  }
-  return res.status(401).json({ message: 'Not authenticated.' });
-}
+const { ensureAuthenticated } = require('./middleware/auth');
 
 app.post('/api/servers/:serverId/roles', ensureAuthenticated, (req, res) => {
   const serverId = Number(req.params.serverId);
