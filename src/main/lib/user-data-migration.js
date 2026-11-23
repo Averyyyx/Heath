@@ -35,11 +35,17 @@ function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
       }
     });
 
-    for (const databaseName of ['app.db', 'nexo.db']) {
-      for (const suffix of ['', '-wal', '-shm']) {
-        const oldFile = path.join(targetPath, databaseName + suffix);
-        const newFile = path.join(targetPath, 'hearth.db' + suffix);
-        if (fs.existsSync(oldFile) && !fs.existsSync(newFile)) fs.renameSync(oldFile, newFile);
+    // 0.0.8 stored the SQLite database under userData/data/app.db.
+    // Keep root-level locations supported for profiles created by older dev builds.
+    const databaseDirectories = [targetPath, path.join(targetPath, 'data')];
+    for (const databaseDirectory of databaseDirectories) {
+      if (!fs.existsSync(databaseDirectory)) continue;
+      for (const databaseName of ['app.db', 'nexo.db']) {
+        for (const suffix of ['', '-wal', '-shm']) {
+          const oldFile = path.join(databaseDirectory, databaseName + suffix);
+          const newFile = path.join(databaseDirectory, 'hearth.db' + suffix);
+          if (fs.existsSync(oldFile) && !fs.existsSync(newFile)) fs.renameSync(oldFile, newFile);
+        }
       }
     }
 
