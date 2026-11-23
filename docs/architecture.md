@@ -12,9 +12,9 @@ Hearth is a desktop communication application. The 0.0.9 codebase keeps the exis
 
 ## Data
 
-The desktop app stores its profile under the operating system's Hearth application-data directory. SQLite data is stored in `hearth.db`; uploaded files and generated assets are kept under the configured data directory.
+The desktop app stores its profile under the operating system's Hearth application-data directory. The SQLite database is stored at `data/hearth.db`; uploaded files and generated assets are kept under the same data directory.
 
-The first Hearth launch copies durable data from the previous profile directory. Chromium caches, cookies, and transient session storage are skipped so users sign in again. Local storage, settings, secrets, databases, and uploaded files are retained. The previous profile directory is intentionally preserved as a rollback copy.
+On the first Hearth launch, the app copies the previous Nexo profile before starting the server. It retains settings, Local Storage, Session Storage, cookies, secrets, the SQLite database, and uploaded files. Only Chromium cache directories are excluded. The database and service account are updated in the copied profile, old HTTP sessions are cleared, and the original Nexo directory is preserved as a rollback copy.
 
 ## Compatibility
 
