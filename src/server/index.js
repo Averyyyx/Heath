@@ -330,8 +330,6 @@ function seedDevAccount() {
   }
 }
 
-seedDevAccount();
-
 const allowedOrigins = (process.env.CLIENT_ORIGIN || process.env.CORS_ORIGIN || '')
   .split(',')
   .map((origin) => origin.trim())
@@ -651,6 +649,9 @@ const {
   generateUniqueHandle,
   generateHandleFromEmail
 } = createIdentityService({ selectUserByUsername });
+
+// Run only after identity helpers are initialized (the dev account uses generateHandleFromEmail).
+seedDevAccount();
 
 function hydrateFriendship(record, currentUserId) {
   if (!record) return null;
