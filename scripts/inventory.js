@@ -116,7 +116,7 @@ function inventory(sources) {
       Server: 'servers',
       Message: 'messages'
     };
-    for (const match of content.matchAll(/ensure(ServerMessage|User|Channel|Server|Message)Column\\s*\\(\\s*(['"\\x60])([^'"\\x60]+)\\2/g)) {
+    for (const match of content.matchAll(/ensure(ServerMessage|User|Channel|Server|Message)Column\s*\(\s*(['"\x60])([^'"\x60]+)\2/g)) {
       const table = ensuredTables[match[1]];
       if (!tables.has(table)) tables.set(table, new Set());
       tables.get(table).add(match[3]);
