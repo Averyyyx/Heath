@@ -56,7 +56,8 @@ function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
     if (createdTarget) {
       try { fs.rmSync(targetPath, { recursive: true, force: true }); } catch {}
     }
-    logger.warn?.('Hearth user-data migration failed; the original Nexo folder remains untouched:', error.message);
+    logger.warn?.('Hearth user-data migration failed; continuing with the original Nexo profile to avoid opening an empty account:', error.message);
+    return legacyPath;
   }
 
   return targetPath;
