@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseNexoDeepLink } = require('./deeplink');
+const { parseNexoDeepLink } = require('../src/main/lib/deeplink');
 
 test('parses valid personal conversation message links', () => {
   assert.deepEqual(parseNexoDeepLink('nexo://dm/123/message/456'), {

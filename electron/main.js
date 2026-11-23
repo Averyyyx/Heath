@@ -6,8 +6,8 @@ const fs = require('fs');
 const { Readable, Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const crypto = require('crypto');
-const { compareReleaseVersions } = require('./version');
-const { parseNexoDeepLink } = require('./deeplink');
+const { compareReleaseVersions } = require('../src/main/lib/version');
+const { parseNexoDeepLink } = require('../src/main/lib/deeplink');
 
 // Windows связывает иконку окна и ярлык с этим ID. Задаём до app.whenReady(),
 // иначе Windows может закрепить процесс под общим значком Electron.

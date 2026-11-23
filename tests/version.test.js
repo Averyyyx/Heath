@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { compareReleaseVersions } = require('./version');
+const { compareReleaseVersions } = require('../src/main/lib/version');
 
 test('orders alpha releases', () => {
   assert.equal(compareReleaseVersions('0.0.3-alpha', '0.0.4-alpha'), -1);
