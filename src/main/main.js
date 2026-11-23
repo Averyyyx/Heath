@@ -22,7 +22,6 @@ let mainWindow = null;
 let splashWindow = null;
 let tray = null;
 let serverProcess = null;
-const { waitForServer } = createServerReadiness({ http, serverUrl: SERVER_URL, getServerProcess: () => serverProcess });
 let serverReady = false;
 let serverRestarts = 0;
 let updateCheckPromise = null;
@@ -43,6 +42,8 @@ const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 const { setupLogging } = require('./lib/logging');
 
 const { createServerReadiness } = require('./lib/server-readiness');
+
+const { waitForServer } = createServerReadiness({ http, serverUrl: SERVER_URL, getServerProcess: () => serverProcess });
 
 const { createIconService } = require('./lib/icons');
 const {
