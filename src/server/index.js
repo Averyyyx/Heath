@@ -1,61 +1,26 @@
 require('dotenv').config();
 
-if (!process.env.SESSION_SECRET) {
-  console.warn('WARNING: Using default SESSION_SECRET. Set SESSION_SECRET in production!');
-  process.env.SESSION_SECRET = 'nexo-desktop-session-secret-change-in-production';
-}
-if (!process.env.JWT_SECRET) {
-  console.warn('WARNING: Using default JWT_SECRET. Set JWT_SECRET in production!');
-  process.env.JWT_SECRET = 'nexo-desktop-jwt-secret-change-in-production';
-}
-if (!process.env.CLIENT_ORIGIN) process.env.CLIENT_ORIGIN = 'http://localhost:4000';
-if (!process.env.NODE_ENV) process.env.NODE_ENV = 'production';
+const { createServerConfig } = require('./config');
+const {
+  isDesktop,
+  PORT,
+  dataDir,
+  publicDir,
+  uploadsDir,
+  tempUploadsDir,
+  avatarsDir,
+  ALLOWED_MIME_TYPES,
+  ALLOWED_EXTENSIONS,
+  PASSWORD_MIN_SCORE,
+  REQUIRE_HTTPS,
+  isProduction,
+  PREMIUM_BRAND,
+  PREMIUM_BALANCE_TOKEN,
+  useMemorySession,
+  useSQLiteSession
+} = createServerConfig(process.env, __dirname);
 
-const isDesktop = process.env.ELECTRON_DESKTOP === '1';
 
-const path = require('path');
-const fs = require('fs');
-const fsp = require('fs/promises');
-const http = require('http');
-const express = require('express');
-const session = require('express-session');
-const RedisStore = require('connect-redis').default;
-const { createClient: createRedisClient } = require('redis');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const csrf = require('csurf');
-const mongoSanitize = require('express-mongo-sanitize');
-const hpp = require('hpp');
-const bcrypt = require('bcryptjs');
-const passport = require('passport');
-const LocalStrategy = require('passport-local').Strategy;
-const GitHubStrategy = require('passport-github2').Strategy;
-const Database = require('better-sqlite3');
-const sharp = require('sharp');
-const speakeasy = require('speakeasy');
-const QRCode = require('qrcode');
-const zxcvbn = require('zxcvbn');
-const { fileTypeFromFile } = require('file-type');
-const NodeClam = require('clamscan');
-const multer = require('multer');
-const { Server } = require('socket.io');
-const { randomUUID, randomBytes } = require('crypto');
-const { isValidEmail } = require('../../electron/email-validation');
-require('dotenv').config();
-
-const app = express();
-const server = http.createServer(app);
-const PORT = process.env.PORT || 4000;
-
-// Каталог данных. Сервер работает как отдельный процесс (Node/Electron-as-Node),
-// поэтому модуль 'electron' здесь недоступен: путь всегда передаёт main.js через DATA_DIR.
-const dataDir = process.env.DATA_DIR || path.resolve(__dirname, '..', '..', 'data');
-
-// public лежит рядом с server.js (и в dev, и в упакованном приложении)
-const publicDir = path.resolve(__dirname, '..', '..', 'public');
-
-// Логируем путь к publicDir
 console.log('Public directory path:', publicDir);
 console.log('Public directory exists:', fs.existsSync(publicDir));
 
@@ -64,30 +29,7 @@ if (!fs.existsSync(publicDir)) {
   console.error('Current working directory:', process.cwd());
   console.error('__dirname:', __dirname);
 }
-const uploadsDir = path.join(dataDir, 'uploads');
-const tempUploadsDir = path.join(dataDir, 'tmp');
-const avatarsDir = path.join(dataDir, 'avatars');
-const ALLOWED_MIME_TYPES = new Set(
-  (process.env.ALLOWED_MIME_TYPES ||
-    'image/png,image/jpeg,image/webp,image/gif,video/mp4,application/pdf')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-);
-const ALLOWED_EXTENSIONS = new Set(
-  (process.env.ALLOWED_EXTENSIONS || '.png,.jpg,.jpeg,.webp,.gif,.mp4,.pdf')
-    .split(',')
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean)
-);
-const PASSWORD_MIN_SCORE = Number(process.env.PASSWORD_MIN_SCORE || 3);
-const REQUIRE_HTTPS = process.env.REQUIRE_HTTPS === 'true';
-const isProduction = process.env.NODE_ENV === 'production';
-const PREMIUM_BRAND = process.env.PREMIUM_BRAND || 'Nexo Pulse';
-const PREMIUM_BALANCE_TOKEN = process.env.PREMIUM_BALANCE_TOKEN || '';
 
-const useMemorySession = process.env.USE_MEMORY_SESSION === 'true' || isDesktop;
-const useSQLiteSession = isDesktop || useMemorySession;
 let redisClient = null;
 
 if (!useSQLiteSession) {
