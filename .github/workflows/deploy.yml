@@ -1,4 +1,4 @@
-name: Deploy Nexo
+name: Deploy Hearth
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
       run: npm ci
       
     - name: Install client dependencies
-      run: npm ci --prefix client
+      run: npm ci --prefix src/renderer
       
     - name: Build application
       run: npm run build:app
@@ -35,12 +35,12 @@ jobs:
         username: ${{ secrets.SERVER_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          cd /var/www/nexo
+          cd /var/www/hearth
           git pull origin main
           npm install
-          npm ci --prefix client
+          npm ci --prefix src/renderer
           npm run build:app
-          pm2 restart nexo
+          pm2 restart hearth
           
     - name: Notify deployment
       if: success()

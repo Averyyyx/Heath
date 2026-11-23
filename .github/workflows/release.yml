@@ -1,14 +1,11 @@
-name: Hearth Alpha Release
+name: Release
 
 on:
   workflow_dispatch:
   workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
-    branches:
-      - main
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   push:
     tags:
       - 'v*'
@@ -42,14 +39,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install client dependencies
+      - name: Install renderer dependencies
         run: npm ci --prefix src/renderer
 
       - name: Run project checks
         run: npm test
-
-      - name: Build client (TypeScript + Vite)
-        run: npm run build --prefix src/renderer
 
       - name: Build Windows installer
         run: npm run electron:build
@@ -57,18 +51,18 @@ jobs:
       - name: Generate SHA-256 checksum
         shell: pwsh
         run: |
-          $installer = Get-ChildItem dist -Filter *.exe | Select-Object -First 1
-          if (-not $installer) { throw 'Windows installer not found.' }
-          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          Set-Content -Path ($installer.FullName + '.sha256') -Value "$hash  $($installer.Name)" -NoNewline -Encoding ascii
+          $installer = Join-Path $env:GITHUB_WORKSPACE 'dist/Hearth-0.0.9-Setup.exe'
+          if (-not (Test-Path $installer)) { throw 'Hearth installer not found.' }
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path ($installer + '.sha256') -Value "$hash  Hearth-0.0.9-Setup.exe" -NoNewline -Encoding ascii
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Hearth-${{ steps.version.outputs.version }}-Windows
+          name: Hearth-0.0.9-Windows
           path: |
-            dist/*.exe
-            dist/*.exe.sha256
+            dist/Hearth-0.0.9-Setup.exe
+            dist/Hearth-0.0.9-Setup.exe.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -78,9 +72,15 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Hearth ${{ steps.version.outputs.version }}
           prerelease: true
-          generate_release_notes: true
+          body: |
+            ## Hearth 0.0.9 Alpha
+
+            - The application has a new name and icon.
+            - Existing local profile data is migrated automatically.
+            - Sign in again after installing this update.
+            - The previous data folder is kept as a rollback copy.
           files: |
-            dist/*.exe
-            dist/*.exe.sha256
+            dist/Hearth-0.0.9-Setup.exe
+            dist/Hearth-0.0.9-Setup.exe.sha256
             dist/latest.yml
             dist/*.blockmap
