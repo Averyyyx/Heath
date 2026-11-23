@@ -11,6 +11,7 @@ files:
   - "src/server/**/*"
   - "src/main/**/*"
   - "src/preload/**/*"
+  - "src/shared/**/*"
   - "public/**/*"
   - "node_modules/**/*"
   - "!node_modules/**/{test,tests,__tests__,docs,example,examples}/**"
@@ -28,6 +29,7 @@ afterPack: scripts/after-pack.js
 # распаковать целиком (раньше распаковывался только better-sqlite3, и express и др. не находились).
 asarUnpack:
   - "src/server/**/*"
+  - "src/shared/**/*"
   - "public/**/*"
   - "node_modules/**/*"
   - "node_modules/better-sqlite3/**/*"
