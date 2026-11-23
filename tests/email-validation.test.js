@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isValidEmail } = require('./email-validation');
+const { isValidEmail } = require('../src/shared/email-validation');
 
 test('email validation accepts normal and plus-addressed emails', () => {
   assert.equal(isValidEmail('real@example.com'), true);

@@ -28,7 +28,7 @@ const NodeClam = require('clamscan');
 const multer = require('multer');
 const { Server } = require('socket.io');
 const { randomUUID, randomBytes } = require('crypto');
-const { isValidEmail } = require('../../electron/email-validation');
+const { isValidEmail } = require('../shared/email-validation');
 
 const { createServerConfig } = require('./config');
 const {

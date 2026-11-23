@@ -7,7 +7,7 @@
     "dev": "node src/server/index.js",
     "dev:client": "cd client && npm run dev",
     "start": "electron .",
-    "test": "node --check src/server/config.js && node --check src/server/index.js && node --check electron/main.js && node --check electron/preload.js && node --check electron/splash-preload.js && node --test src/server/config.test.js electron/version.test.js electron/email-validation.test.js electron/deeplink.test.js electron/windows-icon.test.js electron/ui-font-size.test.js electron/dev-account-seed.test.js electron/splash-window.test.js electron/dock-layout.test.js electron/form-controls.test.js electron/group-call-mesh.test.js",
+    "test": "node --check src/shared/email-validation.js && node --check src/server/config.js && node --check src/server/index.js && node --check electron/main.js && node --check electron/preload.js && node --check electron/splash-preload.js && node --test src/server/config.test.js electron/version.test.js tests/email-validation.test.js electron/deeplink.test.js electron/windows-icon.test.js electron/ui-font-size.test.js electron/dev-account-seed.test.js electron/splash-window.test.js electron/dock-layout.test.js electron/form-controls.test.js electron/group-call-mesh.test.js",
     "build:client": "npm run build --prefix client",
     "prepare:public": "node scripts/prepare-public.js",
     "build:app": "npm run build:client && npm run prepare:public",
