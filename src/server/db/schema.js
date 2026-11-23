@@ -16,8 +16,6 @@ function createDatabase({ Database, path, dataDir, env = process.env }) {
     db.prepare('INSERT OR IGNORE INTO http_sessions (sid, sess, expires_at) SELECT sid, sess, expires_at FROM app_sessions').run();
   }
   
-  const { SQLiteSessionStore } = require('./middleware/sqlite-session-store');
-  
   db.prepare(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
