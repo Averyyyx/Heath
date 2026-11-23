@@ -19,7 +19,7 @@ test('NEXO_DEV_ACCOUNT seeds a complete developer profile in a fresh SQLite data
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nexo-dev-seed-'));
   const port = await getFreePort();
   const dbPath = path.join(dataDir, 'fresh.db');
-  const child = spawn(process.execPath, [path.resolve(__dirname, '..', 'server.js')], {
+  const child = spawn(process.execPath, [path.resolve(__dirname, '..', 'src', 'server', 'index.js')], {
     cwd: path.resolve(__dirname, '..'),
     env: {
       ...process.env,

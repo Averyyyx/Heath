@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+const server = fs.readFileSync(path.join(__dirname, '..', 'src', 'server', 'index.js'), 'utf8');
 const client = fs.readFileSync(path.join(__dirname, '..', 'client/src/components/MessengerWorkspace.tsx'), 'utf8');
 
 test('group DM calls accept up to six members and track the accepted mesh', () => {
