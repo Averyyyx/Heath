@@ -9,6 +9,7 @@ directories:
 files:
   - "package.json"
   - "src/server/**/*"
+  - "src/main/**/*"
   - "electron/**/*"
   - "public/**/*"
   - "node_modules/**/*"
@@ -44,7 +45,7 @@ nsis:
   deleteAppDataOnUninstall: false
 
 extraMetadata:
-  main: electron/main.js
+  main: src/main/main.js
 
 # Нативные модули пересобираются под Electron в postinstall (electron-builder install-app-deps)
 npmRebuild: false

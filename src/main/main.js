@@ -6,8 +6,8 @@ const fs = require('fs');
 const { Readable, Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const crypto = require('crypto');
-const { compareReleaseVersions } = require('../src/main/lib/version');
-const { parseNexoDeepLink } = require('../src/main/lib/deeplink');
+const { compareReleaseVersions } = require('./lib/version');
+const { parseNexoDeepLink } = require('./lib/deeplink');
 
 // Windows связывает иконку окна и ярлык с этим ID. Задаём до app.whenReady(),
 // иначе Windows может закрепить процесс под общим значком Electron.
@@ -134,7 +134,7 @@ function waitForServer(maxAttempts = 60, intervalMs = 500) {
 function getIconsDir() {
   return app.isPackaged
     ? path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'icons')
-    : path.join(__dirname, 'icons');
+    : path.join(__dirname, '..', '..', 'electron', 'icons');
 }
 
 function getDesktopIconPath() {
@@ -621,8 +621,8 @@ function startServer() {
     console.log('Using packaged application paths');
   } else {
     // В разработке
-    serverPath = path.join(__dirname, '..', 'src', 'server', 'index.js');
-    serverCwd = path.join(__dirname, '..');
+    serverPath = path.join(__dirname, '..', 'server', 'index.js');
+    serverCwd = path.join(__dirname, '..', '..');
     console.log('Using development paths');
   }
 
@@ -729,7 +729,7 @@ function createSplashWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'splash-preload.js')
+      preload: path.join(__dirname, '..', '..', 'electron', 'splash-preload.js')
     },
     show: false,
     backgroundColor: '#262624',
@@ -742,7 +742,7 @@ function createSplashWindow() {
     else console.warn('Nexo splash icon could not be loaded:', splashIconPath);
   }
 
-  const splashPath = path.join(__dirname, 'splash.html');
+  const splashPath = path.join(__dirname, '..', '..', 'electron', 'splash.html');
   console.log('Loading splash from:', splashPath);
   
   splashWindow.loadFile(splashPath);
@@ -777,7 +777,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, '..', '..', 'electron', 'preload.js')
     },
     title: 'Nexo',
     show: false,
