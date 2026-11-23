@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   workflow_run:
     workflows:
-      - Nexo 0.0.8 validation
+      - CI
     types:
       - completed
     branches:
@@ -43,13 +43,13 @@ jobs:
         run: npm ci
 
       - name: Install client dependencies
-        run: npm ci --prefix client
+        run: npm ci --prefix src/renderer
 
       - name: Run project checks
         run: npm test
 
       - name: Build client (TypeScript + Vite)
-        run: npm run build --prefix client
+        run: npm run build --prefix src/renderer
 
       - name: Build Windows installer
         run: npm run electron:build
