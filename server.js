@@ -1450,13 +1450,45 @@ io.on('connection', (socket) => {
 
   socket.on('call:timeout', ({ conversationId }) => {
     try {
-      ensureConversationAccess(Number(conversationId), socket.user.id);
-      activeCallParticipants.delete(Number(conversationId));
-      getConversationParticipants(Number(conversationId))
-        .filter((participant) => participant.id !== socket.user.id)
-        .forEach((participant) => io.to(getUserRoom(participant.id)).emit('call:timeout', {
-          conversationId: Number(conversationId), from: socket.user.id
-        }));
+      const safeConversationId = Number(conversationId);
+      ensureConversationAccess(safeConversationId, socket.user.id);
+      const call = activeCallParticipants.get(safeConversationId);
+      if (!call) return;
+
+      // The caller timing out ends the call. A single invitee timing out must
+      // not destroy an already established group mesh or other pending invites.
+      if (call.callerId === socket.user.id) {
+        activeCallParticipants.delete(safeConversationId);
+        call.invited.forEach((participantId) => {
+          if (participantId !== socket.user.id) {
+            io.to(getUserRoom(participantId)).emit('call:end', {
+              conversationId: safeConversationId, from: socket.user.id
+            });
+          }
+        });
+        return;
+      }
+
+      if (!call.invited.has(socket.user.id) || call.accepted.has(socket.user.id)) return;
+      call.declined.add(socket.user.id);
+
+      if (call.accepted.size === 1 && call.declined.size >= call.invited.size - 1) {
+        activeCallParticipants.delete(safeConversationId);
+        call.invited.forEach((participantId) => {
+          if (participantId !== socket.user.id) {
+            io.to(getUserRoom(participantId)).emit('call:end', {
+              conversationId: safeConversationId, from: socket.user.id
+            });
+          }
+        });
+        return;
+      }
+
+      call.accepted.forEach((participantId) => {
+        io.to(getUserRoom(participantId)).emit('call:timeout', {
+          conversationId: safeConversationId, from: socket.user.id
+        });
+      });
     } catch (error) { socket.emit('error', { message: error.message }); }
   });
 
