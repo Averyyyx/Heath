@@ -210,12 +210,12 @@ async function waitForStableModal(page, modal) {
     if (!incomingBeforeDrag) throw new Error('Incoming-call window has no bounding box.');
     await pageB.mouse.move(incomingBeforeDrag.x + incomingBeforeDrag.width / 2, incomingBeforeDrag.y + 22);
     await pageB.mouse.down();
-    await pageB.mouse.move(incomingBeforeDrag.x + incomingBeforeDrag.width / 2 - 55, incomingBeforeDrag.y - 23, { steps: 8 });
+    await pageB.mouse.move(12 + incomingBeforeDrag.width / 2, 34, { steps: 16 });
     await pageB.mouse.up();
     await expect.poll(async () => {
       const moved = await incomingCard.boundingBox();
-      return moved ? Math.abs(moved.x - incomingBeforeDrag.x) + Math.abs(moved.y - incomingBeforeDrag.y) : 0;
-    }).toBeGreaterThan(20);
+      return Boolean(moved && moved.x <= 20 && moved.y <= 20);
+    }).toBe(true);
     await pageB.screenshot({ path: path.join(screenshotDir, 'incoming-call-dragged-dark-1440x900.png'), fullPage: false });
     await pageB.locator('.incoming-call-actions .call-accept').click();
     await Promise.all([
