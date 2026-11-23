@@ -125,3 +125,23 @@ test('migration failure falls back to the original profile instead of opening an
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('migration rolls back when the copied Hearth database is missing', () => {
+  const { root, legacy, target } = fixture();
+  fs.mkdirSync(legacy, { recursive: true });
+  fs.writeFileSync(path.join(legacy, 'settings.json'), 'preserve');
+  try {
+    const result = migrateLegacyUserData({
+      appDataPath: root,
+      fs,
+      path,
+      logger: { log() {}, warn() {} }
+    });
+    assert.equal(result, legacy);
+    assert.equal(fs.readFileSync(path.join(legacy, 'settings.json'), 'utf8'), 'preserve');
+    assert.equal(fs.existsSync(path.join(target, '.migrated-from-legacy')), false);
+    assert.equal(fs.existsSync(target), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
