@@ -3,10 +3,17 @@
 function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
   const legacyPath = path.join(appDataPath, 'Nexo');
   const targetPath = path.join(appDataPath, 'Hearth');
-  const markerPath = path.join(targetPath, '.hearth-migration-v1');
+  const markerPath = path.join(targetPath, '.migrated-from-legacy');
+  const previousMarkerPath = path.join(targetPath, '.hearth-migration-v1');
+  const databasePath = path.join(targetPath, 'data', 'hearth.db');
   const inProgressPath = path.join(targetPath, '.hearth-migration-in-progress');
 
-  if (fs.existsSync(markerPath) || !fs.existsSync(legacyPath)) return targetPath;
+  if (
+    fs.existsSync(markerPath) ||
+    fs.existsSync(previousMarkerPath) ||
+    fs.existsSync(databasePath) ||
+    !fs.existsSync(legacyPath)
+  ) return targetPath;
 
   let createdTarget = false;
   try {
@@ -22,12 +29,10 @@ function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
     createdTarget = true;
     fs.writeFileSync(inProgressPath, new Date().toISOString(), 'utf8');
 
-    const cacheDirectories = new Set([
-      'Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'ShaderCache',
-      'GrShaderCache', 'blob_storage', 'CacheStorage', 'Session Storage', 'Cookies'
-    ]);
+    const cacheDirectories = new Set(['Cache', 'Code Cache', 'GPUCache', 'DawnCache']);
     fs.cpSync(legacyPath, targetPath, {
       recursive: true,
+      force: false,
       filter: (sourcePath) => {
         const relative = path.relative(legacyPath, sourcePath);
         if (!relative) return true;
@@ -35,8 +40,8 @@ function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
       }
     });
 
-    // 0.0.8 stored the SQLite database under userData/data/app.db.
-    // Keep root-level locations supported for profiles created by older dev builds.
+    // Earlier desktop builds used both root-level and data/app.db layouts.
+    // Keep those profiles compatible while renaming the database in the copy.
     const databaseDirectories = [targetPath, path.join(targetPath, 'data')];
     for (const databaseDirectory of databaseDirectories) {
       if (!fs.existsSync(databaseDirectory)) continue;
@@ -49,14 +54,14 @@ function migrateLegacyUserData({ appDataPath, fs, path, logger = console }) {
       }
     }
 
-    fs.writeFileSync(markerPath, '1', 'utf8');
+    fs.writeFileSync(markerPath, new Date().toISOString(), 'utf8');
     fs.rmSync(inProgressPath, { force: true });
-    logger.log?.('Legacy Nexo user data copied to Hearth. The original folder was preserved.');
+    logger.log?.('Legacy user data copied to Hearth. The original folder was preserved.');
   } catch (error) {
     if (createdTarget) {
       try { fs.rmSync(targetPath, { recursive: true, force: true }); } catch {}
     }
-    logger.warn?.('Hearth user-data migration failed; continuing with the original Nexo profile to avoid opening an empty account:', error.message);
+    logger.warn?.('Hearth user-data migration failed; continuing with the original profile to avoid opening an empty account:', error.message);
     return legacyPath;
   }
 
