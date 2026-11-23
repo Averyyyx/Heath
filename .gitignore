@@ -38,3 +38,8 @@ resources.pak
 LICENSE.electron.txt
 LICENSES.chromium.html
 .DS_Store
+# Generated Hearth icons
+/resources/icon.ico
+/resources/icon-*.png
+/resources/tray-*.png
+/resources/taskbar-badge-*.png

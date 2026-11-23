@@ -137,19 +137,19 @@ function waitForServer(maxAttempts = 60, intervalMs = 500) {
 
 function getIconsDir() {
   return app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'src', 'main', 'icons')
-    : path.join(__dirname, 'icons');
+    ? path.join(process.resourcesPath, 'resources')
+    : path.join(__dirname, '..', '..', 'resources');
 }
 
 function getDesktopIconPath() {
-  const iconPath = path.join(getIconsDir(), 'Nexo-Desctop-ico.ico');
+  const iconPath = path.join(getIconsDir(), 'icon.ico');
   if (fs.existsSync(iconPath)) {
     const ico = nativeImage.createFromPath(iconPath);
     if (!ico.isEmpty()) return iconPath;
     console.warn('Hearth ICO is unreadable; falling back to the PNG app icon:', iconPath);
   }
 
-  const pngPath = getIconPath('Nexo-Desctop-ico', 256);
+  const pngPath = getIconPath('icon', 256);
   if (fs.existsSync(pngPath)) {
     const png = nativeImage.createFromPath(pngPath);
     if (!png.isEmpty()) return pngPath;
@@ -203,8 +203,8 @@ function ensureDesktopShortcut() {
 
 function getTrayIconPath(count = notificationCount) {
   const fileName = count > 0
-    ? `nexo-ico-mini-${Math.min(9, count)}ping-32.png`
-    : 'nexo-ico-mini-32.png';
+    ? `tray-${Math.min(9, count)}-32.png`
+    : 'tray-32.png';
   return path.join(getIconsDir(), fileName);
 }
 
@@ -216,7 +216,7 @@ function createTrayImage(count = notificationCount) {
 
 function createTaskbarOverlay(count) {
   if (!count) return null;
-  const overlayPath = path.join(getIconsDir(), `nexo-taskbar-badge-${Math.min(9, count)}.png`);
+  const overlayPath = path.join(getIconsDir(), `taskbar-badge-${Math.min(9, count)}.png`);
   if (!fs.existsSync(overlayPath)) return null;
   return nativeImage.createFromPath(overlayPath);
 }
@@ -266,7 +266,7 @@ function createTray() {
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'Hearth',
-      icon: nativeImage.createFromPath(getIconPath('Nexo-Desctop-ico', 16)),
+      icon: nativeImage.createFromPath(getIconPath('icon', 16)),
       click: () => {
         if (mainWindow) {
           mainWindow.show();

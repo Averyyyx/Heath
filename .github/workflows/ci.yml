@@ -55,6 +55,21 @@ jobs:
       - name: Build application
         run: npm run build:app
 
+      - name: Build Windows installer
+        run: npm run electron:build
+
+      - name: Verify packaged Windows application
+        shell: pwsh
+        run: |
+          $app = Join-Path $env:GITHUB_WORKSPACE 'dist/win-unpacked'
+          $unpacked = Join-Path $app 'resources/app.asar.unpacked'
+          foreach ($relative in @('src/server/index.js', 'public/index.html', 'node_modules/better-sqlite3/build/Release/better_sqlite3.node')) {
+            $target = Join-Path $unpacked $relative
+            if (-not (Test-Path $target)) { throw "Packaged file is missing: $relative" }
+          }
+          if (-not (Test-Path (Join-Path $app 'Hearth.exe'))) { throw 'Hearth.exe is missing from win-unpacked.' }
+          if (Test-Path (Join-Path $app 'Nexo.exe')) { throw 'Legacy Nexo.exe must not be packaged.' }
+
       - name: Install Playwright
         run: npm install --no-save playwright @playwright/test
 
