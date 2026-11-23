@@ -14,12 +14,22 @@ async function expectOk(response, label) {
   return response.json();
 }
 
+async function assertHearthBrand(page) {
+  await expect(page).toHaveTitle('Hearth');
+  const visibleText = await page.locator('body').innerText();
+  if (/\\bNexo\\b/i.test(visibleText)) {
+    throw new Error('Legacy Nexo branding is visible in the Hearth interface.');
+  }
+}
+
 async function loginPage(page, email, password) {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await assertHearthBrand(page);
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"]').first().fill(password);
   await page.locator('form').filter({ has: page.locator('input[type="email"]') }).locator('button[type="submit"]').click();
   await page.locator('.hr-user-dock').waitFor({ state: 'visible', timeout: 30000 });
+  await assertHearthBrand(page);
 }
 
 async function openDm(page, otherName) {
@@ -47,9 +57,9 @@ async function waitForStableModal(page, modal) {
   const emailA = 'hearth-e2e-host-' + suffix + '@example.test';
   const emailB = 'hearth-e2e-guest-' + suffix + '@example.test';
   const emailC = 'hearth-e2e-third-' + suffix + '@example.test';
-  const passwordA = 'R8#tK5!mQ2@xP7$zV4';
-  const passwordB = 'C7!qR4#zP9@tL2$wM8&x';
-  const passwordC = 'H6@pN3!sW8#yK4$uQ1';
+  const passwordA = 'HearthE2E-' + suffix + '!a1';
+  const passwordB = 'HearthE2E-' + suffix + '!b2';
+  const passwordC = 'HearthE2E-' + suffix + '!c3';
   const handleA = 'e2ehost' + suffix;
   const handleB = 'e2e' + suffix;
   const handleC = 'e2ethird' + suffix;
@@ -199,6 +209,7 @@ async function waitForStableModal(page, modal) {
     await pageB.waitForTimeout(450);
     await expect.poll(async () => Number(await incomingCard.evaluate((element) => getComputedStyle(element).opacity))).toBe(1);
     await pageA.locator('.call-overlay').waitFor({ state: 'visible', timeout: 15000 });
+    await assertHearthBrand(pageA);
     if (await pageA.locator('.call-banner-person.pending').count() < 1) {
       throw new Error('The caller did not show the remote participant as pending before acceptance.');
     }
@@ -395,6 +406,7 @@ async function waitForStableModal(page, modal) {
 
     await pageA.locator('.hr-user-dock button[aria-label="Настройки"]').click();
     await pageA.locator('.settings-shell').waitFor({ state: 'visible', timeout: 15000 });
+    await assertHearthBrand(pageA);
     const settingsPages = [
       ['account', 'Моя учётная запись'],
       ['profile', 'Профиль'],
