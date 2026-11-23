@@ -11,7 +11,6 @@ declare global {
       maximizeWindow: () => void;
       closeWindow: () => void;
       getAppVersion: () => Promise<string>;
-      getReleaseNotes: (version: string) => Promise<string>;
       setWindowTheme: (theme: 'light' | 'dark' | 'system') => void;
       checkForUpdates: () => Promise<{ status: string; version?: string; message: string; releaseNotes?: string }>;
       onUpdateStatus: (callback: (payload: { status: string; version?: string; message?: string; percent?: number; releaseNotes?: string }) => void) => (() => void) | void;
