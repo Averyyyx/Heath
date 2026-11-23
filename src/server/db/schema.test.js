@@ -30,13 +30,15 @@ test('clears migrated desktop sessions exactly once while preserving other data'
   const dataDir = path.join(profileDir, 'data');
   const dbPath = path.join(dataDir, 'hearth.db');
   fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(path.join(profileDir, '.hearth-migration-v1'), '1');
+  fs.writeFileSync(path.join(profileDir, '.migrated-from-legacy'), new Date().toISOString());
 
   const legacyDb = new Database(dbPath);
   legacyDb.exec(`
     CREATE TABLE http_sessions (sid TEXT PRIMARY KEY, sess TEXT NOT NULL, expires_at INTEGER NOT NULL);
     CREATE TABLE app_sessions (sid TEXT PRIMARY KEY, sess TEXT NOT NULL, expires_at INTEGER NOT NULL);
     CREATE TABLE preserved_data (value TEXT NOT NULL);
+    CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT UNIQUE NOT NULL, username TEXT NOT NULL, display_name TEXT DEFAULT '');
+    INSERT INTO users (id, email, username, display_name) VALUES (1, 'dev@nexo.local', 'nexo-dev', 'Nexo Dev');
     INSERT INTO http_sessions VALUES ('old-http', '{}', 9999999999);
     INSERT INTO app_sessions VALUES ('old-app', '{}', 9999999999);
     INSERT INTO preserved_data VALUES ('keep');
@@ -49,6 +51,10 @@ test('clears migrated desktop sessions exactly once while preserving other data'
       assert.equal(db.prepare('SELECT COUNT(*) AS count FROM http_sessions').get().count, 0);
       assert.equal(db.prepare('SELECT COUNT(*) AS count FROM app_sessions').get().count, 0);
       assert.equal(db.prepare('SELECT value FROM preserved_data').get().value, 'keep');
+      assert.deepEqual(
+        db.prepare('SELECT email, display_name FROM users WHERE id = 1').get(),
+        { email: 'dev@hearth.local', display_name: 'Hearth Dev' }
+      );
       assert.equal(fs.existsSync(path.join(profileDir, '.hearth-sessions-reset-v1')), true);
       db.prepare("INSERT INTO http_sessions VALUES ('new-session', '{}', 9999999999)").run();
     } finally {
@@ -58,6 +64,10 @@ test('clears migrated desktop sessions exactly once while preserving other data'
     db = createDatabase({ Database, path, dataDir, env: { ELECTRON_DESKTOP: '1', DB_PATH: dbPath } });
     try {
       assert.equal(db.prepare('SELECT COUNT(*) AS count FROM http_sessions').get().count, 1);
+      assert.deepEqual(
+        db.prepare('SELECT email, display_name FROM users WHERE id = 1').get(),
+        { email: 'dev@hearth.local', display_name: 'Hearth Dev' }
+      );
     } finally {
       db.close();
     }
