@@ -42,7 +42,8 @@ async function main() {
     });
     const total = baseline.width * baseline.height;
     const percent = (changed / total) * 100;
-    PNG.sync.write(diff).length && fs.writeFileSync(path.join(DIFF_DIR, name), PNG.sync.write(diff));
+    const diffBuffer = PNG.sync.write(diff);
+    fs.writeFileSync(path.join(DIFF_DIR, name), diffBuffer);
     const pass = percent <= MAX_CHANGED_PERCENT;
     rows.push({ file: name, percent: percent.toFixed(3) + '%', result: pass ? 'PASS' : 'FAIL' });
     if (!pass) failed = true;
