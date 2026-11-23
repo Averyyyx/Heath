@@ -15,7 +15,7 @@ test('user dock contains exactly three actions and no legacy menu', () => {
 });
 
 test('sidebar navigation scrolls independently from the fixed user dock', () => {
-  assert.match(css, /\.hr-sidebar \{\n  display: flex; height: 100%;/);
+  assert.match(css, /\.hr-sidebar\s*\{\s*display: flex; height: 100%;/s);
   assert.match(css, /\.hr-sidebar > \.sidebar-scroll-area \{[^}]*overflow-y: auto/s);
   assert.match(css, /\.sidebar-scroll-area\s*\{[^}]*overflow-y:\s*auto/s);
   assert.match(css, /\.hr-sidebar\s*>\s*\.sidebar-user-area\s*\{[^}]*margin-top:\s*auto/s);
