@@ -56,7 +56,7 @@ async function verifyWhatsNew(page, screenshotDir) {
 
   const modal = page.getByRole('dialog', { name: 'Что нового' });
   await modal.waitFor({ state: 'visible', timeout: 15000 });
-  await expect(modal).toContainText('Обновлено название приложения');
+  await expect(modal).toContainText('Nexo теперь Hearth');
   await page.screenshot({ path: path.join(screenshotDir, 'whats-new-hearth-0.0.9.png'), fullPage: false });
   await page.keyboard.press('Escape');
   await modal.waitFor({ state: 'hidden', timeout: 5000 });
