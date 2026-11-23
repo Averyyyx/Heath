@@ -18,6 +18,6 @@ The first Hearth launch copies durable data from the previous profile directory.
 
 ## Compatibility
 
-- The Electron application ID remains `com.nexo.app` so existing Windows installations can update in place.
-- Legacy `nexo://` deep links remain accepted while `hearth://` is the current protocol.
+- The Electron application ID remains stable so existing Windows installations can update in place.
+- The application uses the `hearth://` deep-link protocol.
 - Existing HTTP routes and Socket.IO event names are preserved during the structural refactor.

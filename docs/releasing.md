@@ -7,7 +7,7 @@ Hearth uses the GitHub Actions workflow `.github/workflows/alpha-release.yml` fo
 1. Update the root and renderer package versions together.
 2. Update `CHANGELOG.md` with user-visible changes.
 3. Run `npm test`, `npm run build:app`, and the Windows CI checks.
-4. Confirm the Electron application ID remains `com.nexo.app`.
+4. Confirm the stable Electron application ID remains unchanged to preserve in-place upgrades.
 
 ## Publish
 

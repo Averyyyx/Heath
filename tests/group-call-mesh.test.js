@@ -9,6 +9,8 @@ const server = [
   fs.readFileSync(path.join(__dirname, '..', 'src', 'server', 'realtime', 'voice.js'), 'utf8')
 ].join('\\n');
 const client = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/src/components/MessengerWorkspace.tsx'), 'utf8');
+const callOverlay = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/src/components/messenger/CallOverlay.tsx'), 'utf8');
+const clientUi = client + '\\n' + callOverlay;
 const realtime = ['calls.js', 'voice.js'].map((name) => fs.readFileSync(path.join(__dirname, '..', 'src/server/realtime', name), 'utf8')).join('\n');
 
 test('group DM calls accept up to six members and track the accepted mesh', () => {

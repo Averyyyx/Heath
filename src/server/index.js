@@ -259,6 +259,15 @@ const selectActiveSubscription = db.prepare(`
 // включает его сама) и никогда — на боевом веб-деплое (HTTPS), чтобы не создать
 // аккаунт с известным паролем на публичном сервере.
 // ---------------------------------------------------------------------------
+const { createIdentityService } = require('./services/identity');
+const {
+  normalizeHandle,
+  defaultAvatarColor,
+  randomDiscriminator,
+  generateUniqueHandle,
+  generateHandleFromEmail
+} = createIdentityService({ selectUserByUsername });
+
 function seedDevAccount() {
   const flag = String(process.env.HEARTH_DEV_ACCOUNT || '').toLowerCase();
   if (flag !== 'true' && flag !== '1') return;
@@ -641,14 +650,7 @@ app.delete('/api/servers/:serverId/roles/:roleId', ensureAuthenticated, (req, re
   }
 });
 
-const { createIdentityService } = require('./services/identity');
-const {
-  normalizeHandle,
-  defaultAvatarColor,
-  randomDiscriminator,
-  generateUniqueHandle,
-  generateHandleFromEmail
-} = createIdentityService({ selectUserByUsername });
+
 
 // Run only after identity helpers are initialized (the dev account uses generateHandleFromEmail).
 seedDevAccount();
