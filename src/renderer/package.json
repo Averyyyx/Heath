@@ -26,5 +26,10 @@
     "simple-peer": "^9.11.1",
     "socket.io-client": "^4.8.1",
     "process": "^0.11.10"
-  }
+  },
+  "description": "Desktop messenger for developers.",
+  "author": "Averyyyx",
+  "license": "ISC",
+  "repository": "github:Averyyyx/Hearth",
+  "homepage": "https://github.com/Averyyyx/Hearth"
 }
