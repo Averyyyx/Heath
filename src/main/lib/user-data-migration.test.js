@@ -79,10 +79,13 @@ test('migration resumes after a marked partial destination and rolls forward cle
   fs.mkdirSync(legacy, { recursive: true });
   fs.mkdirSync(target, { recursive: true });
   fs.writeFileSync(path.join(target, '.hearth-migration-in-progress'), 'partial');
+  fs.mkdirSync(path.join(legacy, 'data'), { recursive: true });
+  fs.writeFileSync(path.join(legacy, 'data', 'app.db'), 'legacy-database');
   fs.writeFileSync(path.join(legacy, 'settings.json'), 'source');
   try {
     migrateLegacyUserData({ appDataPath: root, fs, path, logger: { log() {}, warn() {} } });
     assert.equal(fs.readFileSync(path.join(target, 'settings.json'), 'utf8'), 'source');
+    assert.equal(fs.readFileSync(path.join(target, 'data', 'hearth.db'), 'utf8'), 'legacy-database');
     assert.equal(fs.existsSync(path.join(target, '.hearth-migration-in-progress')), false);
     assert.equal(fs.existsSync(path.join(target, '.migrated-from-legacy')), true);
   } finally {
