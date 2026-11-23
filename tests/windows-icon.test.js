@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const mainSource = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
+const mainSource = fs.readFileSync(path.join(__dirname, '..', 'electron', 'main.js'), 'utf8');
 
 test('Windows AppUserModelId is assigned before Electron becomes ready', () => {
   const identityIndex = mainSource.indexOf("app.setAppUserModelId('com.nexo.app')");
