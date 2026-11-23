@@ -8,11 +8,11 @@ WORKDIR /app
 
 # Копирование package files и зависимостей клиента
 COPY package*.json ./
-COPY client/package*.json ./client/
+COPY src/renderer/package*.json ./src/renderer/
 
 # Установка серверных и клиентских зависимостей
 RUN npm ci --only=production --ignore-scripts
-RUN npm ci --prefix client
+RUN npm ci --prefix src/renderer
 
 # Копирование исходных файлов
 COPY . .

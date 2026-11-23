@@ -3,8 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const app = fs.readFileSync(path.join(__dirname, '..', 'client/src/App.tsx'), 'utf8');
-const css = fs.readFileSync(path.join(__dirname, '..', 'client/src/styles.css'), 'utf8');
+const app = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/src/App.tsx'), 'utf8');
+const css = fs.readFileSync(path.join(__dirname, '..', 'src/renderer/src/styles.css'), 'utf8');
 
 test('user dock contains exactly three actions and no legacy menu', () => {
   const actions = app.match(/className="dock-actions">([\s\S]*?)<\/div>/);

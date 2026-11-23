@@ -3,7 +3,7 @@ public/
 artifacts/
 dist/
 dist_*/
-client/dist/
+src/renderer/dist/
 build/
 release/
 

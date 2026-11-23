@@ -14,7 +14,7 @@ Install dependencies:
 
 ```sh
 npm ci
-npm ci --prefix client
+npm ci --prefix src/renderer
 ```
 
 Run the server:

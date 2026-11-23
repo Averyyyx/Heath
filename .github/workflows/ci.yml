@@ -28,13 +28,13 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
-            client/package-lock.json
+            src/renderer/package-lock.json
 
       - name: Install desktop dependencies
         run: npm ci
 
       - name: Install client dependencies
-        run: npm ci --prefix client
+        run: npm ci --prefix src/renderer
 
       - name: Capture baseline inventory
         shell: pwsh
@@ -49,7 +49,7 @@ jobs:
         run: npm test
 
       - name: TypeScript no-emit check
-        working-directory: client
+        working-directory: src/renderer
         run: npx tsc --noEmit
 
       - name: Build application

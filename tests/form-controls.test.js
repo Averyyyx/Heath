@@ -11,7 +11,7 @@ function walk(directory) {
 }
 
 test('application forms use the shared UI controls outside the UI primitives folder', () => {
-  const root = path.join(__dirname, '..', 'client', 'src');
+  const root = path.join(__dirname, '..', 'src', 'renderer', 'src');
   const uiFolder = path.sep + 'components' + path.sep + 'ui' + path.sep;
   const files = walk(root).filter((file) => /\.(tsx|jsx)$/.test(file) && !file.includes(uiFolder));
   const violations = [];

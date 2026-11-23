@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-const source = path.join(root, 'client', 'dist');
+const source = path.join(root, 'src', 'renderer', 'dist');
 const target = path.join(root, 'public');
 
 function copyRecursive(from, to) {
