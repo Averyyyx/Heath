@@ -28,7 +28,7 @@ npm run build:app
 
 # Создание директорий
 echo "📁 Создание директорий..."
-mkdir -p data uploads tmp
+mkdir -p data/uploads data/tmp data/avatars
 
 # Настройка переменных окружения
 if [ ! -f .env ]; then
