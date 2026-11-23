@@ -30,14 +30,14 @@ export function Avatar({ user, name, size = 36, showStatus = false, className = 
   };
 
   return (
-    <span className={`nexo-avatar ${className}`} style={style} data-tooltip={title} aria-label={title}>
+    <span className={`hr-avatar ${className}`} style={style} data-tooltip={title} aria-label={title}>
       {user?.avatar_url
         ? <img src={user.avatar_url} alt="" draggable={false} />
         : Number.isInteger(user?.avatar_preset)
           ? <DefaultAvatar preset={user?.avatar_preset} size={size} />
           : <span>{initial}</span>}
       {showStatus && (
-        <i className={`nexo-avatar-status ${statusClass[user?.status || 'offline']}`} aria-label={user?.status || 'offline'} />
+        <i className={`hr-avatar-status ${statusClass[user?.status || 'offline']}`} aria-label={user?.status || 'offline'} />
       )}
     </span>
   );

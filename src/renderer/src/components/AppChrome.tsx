@@ -102,7 +102,7 @@ export function HomeView({ user, conversations, servers, unreadDmCounts, unreadC
     return message.author.id === user.id ? `Вы: ${content}` : content;
   };
   const hasItems = recent.length > 0 || channels.length > 0;
-  return <div className="nexo-home-view">
+  return <div className="hr-home-view">
     <div className="home-welcome">
       <div><h1>Рады видеть, {user.display_name || user.username}</h1>
         <p>Продолжайте разговоры и возвращайтесь к своим проектам.</p></div>
@@ -185,7 +185,7 @@ export function ContextMenu({ x, y, onClose, children }: { x: number; y: number;
   }, [onClose]);
   const left = Math.min(x, window.innerWidth - 230);
   const top = Math.min(y, window.innerHeight - 210);
-  return <div className="nexo-context-menu" style={{ left, top }} onPointerDown={(event) => event.stopPropagation()}>{children}</div>;
+  return <div className="hr-context-menu" style={{ left, top }} onPointerDown={(event) => event.stopPropagation()}>{children}</div>;
 }
 
 export function MenuAction({ icon, label, onClick }: { icon?: ReactNode; label: string; onClick: () => void }) {

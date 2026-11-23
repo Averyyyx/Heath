@@ -96,12 +96,12 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
   }, [channel.id, closePeer]);
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('nexo-voice-participants', { detail: { channelId: channel.id, participants } }));
+    window.dispatchEvent(new CustomEvent('hr-voice-participants', { detail: { channelId: channel.id, participants } }));
   }, [channel.id, participants]);
 
   useEffect(() => {
     const ids = [...remoteSpeakingIds, ...(speaking ? [user.id] : [])];
-    window.dispatchEvent(new CustomEvent('nexo-voice-speaking', { detail: { channelId: channel.id, userIds: ids } }));
+    window.dispatchEvent(new CustomEvent('hr-voice-speaking', { detail: { channelId: channel.id, userIds: ids } }));
   }, [channel.id, remoteSpeakingIds, speaking, user.id]);
 
   useEffect(() => {
@@ -282,7 +282,7 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
         setParticipants(payload.participants || []);
         playNexoSound('voice-join');
         socket.emit('channel:join', { serverId: server.id, channelId: channel.id });
-        window.dispatchEvent(new CustomEvent('nexo-voice-state', { detail: {
+        window.dispatchEvent(new CustomEvent('hr-voice-state', { detail: {
           active: true, serverId: server.id, channelId: channel.id, serverName: server.name,
           channelName: channel.name, joinedAt: Date.now()
         } }));
@@ -319,11 +319,11 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
         socket.emit('channel:leave', channel.id);
         void apiFetch(`/api/servers/${server.id}/channels/${channel.id}/voice/leave`, { method: 'POST' })
           .then((response) => response.json().catch(() => ({})))
-          .then((payload) => window.dispatchEvent(new CustomEvent('nexo-voice-participants', { detail: { channelId: channel.id, participants: payload.participants || [] } })))
+          .then((payload) => window.dispatchEvent(new CustomEvent('hr-voice-participants', { detail: { channelId: channel.id, participants: payload.participants || [] } })))
           .catch(() => {});
       }
       joinedRef.current = false;
-      window.dispatchEvent(new CustomEvent('nexo-voice-state', { detail: { active: false, channelId: channel.id } }));
+      window.dispatchEvent(new CustomEvent('hr-voice-state', { detail: { active: false, channelId: channel.id } }));
     };
   }, [server.id, server.name, channel.id, channel.name, user.id, createPeer, closePeer]);
 
@@ -412,8 +412,8 @@ export function VoiceRoom({ server, channel, user, micMuted, deafened, audioInpu
       if (detail.action === 'screen') void toggleScreenShare();
       if (detail.action === 'leave') onLeave();
     };
-    window.addEventListener('nexo-voice-action', onAction);
-    return () => window.removeEventListener('nexo-voice-action', onAction);
+    window.addEventListener('hr-voice-action', onAction);
+    return () => window.removeEventListener('hr-voice-action', onAction);
   });
 
   const elapsed = joinedAt ? Math.max(0, Math.floor((clock - joinedAt) / 1000)) : 0;

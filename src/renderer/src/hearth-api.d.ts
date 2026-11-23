@@ -1,10 +1,10 @@
 // API, которое preload.js Electron пробрасывает в окно через contextBridge.
-// В обычном браузере window.nexoAPI отсутствует (undefined).
+// В обычном браузере window.hearthAPI отсутствует (undefined).
 export {};
 
 declare global {
   interface Window {
-    nexoAPI?: {
+    hearthAPI?: {
       setNotificationCount: (count: number) => void;
       showNotification: (payload: { title: string; body: string; deepLink: string }) => Promise<boolean>;
       minimizeWindow: () => void;

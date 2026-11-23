@@ -150,7 +150,7 @@ export default function App() {
   const [createChannelUserLimit, setCreateChannelUserLimit] = useState(8);
   const [appVersion, setAppVersion] = useState('0.0.8-alpha');
 
-  const desktopApi = typeof window !== 'undefined' ? window.nexoAPI : undefined;
+  const desktopApi = typeof window !== 'undefined' ? window.hearthAPI : undefined;
   const tabStripRef = useRef<HTMLDivElement>(null);
   const tabNodeRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const resizeRef = useRef<{ startX: number; width: number; initialWidth: number } | null>(null);
@@ -193,10 +193,10 @@ export default function App() {
       const detail = (event as CustomEvent<{ channelId: number; participants: Array<{ user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string }; muted: boolean; deafened: boolean; canSpeak?: boolean }> }>).detail;
       if (detail?.channelId) setVoiceParticipantsByChannel((current) => ({ ...current, [detail.channelId]: detail.participants || [] }));
     };
-    window.addEventListener('nexo-voice-state', onVoiceState);
-    window.addEventListener('nexo-voice-participants', onVoiceParticipants);
-    window.addEventListener('nexo-voice-speaking', onVoiceSpeaking);
-    return () => { window.removeEventListener('nexo-voice-state', onVoiceState); window.removeEventListener('nexo-voice-participants', onVoiceParticipants); window.removeEventListener('nexo-voice-speaking', onVoiceSpeaking); };
+    window.addEventListener('hr-voice-state', onVoiceState);
+    window.addEventListener('hr-voice-participants', onVoiceParticipants);
+    window.addEventListener('hr-voice-speaking', onVoiceSpeaking);
+    return () => { window.removeEventListener('hr-voice-state', onVoiceState); window.removeEventListener('hr-voice-participants', onVoiceParticipants); window.removeEventListener('hr-voice-speaking', onVoiceSpeaking); };
   }, []);
 
   useEffect(() => {
@@ -215,9 +215,9 @@ export default function App() {
   }, [theme, desktopApi]);
 
   useEffect(() => {
-    if (user?.status === 'dnd') document.documentElement.dataset.nexoDnd = 'true';
-    else delete document.documentElement.dataset.nexoDnd;
-    return () => { delete document.documentElement.dataset.nexoDnd; };
+    if (user?.status === 'dnd') document.documentElement.dataset.hearthDnd = 'true';
+    else delete document.documentElement.dataset.hearthDnd;
+    return () => { delete document.documentElement.dataset.hearthDnd; };
   }, [user?.status]);
 
   useEffect(() => {
@@ -445,8 +445,8 @@ export default function App() {
     }
     if (payload.messageId) {
       const messageElementId = payload.type === 'dm'
-        ? `nexo-message-${payload.messageId}`
-        : `nexo-channel-message-${payload.messageId}`;
+        ? `hr-message-${payload.messageId}`
+        : `hr-channel-message-${payload.messageId}`;
       window.setTimeout(() => document.getElementById(messageElementId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 420);
     }
     setPendingDeepLink(null);
@@ -492,8 +492,8 @@ export default function App() {
         group: Boolean(detail.group)
       });
     };
-    window.addEventListener('nexo-call-state', onCallState);
-    return () => window.removeEventListener('nexo-call-state', onCallState);
+    window.addEventListener('hr-call-state', onCallState);
+    return () => window.removeEventListener('hr-call-state', onCallState);
   }, []);
 
   useEffect(() => {
@@ -754,13 +754,13 @@ export default function App() {
     if (!channel) return false;
     if (activeCallInfo) {
       if (!window.confirm('Выйти из личного звонка и подключиться к голосовому каналу?')) return false;
-      window.dispatchEvent(new CustomEvent('nexo-end-call'));
+      window.dispatchEvent(new CustomEvent('hr-end-call'));
       window.setTimeout(() => openTab({ id: `voice:${channel.id}`, kind: 'voice', title: `Голосовой · ${channel.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id }), 180);
       return true;
     }
     if (activeVoiceInfo && activeVoiceInfo.channelId !== channelId) {
       if (!window.confirm('Выйти из текущего голосового канала и подключиться к другому?')) return false;
-      window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }));
+      window.dispatchEvent(new CustomEvent('hr-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }));
       window.setTimeout(() => openTab({ id: `voice:${channel.id}`, kind: 'voice', title: `Голосовой · ${channel.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id }), 140);
       return true;
     }
@@ -1140,7 +1140,7 @@ export default function App() {
   if (loading) {
     return (
       <div className="app-loading-screen">
-        <motion.div className="nexo-loading-logo" initial={{ opacity: 0, scale: .94 }} animate={{ opacity: 1, scale: 1 }}>
+        <motion.div className="hr-loading-logo" initial={{ opacity: 0, scale: .94 }} animate={{ opacity: 1, scale: 1 }}>
           <span className="brand-mark">N</span>
         </motion.div>
         <p className="loading-brand">Nexo</p>
@@ -1170,9 +1170,9 @@ export default function App() {
   const stage = user ? (user.profile_complete ? 'workspace' : 'profile') : 'login';
 
   return (
-    <div className="app-root nexo-root">
-      <header className="app-nav nexo-titlebar">
-        <div className="titlebar-brand"><img className="brand-image" src="/nexo-mark.svg" alt="" /><strong>Nexo</strong><span className="titlebar-version">ALPHA</span></div>
+    <div className="app-root hr-root">
+      <header className="app-nav hr-titlebar">
+        <div className="titlebar-brand"><img className="brand-image" src="/hr-mark.svg" alt="" /><strong>Nexo</strong><span className="titlebar-version">ALPHA</span></div>
         <button type="button" className="titlebar-command" onClick={() => openPalette()} data-tooltip="Найти или выполнить команду (Ctrl+K)">
           <Search size={15} /><span>Найти или выполнить команду</span><kbd>Ctrl K</kbd>
         </button>
@@ -1184,26 +1184,26 @@ export default function App() {
 
       {stage === 'workspace' && user && (
         <>
-          <div className="nexo-tabbar">
+          <div className="hr-tabbar">
             <button type="button" className="sidebar-toggle-button"
               aria-label={sidebarCollapsed ? 'Показать боковую панель' : 'Скрыть боковую панель'} data-tooltip={sidebarCollapsed ? 'Показать боковую панель (Ctrl+B)' : 'Скрыть боковую панель (Ctrl+B)'}
               onClick={() => setSidebarCollapsed((value) => !value)}>
               {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
             </button>
             <div className="tab-scroll-arrow"><button className="tab-scroll-button" aria-label="Прокрутить вкладки влево" onClick={() => tabStripRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}><ChevronLeft size={15} /></button></div>
-            <div className="nexo-tabs" ref={tabStripRef}>
+            <div className="hr-tabs" ref={tabStripRef}>
               <AnimatePresence initial={false}>
               {tabs.map((tab) => (
                 <motion.button key={tab.id} initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: tab.pinned ? 42 : 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: .18 }} layoutId={tab.pinned ? undefined : `tab-${tab.id}`}
                   ref={(node) => { tabNodeRefs.current[tab.id] = node; }}
                   type="button" draggable={tab.kind !== 'home'}
-                  className={`nexo-tab ${activeTabId === tab.id ? 'active' : ''} ${tab.pinned ? 'pinned' : ''}`}
+                  className={`hr-tab ${activeTabId === tab.id ? 'active' : ''} ${tab.pinned ? 'pinned' : ''}`}
                   data-tooltip={tab.title} aria-selected={activeTabId === tab.id}
                   onClick={() => setActiveTabId(tab.id)}
                   onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); closeTab(tab.id); } }}
-                  onDragStartCapture={(event: DragEvent<HTMLButtonElement>) => { event.dataTransfer.setData('text/nexo-tab', tab.id); event.dataTransfer.effectAllowed = 'move'; }}
+                  onDragStartCapture={(event: DragEvent<HTMLButtonElement>) => { event.dataTransfer.setData('text/hr-tab', tab.id); event.dataTransfer.effectAllowed = 'move'; }}
                   onDragOverCapture={(event: DragEvent<HTMLButtonElement>) => event.preventDefault()}
-                  onDropCapture={(event: DragEvent<HTMLButtonElement>) => { event.preventDefault(); reorderTabs(event.dataTransfer.getData('text/nexo-tab'), tab.id); }}
+                  onDropCapture={(event: DragEvent<HTMLButtonElement>) => { event.preventDefault(); reorderTabs(event.dataTransfer.getData('text/hr-tab'), tab.id); }}
                   onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, tabId: tab.id }); }}>
                   {tab.kind === 'home' ? <Home size={14} /> : tab.kind === 'friends' ? <Users size={14} /> : tab.kind === 'dm' ? <Avatar user={conversations.find((conversation) => conversation.id === tab.targetId)?.counterpart || conversations.find((conversation) => conversation.id === tab.targetId)?.participants.find((participant) => participant.id !== user?.id)} size={19} /> : tab.kind === 'channel' ? <HashIcon /> : tab.kind === 'voice' ? <Volume2 size={14} /> : <Settings size={14} />}
                   {!tab.pinned && <span className="tab-title">{tab.title}</span>}
@@ -1221,8 +1221,8 @@ export default function App() {
             <div className="tab-scroll-arrow"><button className="tab-scroll-button" aria-label="Прокрутить вкладки вправо" onClick={() => tabStripRef.current?.scrollBy({ left: 240, behavior: 'smooth' })}><ChevronRightIcon size={15} /></button></div>
           </div>
 
-          <div className={`nexo-workbench ${activeTab.kind === 'settings' ? 'settings-active' : ''}`}>
-            <aside className={`nexo-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}>
+          <div className={`hr-workbench ${activeTab.kind === 'settings' ? 'settings-active' : ''}`}>
+            <aside className={`hr-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}>
               {!sidebarCollapsed && (
                 <>
                   <div className="sidebar-quick">
@@ -1318,13 +1318,13 @@ export default function App() {
                           <span className="active-voice-dot" />
                           <span><strong>Голосовая связь</strong><small>{activeVoiceInfo.channelName} · {activeVoiceInfo.serverName} · {formatCallDuration(voiceClock - activeVoiceInfo.joinedAt)}</small></span>
                         </button>
-                        <button type="button" className="hangup" aria-label="Выйти из голосового канала" data-tooltip="Выйти из голосового канала" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }))}><PhoneOff size={15} /></button>
+                        <button type="button" className="hangup" aria-label="Выйти из голосового канала" data-tooltip="Выйти из голосового канала" onClick={() => window.dispatchEvent(new CustomEvent('hr-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }))}><PhoneOff size={15} /></button>
                       </div>
                       <div className="active-voice-actions">
                         <button type="button" className={micMuted ? 'is-off' : ''} data-tooltip={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => { if (deafened) setSavedMicMuted(!savedMicMuted); else setMic(!micMuted); }}>{micMuted ? <MicOff size={15} /> : <Mic size={15} />}</button>
                         <button type="button" className={deafened ? 'is-off' : ''} data-tooltip={deafened ? 'Включить звук' : 'Выключить звук'} onClick={() => { if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); } else { setDeafened(false); setMic(savedMicMuted); } }}>{deafened ? <HeadphoneOff size={15} /> : <Headphones size={15} />}</button>
-                        <button type="button" className="voice-action-button" data-tooltip="Камера" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Camera size={15} /></button>
-                        <button type="button" className="voice-action-button" data-tooltip="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><MonitorUp size={15} /></button>
+                        <button type="button" className="voice-action-button" data-tooltip="Камера" onClick={() => window.dispatchEvent(new CustomEvent('hr-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Camera size={15} /></button>
+                        <button type="button" className="voice-action-button" data-tooltip="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('hr-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><MonitorUp size={15} /></button>
                       </div>
                     </div>}
                     {activeCallInfo && <div className="active-call-strip">
@@ -1335,10 +1335,10 @@ export default function App() {
                           <small>{formatCallDuration(callClock - activeCallInfo.startedAt)} · {activeCallInfo.group ? 'Групповой диалог' : 'Личный диалог'}</small>
                         </span>
                       </button>
-                      <button type="button" className="hangup" data-tooltip="Завершить звонок" aria-label="Завершить звонок" onClick={() => window.dispatchEvent(new CustomEvent('nexo-end-call'))}><PhoneOff size={15} /></button>
+                      <button type="button" className="hangup" data-tooltip="Завершить звонок" aria-label="Завершить звонок" onClick={() => window.dispatchEvent(new CustomEvent('hr-end-call'))}><PhoneOff size={15} /></button>
                     </div>}
                     
-                    <div className="nexo-user-dock">
+                    <div className="hr-user-dock">
                       <div className="dock-user" title={`${user.display_name || user.username} · @${user.username}`} aria-label={`${user.display_name || user.username}, @${user.username}`}>
                         <Avatar user={user} size={36} showStatus />
                         <span className="dock-user-copy"><strong title={user.display_name || user.username}>{user.display_name || user.username}</strong><small title={`@${user.username}`}>{user.custom_status || `@${user.username}`}</small></span>
@@ -1366,9 +1366,9 @@ export default function App() {
               <div className="sidebar-resizer" onMouseDown={beginResize} onDoubleClick={() => { setSidebarWidth(264); if (user) localStorage.setItem(sidebarStorageKey(user.id), '264'); }} data-tooltip="Перетащите, чтобы изменить ширину" />
             </aside>
 
-            <main className="nexo-tab-content">
+            <main className="hr-tab-content">
               {tabs.map((tab) => (
-                <section key={tab.id} className="nexo-tab-panel" hidden={activeTabId !== tab.id}>
+                <section key={tab.id} className="hr-tab-panel" hidden={activeTabId !== tab.id}>
                   {tab.kind === 'home' && <HomeView user={user} conversations={conversations} servers={servers}
                     unreadDmCounts={unreadDmCounts} unreadChannelCounts={unreadChannelCounts}
                     openFriends={openFriendsTab} openPalette={openPalette} openDm={openDmTab}

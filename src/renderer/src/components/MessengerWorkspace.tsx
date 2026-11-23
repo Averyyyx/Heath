@@ -219,7 +219,7 @@ export function MessengerWorkspace({
       callWasActiveRef.current = true;
       const conversation = conversations.find((item) => item.id === callState.conversationId);
       const isGroupCall = Boolean(callState.group || conversation?.type === 'group' || (conversation?.participants?.length || 0) > 2);
-      window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: {
+      window.dispatchEvent(new CustomEvent('hr-call-state', { detail: {
         active: true, conversationId: callState.conversationId,
         title: isGroupCall ? conversation?.title || 'Групповой звонок' : conversation?.counterpart?.display_name || conversation?.counterpart?.username || 'Личный звонок',
         group: isGroupCall,
@@ -227,7 +227,7 @@ export function MessengerWorkspace({
       } }));
     } else if (callWasActiveRef.current) {
       callWasActiveRef.current = false;
-      window.dispatchEvent(new CustomEvent('nexo-call-state', { detail: { active: false } }));
+      window.dispatchEvent(new CustomEvent('hr-call-state', { detail: { active: false } }));
     }
   }, [callState, conversations]);
 
@@ -706,7 +706,7 @@ export function MessengerWorkspace({
       || activeChannelMessages.some((message) => message.id === openMessageId);
     if (!exists) return;
     const frame = window.requestAnimationFrame(() => {
-      document.getElementById(mode === 'friends' ? `nexo-message-${openMessageId}` : `nexo-channel-message-${openMessageId}`)
+      document.getElementById(mode === 'friends' ? `hr-message-${openMessageId}` : `hr-channel-message-${openMessageId}`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
     return () => window.cancelAnimationFrame(frame);
@@ -888,7 +888,7 @@ export function MessengerWorkspace({
   }
 
   function jumpToSearchResult(messageId: number) {
-    const prefix = activeChannel ? 'nexo-channel-message-' : 'nexo-message-';
+    const prefix = activeChannel ? 'hr-channel-message-' : 'hr-message-';
     setMessageSearchOpen(false);
     window.requestAnimationFrame(() => {
       document.getElementById(prefix + messageId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1156,7 +1156,7 @@ export function MessengerWorkspace({
     if (document.documentElement.dataset.nexoVoiceActive === 'true') {
       if (!window.confirm('Выйти из голосового канала и начать личный звонок?')) return false;
       const channelId = Number(document.documentElement.dataset.nexoVoiceChannelId);
-      if (Number.isInteger(channelId)) window.dispatchEvent(new CustomEvent('nexo-voice-action', { detail: { channelId, action: 'leave' } }));
+      if (Number.isInteger(channelId)) window.dispatchEvent(new CustomEvent('hr-voice-action', { detail: { channelId, action: 'leave' } }));
       await new Promise((resolve) => window.setTimeout(resolve, 180));
     }
     setCallError('');
@@ -1272,8 +1272,8 @@ export function MessengerWorkspace({
 
   useEffect(() => {
     const onGlobalEndCall = () => { if (callStateRef.current) endCall(true); };
-    window.addEventListener('nexo-end-call', onGlobalEndCall);
-    return () => window.removeEventListener('nexo-end-call', onGlobalEndCall);
+    window.addEventListener('hr-end-call', onGlobalEndCall);
+    return () => window.removeEventListener('hr-end-call', onGlobalEndCall);
   }, []);
 
   function endCall(notifyRemote = true) {
@@ -1417,7 +1417,7 @@ export function MessengerWorkspace({
               </header>
               {pinnedPanelOpen && <div className="pinned-messages-panel">
                 <strong>Закреплённые сообщения</strong>
-                {pinnedMessages.length ? pinnedMessages.map((pin) => <button className="pinned-message-item" key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                {pinnedMessages.length ? pinnedMessages.map((pin) => <button className="pinned-message-item" key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`hr-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
                   <span>{pin.author.display_name || pin.author.username}</span><small>{pin.content || 'Вложение'}</small>
                 </button>) : <p>Пока ничего не закреплено.</p>}
               </div>}
@@ -1463,12 +1463,12 @@ export function MessengerWorkspace({
                     return (
                       <Fragment key={message.id}>
                         {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
-                        <article id={`nexo-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`dm:${message.id}`) ? 'message-arrived' : ''}`}
+                        <article id={`hr-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`dm:${message.id}`) ? 'message-arrived' : ''}`}
                           onContextMenu={(event) => openMessageMenu(event, message, 'dm')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
                             {!grouped && <header><strong>{authorName}</strong><time className="message-time" data-tooltip={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
-                            {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
+                            {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`hr-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.edited_at && <small className="message-edited-label">изменено</small>}
                             {message.pin && <small className="message-pinned-label"><Pin size={11} />Закреплено</small>}
@@ -1590,7 +1590,7 @@ export function MessengerWorkspace({
               </header>
               {pinnedPanelOpen && <div className="pinned-messages-panel">
                 <strong>Закреплённые сообщения</strong>
-                {pinnedMessages.length ? pinnedMessages.map((pin) => <button className="pinned-message-item" key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`nexo-channel-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                {pinnedMessages.length ? pinnedMessages.map((pin) => <button className="pinned-message-item" key={pin.id} type="button" onClick={() => { setPinnedPanelOpen(false); document.getElementById(`hr-channel-message-${pin.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
                   <span>{pin.author.display_name || pin.author.username}</span><small>{pin.content || 'Вложение'}</small>
                 </button>) : <p>Пока ничего не закреплено.</p>}
               </div>}
@@ -1606,12 +1606,12 @@ export function MessengerWorkspace({
                     return (
                       <Fragment key={message.id}>
                         {dayChanged && <div className="message-day-divider"><span>{getMessageDayLabel(message.created_at)}</span></div>}
-                        <article id={`nexo-channel-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`}
+                        <article id={`hr-channel-message-${message.id}`} className={`message-row ${grouped ? 'grouped' : ''} ${animatedMessageIds.includes(`channel:${message.id}`) ? 'message-arrived' : ''}`}
                           onContextMenu={(event) => openMessageMenu(event, message, 'channel')}>
                           {grouped ? <span className="message-avatar-spacer" /> : <Avatar user={message.author} size={34} />}
                           <div className="message-body">
                             {!grouped && <header><strong>{authorName}</strong><time data-tooltip={new Date(message.created_at).toLocaleString('ru-RU')}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></header>}
-                            {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`nexo-channel-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
+                            {message.reply_to && <MessageReplyPreview replyTo={message.reply_to} onClick={() => document.getElementById(`hr-channel-message-${message.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />}
                             {message.content && <MessageContent content={message.content} />}
                             {message.pin && <small className="message-pinned-label"><Pin size={11} />Закреплено</small>}
                             {message.author.id === user.id && message.read_receipt && message.read_receipt.read_count > 0 && <small className="message-read-receipt">Прочитано {message.read_receipt.read_count}/{message.read_receipt.member_count}</small>}
@@ -1714,7 +1714,7 @@ export function MessengerWorkspace({
 
       {messageContext && (
         <div className="message-context-backdrop" onPointerDown={() => setMessageContext(null)}>
-          <div className="nexo-context-menu" style={{
+          <div className="hr-context-menu" style={{
             left: Math.min(messageContext.x, window.innerWidth - 220),
             top: Math.min(messageContext.y, window.innerHeight - 150)
           }} onPointerDown={(event) => event.stopPropagation()}>

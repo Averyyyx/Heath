@@ -23,7 +23,7 @@ const MOTIFS = [
 export function DefaultAvatar({ preset = 0, size = 36 }: { preset?: number | null; size?: number }) {
   const index = Number.isInteger(preset) ? Math.abs(Number(preset)) % MOTIFS.length : 0;
   const style: CSSProperties = { width: size, height: size, minWidth: size, background: BACKGROUNDS[index] };
-  return <span className="nexo-default-avatar" style={style} aria-hidden="true">
+  return <span className="hr-default-avatar" style={style} aria-hidden="true">
     <svg viewBox="0 0 48 48" width={size * .78} height={size * .78} fill="none"
       stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       {MOTIFS[index]}

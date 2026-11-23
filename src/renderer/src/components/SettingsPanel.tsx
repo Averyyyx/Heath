@@ -181,10 +181,10 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   }, [settings?.reduce_motion]);
 
   useEffect(() => {
-    window.nexoAPI?.getUpdatePreferences?.()
+    window.hearthAPI?.getUpdatePreferences?.()
       .then((preferences) => setAutoDownloadUpdates(preferences.autoDownload !== false))
       .catch(() => {});
-    const unsubscribe = window.nexoAPI?.onUpdateStatus?.((payload) => {
+    const unsubscribe = window.hearthAPI?.onUpdateStatus?.((payload) => {
       if (Number.isFinite(payload.percent)) setUpdateProgress(payload.percent as number);
       if (payload.releaseNotes) setReleaseNotes(payload.releaseNotes);
       if (payload.status === 'checking' || payload.status === 'downloading' || payload.status === 'installing') {
@@ -203,8 +203,8 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       const next = (event as CustomEvent<NexoSoundPreferences>).detail;
       if (next) setSoundPreferences(next);
     };
-    window.addEventListener('nexo-sound-preferences-updated', syncSoundPreferences);
-    return () => window.removeEventListener('nexo-sound-preferences-updated', syncSoundPreferences);
+    window.addEventListener('hearth-sound-preferences-updated', syncSoundPreferences);
+    return () => window.removeEventListener('hearth-sound-preferences-updated', syncSoundPreferences);
   }, []);
 
   function changeSoundPreference<K extends keyof NexoSoundPreferences>(key: K, value: NexoSoundPreferences[K]) {
@@ -217,7 +217,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
 
   async function changeAutoDownload(value: boolean) {
     setAutoDownloadUpdates(value);
-    try { window.nexoAPI?.setUpdatePreferences?.({ autoDownload: value }); }
+    try { window.hearthAPI?.setUpdatePreferences?.({ autoDownload: value }); }
     catch { setAutoDownloadUpdates(!value); }
   }
 
@@ -1287,7 +1287,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
             </Select></Field>
           <Field label="Свой статус"><Input value={profileCustomStatus} maxLength={60} placeholder="Над чем работаете?" onChange={(event) => setProfileCustomStatus(event.target.value)} /></Field>
           <small className="muted">{profileCustomStatus.length}/60</small>
-          <button type="button" className="nexo-ui-button secondary" onClick={() => void savePresence()} disabled={presenceBusy}>
+          <button type="button" className="hr-ui-button secondary" onClick={() => void savePresence()} disabled={presenceBusy}>
             {presenceBusy ? 'Сохраняем…' : 'Сохранить статус'}
           </button>
           {presenceStatus.message && <p className={`status ${presenceStatus.type}`}>{presenceStatus.message}</p>}
