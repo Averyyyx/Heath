@@ -1,7 +1,7 @@
 {
   "name": "hearth",
   "version": "0.0.9-alpha",
-  "description": "A desktop communication and collaboration space for people and teams.",
+  "description": "Desktop messenger for developers.",
   "main": "src/main/main.js",
   "scripts": {
     "dev": "node src/server/index.js",
@@ -19,7 +19,7 @@
     "visual-diff": "node scripts/visual-diff.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "Averyyyx",
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -59,5 +59,7 @@
     "pixelmatch": "^7.2.0",
     "playwright": "^1.65.1",
     "pngjs": "^7.0.0"
-  }
+  },
+  "repository": "github:Averyyyx/Hearth",
+  "homepage": "https://github.com/Averyyyx/Hearth"
 }
