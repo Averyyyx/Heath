@@ -36,3 +36,13 @@ test('every accepted group participant creates one deterministic peer per other 
   assert.match(client, /socket\.on\('call:participant-left'/);
   assert.match(client, /current\.group\s*\?\s*Object\.values\(current\.peers\s*\|\|\s*\{\}\)/);
 });
+
+
+test('one group invite timeout does not end an accepted mesh while other invites remain', () => {
+  assert.match(server, /if \(call\.callerId === socket\.user\.id\)\s*\{[\s\S]*?call\.invited\.forEach/);
+  assert.match(server, /if \(!call\.invited\.has\(socket\.user\.id\) \|\| call\.accepted\.has\(socket\.user\.id\)\) return/);
+  assert.match(server, /call\.declined\.add\(socket\.user\.id\)/);
+  assert.match(server, /call\.accepted\.size === 1 && call\.declined\.size >= call\.invited\.size - 1/);
+  assert.match(client, /const onCallTimeout = \(\{ conversationId, from \}/);
+  assert.match(client, /current\.group && current\.conversationId === conversationId\) return/);
+});
