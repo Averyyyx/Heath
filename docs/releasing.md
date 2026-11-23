@@ -1,6 +1,6 @@
 # Releasing
 
-Hearth uses the GitHub Actions workflow `.github/workflows/alpha-release.yml` for Windows Alpha releases.
+Hearth uses the GitHub Actions workflow `.github/workflows/release.yml` for Windows Alpha releases.
 
 ## Before release
 
