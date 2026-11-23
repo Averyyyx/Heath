@@ -16,11 +16,13 @@ test('migration copies durable user data, preserves secrets and skips Chromium c
   const { root, legacy, target } = fixture();
   fs.mkdirSync(path.join(legacy, 'Local Storage'), { recursive: true });
   fs.mkdirSync(path.join(legacy, 'Session Storage'), { recursive: true });
+  fs.mkdirSync(path.join(legacy, 'Cookies'), { recursive: true });
   fs.mkdirSync(path.join(legacy, 'Cache'), { recursive: true });
   fs.mkdirSync(path.join(legacy, 'data', 'uploads'), { recursive: true });
   fs.writeFileSync(path.join(legacy, 'secrets.json'), '{"secret":"keep"}');
   fs.writeFileSync(path.join(legacy, 'Local Storage', 'leveldb'), 'local');
   fs.writeFileSync(path.join(legacy, 'Session Storage', 'leveldb'), 'session');
+  fs.writeFileSync(path.join(legacy, 'Cookies', 'Cookies'), 'cookie-db');
   fs.writeFileSync(path.join(legacy, 'Cache', 'cache.bin'), 'cache');
   fs.writeFileSync(path.join(legacy, 'app.db'), 'database');
   fs.writeFileSync(path.join(legacy, 'app.db-wal'), 'wal');
@@ -32,7 +34,8 @@ test('migration copies durable user data, preserves secrets and skips Chromium c
     assert.equal(migrateLegacyUserData({ appDataPath: root, fs, path, logger: { log() {}, warn() {} } }), target);
     assert.equal(fs.readFileSync(path.join(target, 'secrets.json'), 'utf8'), '{"secret":"keep"}');
     assert.equal(fs.readFileSync(path.join(target, 'Local Storage', 'leveldb'), 'utf8'), 'local');
-    assert.equal(fs.readFileSync(path.join(target, 'Session Storage', 'leveldb'), 'utf8'), 'session');
+    assert.equal(fs.existsSync(path.join(target, 'Session Storage')), false);
+    assert.equal(fs.existsSync(path.join(target, 'Cookies')), false);
     assert.equal(fs.existsSync(path.join(target, 'Cache')), false);
     assert.equal(fs.readFileSync(path.join(target, 'hearth.db'), 'utf8'), 'database');
     assert.equal(fs.readFileSync(path.join(target, 'hearth.db-wal'), 'utf8'), 'wal');
