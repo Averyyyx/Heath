@@ -1410,6 +1410,9 @@ io.on('connection', (socket) => {
       ensureConversationAccess(safeConversationId, socket.user.id);
       const call = activeCallParticipants.get(safeConversationId);
       if (!call) throw new Error('Этот звонок уже завершён.');
+      if (!call.invited.has(socket.user.id) || call.declined.has(socket.user.id)) {
+        throw new Error('Приглашение больше недоступно.');
+      }
       call.accepted.add(socket.user.id);
       const accepted = {
         conversationId: safeConversationId,
