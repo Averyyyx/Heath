@@ -158,8 +158,7 @@ function getDesktopIconPath() {
   return iconPath;
 }
 
-// Файлы иконок лежат с суффиксом размера (Nexo-Desctop-ico-256.png), поэтому ищем
-// нужный размер, затем имя без суффикса и ближайшие размеры.
+// Файлы приложения генерируются из ресурсов Hearth с суффиксами размеров.
 function getIconPath(iconName, size = 256) {
   const dir = getIconsDir();
   const candidates = [
