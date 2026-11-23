@@ -23,3 +23,8 @@ test('both startup splash and main windows receive the Nexo icon', () => {
   assert.match(mainSource, /splashWindow\.setIcon\(splashIcon\)/);
   assert.match(mainSource, /mainWindow\.setIcon\(desktopIcon\)/);
 });
+
+test('packaged main-process icon assets are unpacked from asar', () => {
+  const builder = fs.readFileSync(path.join(__dirname, '..', 'electron-builder.yml'), 'utf8');
+  assert.match(builder, /src\/main\/icons\/\*\*\//);
+});

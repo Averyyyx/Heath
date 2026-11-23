@@ -22,6 +22,7 @@ asar: true
 # распаковать целиком (раньше распаковывался только better-sqlite3, и express и др. не находились).
 asarUnpack:
   - "src/server/**/*"
+  - "src/main/icons/**/*"
   - "public/**/*"
   - "electron/**/*"
   - "node_modules/**/*"
