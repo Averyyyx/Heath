@@ -44,5 +44,5 @@ test('one group invite timeout does not end an accepted mesh while other invites
   assert.match(server, /call\.declined\.add\(socket\.user\.id\)/);
   assert.match(server, /call\.accepted\.size === 1 && call\.declined\.size >= call\.invited\.size - 1/);
   assert.match(client, /const onCallTimeout = \(\{ conversationId \}/);
-  assert.match(client, /current\.group && current\.conversationId === conversationId\) return/);
+  assert.match(client, /current\?\.group && current\.conversationId === conversationId\) return/);
 });
