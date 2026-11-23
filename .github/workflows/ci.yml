@@ -89,9 +89,13 @@ jobs:
         run: |
           $app = Join-Path $env:GITHUB_WORKSPACE 'dist/win-unpacked'
           $unpacked = Join-Path $app 'resources/app.asar.unpacked'
-          foreach ($relative in @('src/main/index.js', 'src/main/legacy-migration.js', 'src/server/index.js', 'src/shared/email-validation.js', 'src/shared/brand.js', 'public/index.html', 'node_modules/better-sqlite3/build/Release/better_sqlite3.node')) {
+          $archive = Join-Path $app 'resources/app.asar'
+          if (-not (Test-Path $archive)) { throw 'resources/app.asar is missing.' }
+          node -e "const asar = require('@electron/asar'); const files = new Set(asar.listPackage('dist/win-unpacked/resources/app.asar')); for (const entry of ['src/main/index.js', 'src/main/legacy-migration.js', 'src/main/windows/main-window.js', 'src/main/windows/splash-window.js', 'src/main/updater/index.js']) { if (!files.has(entry)) throw new Error('ASAR entry missing: ' + entry); }"
+          if ($LASTEXITCODE -ne 0) { throw 'The Electron main process files are missing from app.asar.' }
+          foreach ($relative in @('src/server/index.js', 'src/shared/email-validation.js', 'src/shared/brand.js', 'public/index.html', 'node_modules/better-sqlite3/build/Release/better_sqlite3.node')) {
             $target = Join-Path $unpacked $relative
-            if (-not (Test-Path $target)) { throw "Packaged file is missing: $relative" }
+            if (-not (Test-Path $target)) { throw "Unpacked application file is missing: $relative" }
           }
           if (-not (Test-Path (Join-Path $app 'Hearth.exe'))) { throw 'Hearth.exe is missing from win-unpacked.' }
           $legacyExe = 'Ne' + 'xo.exe'

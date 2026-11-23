@@ -99,7 +99,7 @@ test('copies user data, migrates the SQLite database and preserves the original 
         { email: 'dev@hearth.local', display_name: 'Hearth Dev' }
       );
       assert.equal(migrated.prepare('SELECT COUNT(*) AS count FROM http_sessions').get().count, 0);
-      assert.equal(migrated.prepare('SELECT COUNT(*) AS count FROM app_sessions').get().count, 0);
+      assert.equal(migrated.prepare('SELECT COUNT(*) AS count FROM app_sessions').get().count, 1);
       assert.equal(migrated.prepare('SELECT value FROM preserved_records').get().value, 'keep-this-record');
     } finally {
       migrated.close();

@@ -440,8 +440,6 @@ function createDatabase({ Database, path, dataDir, env = process.env }) {
   db.prepare('DELETE FROM voice_sessions').run();
   
   
-  const { runBrandMigration } = require('./migrations');
-  runBrandMigration(db);
 
   return db;
 }

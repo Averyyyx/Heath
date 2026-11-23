@@ -1,10 +1,7 @@
 const { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain, dialog, nativeTheme, Notification } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
-const { Readable, Transform } = require('stream');
-const { pipeline } = require('stream/promises');
 const crypto = require('crypto');
 const { compareReleaseVersions } = require('./lib/version');
 const { parseHearthDeepLink } = require('./lib/deeplink');
@@ -20,13 +17,8 @@ app.setPath('userData', migrateLegacyUserData({ appDataPath: app.getPath('appDat
 
 let mainWindow = null;
 let splashWindow = null;
-let tray = null;
-let updateCheckPromise = null;
 let backgroundUpdateTimer = null;
-let activeUpdateController = null;
-let skipUpdateRequested = false;
 let pendingUpdateNotice = null;
-let releaseNotesText = '';
 let queuedDeepLink = null;
 let notificationCount = 0;
 const SERVER_PORT = process.env.PORT || 4000;
@@ -56,6 +48,15 @@ const serverService = createServerProcessService({
 
 const { setupLogging } = require('./lib/logging');
 
+const { createUpdaterPreferences } = require('./updater/preferences');
+const { createUpdateDownloader } = require('./updater/download');
+const { createUpdateInstaller } = require('./updater/install');
+const { createUpdaterService } = require('./updater');
+const { createDeepLinkService } = require('./deeplink');
+const { createSplashWindow: buildSplashWindow } = require('./windows/splash-window');
+const { createMainWindow: buildMainWindow } = require('./windows/main-window');
+const { createIpcService } = require('./ipc');
+const { createTrayService } = require('./tray');
 const { createIconService } = require('./lib/icons');
 const {
   getIconsDir,
@@ -76,492 +77,91 @@ const {
   getNotificationCount: () => notificationCount
 });
 
-function createTray() {
-  console.log('Creating system tray...');
-  
-  // Отдельный компактный знак для системного трея: он намеренно не совпадает с desktop-иконкой.
-  tray = new Tray(createTrayImage(notificationCount));
-  
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Hearth',
-      icon: nativeImage.createFromPath(getIconPath('icon', 16)),
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Проверить обновления',
-      click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-        checkForUpdates({ interactive: true });
-      }
-    },
-    {
-      label: 'О программе',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Выход',
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
-      }
-    }
-  ]);
-  
-  tray.setToolTip('Hearth');
-  tray.setContextMenu(contextMenu);
-  
-  tray.on('click', () => {
-    if (mainWindow) {
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
-      } else {
-        mainWindow.show();
-        mainWindow.focus();
-      }
-    }
-  });
-  
-  console.log('System tray created');
-}
-
 // IPC handlers (will be registered inside app.whenReady)
-function setupIPCHandlers() {
-  ipcMain.on('set-notification-count', (event, count) => {
-    setNotificationCount(count);
-    // Отправляем уведомление обратно в renderer
-    if (mainWindow) {
-      mainWindow.webContents.send('notification-updated', count);
-    }
-  });
+const deepLinkService = createDeepLinkService({
+  parseDeepLink: parseHearthDeepLink,
+  getMainWindow: () => mainWindow,
+  serverUrl: SERVER_URL,
+  getQueuedDeepLink: () => queuedDeepLink,
+  setQueuedDeepLink: (value) => { queuedDeepLink = value; }
+});
+const { dispatchDeepLink } = deepLinkService;
 
-  ipcMain.on('minimize-window', () => {
-    if (mainWindow) {
-      mainWindow.minimize();
-    }
-  });
+const updaterState = { skipUpdateRequested: false };
+let sendUpdaterStatus = () => {};
+const updatePreferences = createUpdaterPreferences({ app, fs, path });
+const updateDownloader = createUpdateDownloader({
+  app, brand, fs, path, crypto: require('crypto'), fetch,
+  Readable: require('stream').Readable,
+  Transform: require('stream').Transform,
+  pipeline: require('stream/promises').pipeline,
+  isSkipUpdateRequested: () => updaterState.skipUpdateRequested,
+  sendUpdateStatus: (...args) => sendUpdaterStatus(...args)
+});
+const updateInstaller = createUpdateInstaller({
+  app, spawn: require('child_process').spawn, dialog,
+  getMainWindow: () => mainWindow,
+  sendUpdateStatus: (...args) => sendUpdaterStatus(...args)
+});
+const updaterService = createUpdaterService({
+  app, fetch, compareReleaseVersions, brand,
+  preferences: updatePreferences,
+  downloader: updateDownloader,
+  installer: updateInstaller,
+  getMainWindow: () => mainWindow,
+  getSplashWindow: () => splashWindow,
+  setPendingUpdateNotice: (value) => { pendingUpdateNotice = value; },
+  state: updaterState
+});
+sendUpdaterStatus = updaterService.sendUpdateStatus;
+const { checkForUpdates, getUpdatePreferences, setUpdatePreferences, skipUpdate } = updaterService;
 
-  ipcMain.on('maximize-window', () => {
-    if (mainWindow) {
-      if (mainWindow.isMaximized()) {
-        mainWindow.unmaximize();
-      } else {
-        mainWindow.maximize();
-      }
-    }
-  });
-
-  ipcMain.on('close-window', () => {
-    if (mainWindow) {
-      mainWindow.close();
-    }
-  });
-
-  ipcMain.handle('show-system-notification', (_event, payload = {}) => {
-    if (!Notification.isSupported()) return false;
-    const title = String(payload.title || 'Hearth').slice(0, 100);
-    const body = String(payload.body || '').slice(0, 240);
-    const notification = new Notification({ title, body, icon: getDesktopIconPath(), silent: true });
-    if (typeof payload.deepLink === 'string' && (payload.deepLink.startsWith('hearth://'))) {
-      notification.on('click', () => dispatchDeepLink(payload.deepLink));
-    }
-    notification.show();
-    return true;
-  });
-
-  ipcMain.handle('get-app-version', () => app.getVersion());
-  ipcMain.handle('check-for-updates', () => checkForUpdates({ interactive: true }));
-  ipcMain.handle('get-update-preferences', () => getUpdatePreferences());
-  ipcMain.on('set-update-preferences', (_event, value) => { setUpdatePreferences(value); });
-  ipcMain.handle('open-logs', async () => { await shell.openPath(path.join(app.getPath('userData'), 'logs')); return true; });
-  ipcMain.on('skip-update', () => { skipUpdateRequested = true; activeUpdateController?.abort(); });
-  ipcMain.on('set-window-theme', (_event, theme) => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    const dark = theme === 'dark' || (theme === 'system' && nativeTheme.shouldUseDarkColors);
-    mainWindow.setTitleBarOverlay({
-      color: dark ? '#262624' : '#FAF9F5',
-      symbolColor: dark ? '#ECE9E3' : '#262624',
-      height: 34
-    });
-  });
-}
-
-function updateTrayIcon() {
-  if (!tray) return;
-  tray.setImage(createTrayImage(notificationCount));
-  tray.setToolTip(notificationCount > 0 ? `Hearth · ${notificationCount} уведомлений` : 'Hearth');
-}
-
-function setNotificationCount(count) {
-  const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Math.floor(Number(count))) : 0;
-  notificationCount = Math.min(safeCount, 9);
-
-  // Системный трей показывает отдельную мини-иконку со счётчиком.
-  updateTrayIcon();
-
-  // Значок приложения остаётся фирменным; число выводится отдельным Windows taskbar overlay.
-  if (mainWindow && !mainWindow.isDestroyed() && process.platform === 'win32') {
-    mainWindow.setOverlayIcon(createTaskbarOverlay(notificationCount), notificationCount > 0 ? `${notificationCount} непрочитанных уведомлений` : '');
-  }
-}
-
-function dispatchDeepLink(rawUrl) {
-  const payload = parseHearthDeepLink(rawUrl);
-  if (!payload) return false;
-  try {
-    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.getURL().startsWith(SERVER_URL)) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-      mainWindow.webContents.send('deep-link', payload);
-    } else queuedDeepLink = payload;
-    return true;
-  } catch (error) {
-    console.warn('Failed to dispatch Hearth deep link:', error.message);
-    return false;
-  }
-}
-
-function updatePreferencesPath() { return path.join(app.getPath('userData'), 'update-preferences.json'); }
-function getUpdatePreferences() {
-  try { return { autoDownload: JSON.parse(fs.readFileSync(updatePreferencesPath(), 'utf8')).autoDownload !== false }; }
-  catch { return { autoDownload: true }; }
-}
-function setUpdatePreferences(value = {}) {
-  const preferences = { autoDownload: value.autoDownload !== false };
-  fs.mkdirSync(app.getPath('userData'), { recursive: true });
-  fs.writeFileSync(updatePreferencesPath(), JSON.stringify(preferences, null, 2), 'utf8');
-  return preferences;
-}
-function sendUpdateStatus(status, message, version, percent, releaseNotes) {
-  const payload = { status, message, ...(version ? { version } : {}), ...(Number.isFinite(percent) ? { percent: Math.max(0, Math.min(100, percent)) } : {}), ...(releaseNotes ? { releaseNotes } : {}) };
-  if (status === 'available' || status === 'downloaded') pendingUpdateNotice = payload;
-  if (status === 'up-to-date') pendingUpdateNotice = null;
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-status', payload);
-  if (splashWindow && !splashWindow.isDestroyed()) splashWindow.webContents.send('update-status', payload);
-}
-function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
-async function readExpectedSha256(release, asset) {
-  if (typeof asset.digest === 'string' && /^sha256:[a-f0-9]{64}$/i.test(asset.digest)) return asset.digest.slice(7).toLowerCase();
-  const checksum = (release.assets || []).find((item) => item.name === `${asset.name}.sha256`);
-  if (!checksum?.browser_download_url) return null;
-  const response = await fetch(checksum.browser_download_url, { headers: { 'User-Agent': 'Hearth-Desktop' }, signal: AbortSignal.timeout(8000) });
-  if (!response.ok) return null;
-  const match = (await response.text()).trim().match(/\b([a-f0-9]{64})\b/i);
-  return match ? match[1].toLowerCase() : null;
-}
-async function downloadAndVerifyUpdate(asset, expectedHash, version) {
-  const updatesDirectory = path.join(app.getPath('userData'), 'updates');
-  fs.mkdirSync(updatesDirectory, { recursive: true });
-  const safeVersion = version.replace(/[^a-zA-Z0-9.-]/g, '_');
-  const installerPath = path.join(updatesDirectory, `Hearth-${safeVersion}-Setup.exe`);
-  try {
-    const stat = await fs.promises.stat(installerPath);
-    if (stat.isFile() && stat.size === asset.size && stat.size > 1024) {
-      const hash = crypto.createHash('sha256');
-      for await (const chunk of fs.createReadStream(installerPath)) hash.update(chunk);
-      if (hash.digest('hex') === expectedHash) {
-        sendUpdateStatus('downloaded', `Установщик Hearth ${version} уже загружен и проверен.`, version, 100);
-        return installerPath;
-      }
-    }
-  } catch {}
-  try { await fs.promises.unlink(installerPath); } catch {}
-  if (skipUpdateRequested) {
-    sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version);
-    return null;
-  }
-  activeUpdateController = new AbortController();
-  const response = await fetch(asset.browser_download_url, {
-    headers: { 'User-Agent': 'Hearth-Desktop' },
-    signal: AbortSignal.any([activeUpdateController.signal, AbortSignal.timeout(20 * 60 * 1000)])
-  });
-  if (!response.ok || !response.body) throw new Error(`Не удалось скачать обновление (HTTP ${response.status}).`);
-  const total = Number(response.headers.get('content-length')) || Number(asset.size) || 0;
-  let received = 0, lastPercent = -1;
-  const hash = crypto.createHash('sha256');
-  const meter = new Transform({
-    transform(chunk, _encoding, callback) {
-      received += chunk.length; hash.update(chunk);
-      const percent = total ? Math.floor(received / total * 100) : 0;
-      if (percent !== lastPercent) { lastPercent = percent; sendUpdateStatus('downloading', `Скачиваем обновление… ${percent}%`, version, percent); }
-      callback(null, chunk);
-    }
-  });
-  try {
-    await pipeline(Readable.fromWeb(response.body), meter, fs.createWriteStream(installerPath, { flags: 'w' }));
-    const actualHash = hash.digest('hex');
-    const stat = await fs.promises.stat(installerPath);
-    if (stat.size < 1024 || (asset.size && stat.size !== asset.size)) throw new Error('Размер скачанного установщика не совпадает с опубликованным.');
-    if (actualHash !== expectedHash) throw new Error('Контрольная сумма установщика не совпала. Файл удалён из соображений безопасности.');
-    sendUpdateStatus('downloaded', `Обновление ${version} скачано и проверено.`, version, 100);
-    return installerPath;
-  } catch (error) {
-    await fs.promises.unlink(installerPath).catch(() => {});
-    if (skipUpdateRequested || error.name === 'AbortError') { sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version); return null; }
-    throw error;
-  } finally { activeUpdateController = null; }
-}
-async function installUpdate(installerPath, version, { silent = false } = {}) {
-  if (silent) {
-    sendUpdateStatus('installing', `Устанавливаем Hearth ${version}…`, version);
-    const child = spawn(installerPath, ['/S', '--updated'], { detached: true, stdio: 'ignore', windowsHide: true });
-    return new Promise((resolve) => {
-      child.once('spawn', () => { app.isQuitting = true; app.quit(); resolve({ status: 'installing', version, message: 'Установка обновления запущена.' }); });
-      child.once('error', (error) => {
-        console.warn('Silent update install failed:', error.message);
-        sendUpdateStatus('install-fallback', 'Тихая установка не удалась. Откроется обычный установщик.', version);
-        const fallback = spawn(installerPath, [], { detached: true, stdio: 'ignore', windowsHide: false });
-        fallback.once('spawn', () => { app.isQuitting = true; app.quit(); resolve({ status: 'installing', version, message: 'Открылся обычный установщик.' }); });
-        fallback.once('error', () => resolve({ status: 'error', message: 'Не удалось запустить установщик. Попробуйте установить его вручную.' }));
-      });
-    });
-  }
-  const choice = await dialog.showMessageBox(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
-    type: 'info', title: 'Обновление Hearth', message: `Доступна новая версия Hearth ${version}`,
-    detail: 'Обновление скачано и проверено. Hearth закроется на время установки.',
-    buttons: ['Установить сейчас', 'Позже'], defaultId: 0, cancelId: 1, noLink: true
-  });
-  if (choice.response !== 0) return { status: 'downloaded', version, message: `Обновление ${version} готово к установке. Можно вернуться к нему позже.` };
-  return installUpdate(installerPath, version, { silent: true });
-}
-async function checkForUpdates({ interactive = true, startup = false } = {}) {
-  if (!app.isPackaged) { sendUpdateStatus('development', 'Режим разработки — проверка обновлений пропущена.'); return { status: 'unavailable', message: 'Режим разработки — обновления не проверяются.' }; }
-  if (updateCheckPromise) return updateCheckPromise;
-  if (startup) skipUpdateRequested = false;
-  updateCheckPromise = (async () => {
-    sendUpdateStatus('checking', 'Проверяем обновления…');
-    try {
-      const response = await fetch('https://api.github.com/repos/Averyyyx/Hearth/releases?per_page=30', {
-        headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'Hearth-Desktop' }, signal: AbortSignal.timeout(8000)
-      });
-      if (!response.ok) throw new Error(response.status === 404 ? 'Не удалось найти публичные Alpha-релизы Hearth.' : `Сервис обновлений временно недоступен (HTTP ${response.status}).`);
-      const releases = await response.json();
-      const latest = releases.filter((item) => !item.draft && item.prerelease)
-        .sort((left, right) => compareReleaseVersions(right.tag_name, left.tag_name))[0];
-      if (!latest) {
-        const message = 'У вас последняя доступная Alpha-версия.';
-        sendUpdateStatus('up-to-date', message, app.getVersion());
-        if (startup) await sleep(400);
-        return { status: 'up-to-date', message };
-      }
-      const current = app.getVersion().replace(/^v/, '');
-      const version = String(latest.tag_name || '').replace(/^v/, '');
-      if (!version || compareReleaseVersions(version, current) <= 0) {
-        const message = 'У вас последняя версия Hearth.';
-        sendUpdateStatus('up-to-date', message, current);
-        if (startup) await sleep(400);
-        return { status: 'up-to-date', version: current, message };
-      }
-      const asset = (latest.assets || []).find((item) => /\.exe$/i.test(item.name || '') && /setup/i.test(item.name || ''));
-      if (!asset?.browser_download_url || !asset.size) throw new Error(`В релизе ${version} нет установщика Windows.`);
-      releaseNotesText = String(latest.body || '').replace(/<[^>]+>/g, '').trim().slice(0, 12000);
-      sendUpdateStatus('available', `Найдена версия ${version}.`, version, undefined, releaseNotesText);
-      const preferences = getUpdatePreferences();
-      if (!preferences.autoDownload && (!interactive || startup)) return { status: 'available', version, message: `Доступна версия ${version}. Автоматическая загрузка выключена.`, releaseNotes: releaseNotesText };
-      if (startup && skipUpdateRequested) {
-        sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version);
-        return { status: 'skipped', version, message: 'Обновление пропущено.' };
-      }
-      const expectedHash = await readExpectedSha256(latest, asset);
-      if (!expectedHash) throw new Error('У релиза отсутствует SHA-256. Установщик не будет запущен.');
-      if (startup && skipUpdateRequested) {
-        sendUpdateStatus('skipped', 'Запуск продолжается без обновления.', version);
-        return { status: 'skipped', version, message: 'Обновление пропущено.' };
-      }
-      const installerPath = await downloadAndVerifyUpdate(asset, expectedHash, version);
-      if (!installerPath) return { status: 'skipped', version, message: 'Запуск продолжается без обновления.' };
-      if (startup) return installUpdate(installerPath, version, { silent: true });
-      if (interactive) return installUpdate(installerPath, version, { silent: false });
-      return { status: 'downloaded', version, message: `Обновление ${version} скачано и проверено.`, releaseNotes: releaseNotesText };
-    } catch (error) {
-      const message = error.name === 'TimeoutError' || error.name === 'AbortError'
-        ? 'Не удалось проверить обновления по тайм-ауту. Запуск Hearth продолжается.'
-        : (error.message || 'Не удалось проверить или скачать обновление.');
-      console.warn('Update check failed:', error);
-      sendUpdateStatus('error', message);
-      if (startup) await sleep(1000);
-      return { status: 'error', message };
-    }
-  })();
-  try { return await updateCheckPromise; } finally { updateCheckPromise = null; }
-}
+const trayService = createTrayService({
+  app, Tray, Menu, nativeImage,
+  getMainWindow: () => mainWindow,
+  checkForUpdates,
+  createTrayImage, getIconPath, createTaskbarOverlay,
+  process,
+  getNotificationCount: () => notificationCount,
+  setNotificationCountState: (value) => { notificationCount = value; }
+});
+const { createTray, setNotificationCount } = trayService;
 
 function createSplashWindow() {
-  console.log('Creating splash window...');
-  const splashIconPath = getDesktopIconPath();
-
-  splashWindow = new BrowserWindow({
-    width: 440,
-    height: 520,
-    resizable: false,
-    movable: true,
-    frame: false,
-    alwaysOnTop: true,
-    transparent: false,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: appPaths.splashPreload
-    },
-    show: false,
-    backgroundColor: '#262624',
-    icon: splashIconPath
-  });
-
-  if (process.platform === 'win32') {
-    const splashIcon = nativeImage.createFromPath(splashIconPath);
-    if (!splashIcon.isEmpty()) splashWindow.setIcon(splashIcon);
-    else console.warn('Hearth splash icon could not be loaded:', splashIconPath);
-  }
-
-  const splashPath = appPaths.splashHtml;
-  console.log('Loading splash from:', splashPath);
-  
-  splashWindow.loadFile(splashPath);
-  
-  splashWindow.once('ready-to-show', () => {
-    console.log('Splash window ready to show');
-    splashWindow.center();
-    splashWindow.show();
-    
-    // Отправляем версию приложения
-    const version = app.getVersion();
-    splashWindow.webContents.send('app-version', version);
-  });
-
-  splashWindow.on('closed', () => {
-    console.log('Splash window closed');
-    splashWindow = null;
+  splashWindow = buildSplashWindow({
+    BrowserWindow, nativeImage, process,
+    getDesktopIconPath,
+    preloadPath: appPaths.splashPreload,
+    splashHtml: appPaths.splashHtml,
+    app,
+    onClosed: () => { splashWindow = null; }
   });
 }
 
 function createWindow() {
-  console.log('Creating main window...');
-  
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 1024,
-    minHeight: 700,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#262624', symbolColor: '#ECE9E3', height: 34 },
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      webSecurity: true,
-      preload: appPaths.mainPreload
-    },
-    title: 'Hearth',
-    show: false,
-    backgroundColor: '#0D0A1A',
-    icon: getDesktopIconPath()
-  });
-
-  if (process.platform === 'win32') {
-    const desktopIcon = nativeImage.createFromPath(getDesktopIconPath());
-    if (!desktopIcon.isEmpty()) mainWindow.setIcon(desktopIcon);
-  }
-
-  // Добавляем обработчики ошибок загрузки
-  mainWindow.webContents.on('did-finish-load', () => { if (pendingUpdateNotice) mainWindow.webContents.send('update-status', pendingUpdateNotice); });
-
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    console.error('Page failed to load:', errorCode, errorDescription, validatedURL);
-  });
-
-  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    console.log(`[Renderer Console] ${level}: ${message}`);
-  });
-
-  mainWindow.webContents.on('render-process-gone', (event, details) => {
-    console.error('Renderer process gone:', details);
-  });
-
-  // Сервер уже поднят (см. app.whenReady), поэтому грузим приложение напрямую.
-  // Раньше сначала открывалась welcome.html из file://: её скрипт использовал require('electron')
-  // при nodeIntegration=false и падал, а fetch к серверу из file:// блокировался CORS,
-  // так что окно навсегда зависало на экране «Подключение к серверу…».
-  console.log('Loading URL:', SERVER_URL);
-  mainWindow.loadURL(SERVER_URL)
-    .then(() => {
-      console.log('URL loaded successfully');
-    })
-    .catch((loadErr) => {
-      console.error('Failed to load URL:', loadErr);
-      const safeMessage = String(loadErr.message || loadErr)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(`
-        <html>
-          <head><title>Hearth Error</title></head>
-          <body style="background: #1e1e1e; color: white; font-family: sans-serif; padding: 20px;">
-            <h1>Hearth Failed to Start</h1>
-            <p>Could not load the application. Error: ${safeMessage}</p>
-            <p>Server URL: ${SERVER_URL}</p>
-            <p>Please check the log file in the Hearth user data folder for more details.</p>
-          </body>
-        </html>
-      `));
-    });
-
-  mainWindow.once('ready-to-show', () => {
-    console.log('Window ready to show');
-    mainWindow.show();
-    if (process.env.NODE_ENV === 'development') {
-      mainWindow.webContents.openDevTools({ mode: 'detach' });
-    }
-  });
-
-  mainWindow.on('closed', () => {
-    console.log('Main window closed');
-    mainWindow = null;
-  });
-  
-  // При закрытии окна - скрываем в трей, а не закрываем приложение
-  mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
-      event.preventDefault();
-      mainWindow.hide();
-      console.log('Window hidden to tray');
-    }
-  });
-
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol === 'hearth:') dispatchDeepLink(url);
-      else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') void shell.openExternal(url);
-    } catch { /* malformed URLs are denied */ }
-    return { action: 'deny' };
-  });
-
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith(SERVER_URL)) return;
-    event.preventDefault();
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol === 'hearth:') dispatchDeepLink(url);
-      else if (parsed.protocol === 'http:' || parsed.protocol === 'https:') void shell.openExternal(url);
-    } catch { /* malformed URLs are denied */ }
+  mainWindow = buildMainWindow({
+    BrowserWindow, nativeImage, process,
+    getDesktopIconPath,
+    preloadPath: appPaths.mainPreload,
+    serverUrl: SERVER_URL,
+    app, shell,
+    dispatchDeepLink,
+    getPendingUpdateNotice: () => pendingUpdateNotice,
+    onClosed: () => { mainWindow = null; }
   });
 }
+
+const { setupIPCHandlers } = createIpcService({
+  ipcMain, app,
+  getMainWindow: () => mainWindow,
+  setNotificationCount,
+  Notification, getDesktopIconPath,
+  dispatchDeepLink: (url) => dispatchDeepLink(url),
+  checkForUpdates,
+  getUpdatePreferences, setUpdatePreferences,
+  shell, path, nativeTheme,
+  skipUpdate
+});
 
 // Только один экземпляр: второй запуск иначе упёрся бы в занятый порт сервера (EADDRINUSE)
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -612,15 +212,15 @@ app.whenReady().then(async () => {
     // Сначала создаем splash screen
     createSplashWindow();
     
-    // Запускаем встроенный сервер
+    // Проверяем обновления на splash до запуска встроенного сервера.
+    const startupUpdateTask = checkForUpdates({ interactive: false, startup: true });
+
+    // Затем запускаем сервер, сохраняя последовательность старта из задания.
     console.log('Starting embedded server...');
     if (splashWindow) {
       splashWindow.webContents.send('loading-status', 'Запуск сервера...');
     }
     serverService.startServer();
-
-    // Проверка релиза начинается на splash до создания основного окна.
-    const startupUpdateTask = checkForUpdates({ interactive: false, startup: true });
     
     // Ждем, пока сервер станет доступен
     console.log('Waiting for server to be ready...');

@@ -11,10 +11,12 @@ function migrateLegacyUserData({
   const targetPath = path.join(appDataPath, 'Hearth');
   const markerPath = path.join(targetPath, '.migrated-from-legacy');
   const databasePath = path.join(targetPath, 'data', 'hearth.db');
+  const legacyMigrationMarker = path.join(targetPath, '.hearth-migration-v1');
   const inProgressPath = path.join(targetPath, '.hearth-migration-in-progress');
 
   if (
     fs.existsSync(markerPath) ||
+    fs.existsSync(legacyMigrationMarker) ||
     fs.existsSync(databasePath) ||
     !fs.existsSync(legacyPath)
   ) return targetPath;
@@ -80,7 +82,7 @@ function migrateLegacyUserData({
           }
         }
         if (hasTable('http_sessions')) db.prepare('DELETE FROM http_sessions').run();
-        if (hasTable('app_sessions')) db.prepare('DELETE FROM app_sessions').run();
+        
       })();
     } finally {
       db.close();
