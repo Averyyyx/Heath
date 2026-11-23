@@ -3,6 +3,7 @@ public/
 artifacts/
 dist/
 dist_*/
+client/dist/
 build/
 release/
 
