@@ -19,7 +19,7 @@ The updater reads prerelease assets from the GitHub repository configured in `sr
 
 ## Что должен сделать владелец репозитория
 
-1. Открыть GitHub → Settings → General → Repository name и переименовать репозиторий из `Nexo` в `Hearth`. Не создавать новый репозиторий `Nexo`: это сохранит автоматическое перенаправление старых URL.
+1. Открыть GitHub → Settings → General → Repository name и установить имя репозитория `Hearth`, сохранив существующий репозиторий и автоматическое перенаправление старых URL.
 2. В локальной копии выполнить в PowerShell: `git remote set-url origin https://github.com/Averyyyx/Hearth.git`.
 3. Переименовать локальную папку проекта в `hearth` и заново открыть её в редакторе.
 4. После зелёного CI слить `chore/0.0.9-restructure` в `main`, затем сделать отдельный release-коммит с префиксом `[release]`.
