@@ -24,15 +24,14 @@ function readSources() {
   const sources = [];
   for (const file of files.sort()) {
     if (!allowed.test(file) || file.includes('/node_modules/')) continue;
-    let content;
     try {
-      content = sourceRef
+      const content = sourceRef
         ? git(['show', sourceRef + ':' + file])
         : fs.readFileSync(path.join(ROOT, file), 'utf8');
+      sources.push({ file, content });
     } catch {
-      continue;
+      // A generated or unavailable source file is not part of the inventory.
     }
-    sources.push({ file, content });
   }
   return sources;
 }
@@ -77,26 +76,24 @@ function inventory(sources) {
   const ipc = { mainHandle: [], mainOn: [], rendererInvoke: [], rendererSend: [], webContentsSend: [] };
   const tables = new Map();
   const alteredColumns = [];
-  const quote = '["\\x27\\x60]';
 
   for (const { content } of sources) {
-    routes.push(...matches(content, new RegExp("\\\\b(?:app|router)\\\\.(get|post|put|patch|delete|options|head)\\\\s*\\\\(\\\\s*(['\\\"\\\\x60])([^'\\\"\\\\x60]+)\\\\2", 'g'),
+    routes.push(...matches(content, /\b(?:app|router)\.(get|post|put|patch|delete|options|head)\s*\(\s*(['"\x60])([^'"\x60]+)\2/g,
       (m) => m[1].toUpperCase() + ' ' + m[3]));
-    socketReceived.push(...matches(content, /\\bsocket\\.on\\s*\\(\\s*(['"\\x60])([^'"\\x60]+)\\1/g, (m) => m[2]));
-    socketEmitted.push(...matches(content, /\\.emit\\s*\\(\\s*(['"\\x60])([^'"\\x60]+)\\1/g, (m) => m[2]));
+    socketReceived.push(...matches(content, /\bsocket\.on\s*\(\s*(['"\x60])([^'"\x60]+)\1/g, (m) => m[2]));
+    socketEmitted.push(...matches(content, /\.emit\s*\(\s*(['"\x60])([^'"\x60]+)\1/g, (m) => m[2]));
 
-    ipc.mainHandle.push(...matches(content, /\\bipcMain\\.handle\\s*\\(\\s*(['"\\x60])([^'"\\x60]+)\\1/g, (m) => m[2]));
-    ipc.mainOn.push(...matches(content, /\\bipcMain\\.on\\s*\\(\\s*(['"\\x60])([^'"\\x60]+)\\1/g, (m) => m[2]));
-    ipc.rendererInvoke.push(...matches(content, /\\bipcRenderer\\.invoke\\s*\\(\\s*(['"\\x60])([^'"\\x60]+)\\1/g, (m) => m[2]));
-    ipc.rendererSend.push(...matches(content, /\\bipcRenderer\\.send\\s*\\(\\s*(['"\\x60])([^'"\\x60]+)\\1/g, (m) => m[2]));
-    ipc.webContentsSend.push(...matches(content, /\\bwebContents\\.send\\s*\\(\\s*(['"\\x60])([^'"\\x60]+)\\1/g, (m) => m[2]));
+    ipc.mainHandle.push(...matches(content, /\bipcMain\.handle\s*\(\s*(['"\x60])([^'"\x60]+)\1/g, (m) => m[2]));
+    ipc.mainOn.push(...matches(content, /\bipcMain\.on\s*\(\s*(['"\x60])([^'"\x60]+)\1/g, (m) => m[2]));
+    ipc.rendererInvoke.push(...matches(content, /\bipcRenderer\.invoke\s*\(\s*(['"\x60])([^'"\x60]+)\1/g, (m) => m[2]));
+    ipc.rendererSend.push(...matches(content, /\bipcRenderer\.send\s*\(\s*(['"\x60])([^'"\x60]+)\1/g, (m) => m[2]));
+    ipc.webContentsSend.push(...matches(content, /\bwebContents\.send\s*\(\s*(['"\x60])([^'"\x60]+)\1/g, (m) => m[2]));
 
-    const createTable = new RegExp('CREATE\\\\s+TABLE(?:\\\\s+IF\\\\s+NOT\\\\s+EXISTS)?\\\\s+["\\x27\\\\x60]?([A-Za-z_][\\\\w]*)["\\x27\\\\x60]?\\\\s*\\\\(([\\\\s\\\\S]*?)\\\\)\\\\s*(?:;|\\\\x60)', 'gi');
-    for (const match of content.matchAll(createTable)) {
+    for (const match of content.matchAll(/CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+["'\x60]?([A-Za-z_][\w]*)["'\x60]?\s*\(([\s\S]*?)\)\s*(?:;|\x60)/gi)) {
       const table = match[1];
       const columns = splitSqlColumns(match[2]).map((part) => {
         const trimmed = part.trim();
-        const column = trimmed.match(/^["'\\x60]?([A-Za-z_][\\w]*)["'\\x60]?\\s+/);
+        const column = trimmed.match(/^["'\x60]?([A-Za-z_][\w]*)["'\x60]?\s+/);
         if (!column || /^(?:PRIMARY|UNIQUE|FOREIGN|CHECK|CONSTRAINT)$/i.test(column[1])) return null;
         return column[1];
       }).filter(Boolean);
@@ -104,7 +101,7 @@ function inventory(sources) {
       for (const column of columns) tables.get(table).add(column);
     }
 
-    for (const match of content.matchAll(/ALTER\\s+TABLE\\s+["'\\x60]?([A-Za-z_][\\w]*)["'\\x60]?\\s+ADD\\s+COLUMN\\s+["'\\x60]?([A-Za-z_][\\w]*)/gi)) {
+    for (const match of content.matchAll(/ALTER\s+TABLE\s+["'\x60]?([A-Za-z_][\w]*)["'\x60]?\s+ADD\s+COLUMN\s+["'\x60]?([A-Za-z_][\w]*)/gi)) {
       alteredColumns.push(match[1] + '.' + match[2]);
       if (!tables.has(match[1])) tables.set(match[1], new Set());
       tables.get(match[1]).add(match[2]);
@@ -124,7 +121,6 @@ function inventory(sources) {
 }
 
 const result = inventory(readSources());
-const serialized = JSON.stringify(result, null, 2) + '\\n';
 
 if (comparePath) {
   const baseline = JSON.parse(fs.readFileSync(comparePath, 'utf8'));
@@ -133,7 +129,7 @@ if (comparePath) {
   if (differences.length) {
     console.error('Inventory differs from baseline: ' + comparePath);
     for (const key of differences) {
-      console.error('\\n' + key + ':');
+      console.error('\n' + key + ':');
       console.error('current: ' + JSON.stringify(result[key]));
       console.error('baseline: ' + JSON.stringify(baseline[key]));
     }
@@ -142,5 +138,5 @@ if (comparePath) {
     console.log('Inventory matches baseline.');
   }
 } else {
-  process.stdout.write(serialized);
+  process.stdout.write(JSON.stringify(result, null, 2) + '\n');
 }
