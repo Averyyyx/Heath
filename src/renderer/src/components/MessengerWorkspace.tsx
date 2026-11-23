@@ -31,7 +31,7 @@ import {
   Volume2
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
-import { playNexoSound, startNexoOutgoingTone, startNexoRingtone } from '../lib/sounds';
+import { playHearthSound, startHearthOutgoingTone, startHearthRingtone } from '../lib/sounds';
 import type {
   Channel,
   ChannelMessage,
@@ -219,7 +219,7 @@ export function MessengerWorkspace({
       callWasActiveRef.current = true;
       const conversation = conversations.find((item) => item.id === callState.conversationId);
       const isGroupCall = Boolean(callState.group || conversation?.type === 'group' || (conversation?.participants?.length || 0) > 2);
-      window.dispatchEvent(new CustomEvent('hr-call-state', { detail: {
+      window.dispatchEvent(new CustomEvent('hearth-call-state', { detail: {
         active: true, conversationId: callState.conversationId,
         title: isGroupCall ? conversation?.title || 'Групповой звонок' : conversation?.counterpart?.display_name || conversation?.counterpart?.username || 'Личный звонок',
         group: isGroupCall,
@@ -227,7 +227,7 @@ export function MessengerWorkspace({
       } }));
     } else if (callWasActiveRef.current) {
       callWasActiveRef.current = false;
-      window.dispatchEvent(new CustomEvent('hr-call-state', { detail: { active: false } }));
+      window.dispatchEvent(new CustomEvent('hearth-call-state', { detail: { active: false } }));
     }
   }, [callState, conversations]);
 
@@ -322,7 +322,7 @@ export function MessengerWorkspace({
       const groupCall = callStateRef.current;
       if (groupCall?.conversationId === conversationId && groupCall.group && acceptedParticipants) {
         ensureGroupPeers(conversationId, acceptedParticipants);
-        playNexoSound('call-accepted');
+        playHearthSound('call-accepted');
         return;
       }
       if (mediaType === 'audio' && callStateRef.current?.conversationId === conversationId) {
@@ -339,7 +339,7 @@ export function MessengerWorkspace({
       awaitingCallAcceptRef.current = null;
       const queued = queuedCallSignalsRef.current.splice(0);
       queued.forEach((payload) => socket.emit('call:signal', { conversationId, payload }));
-      playNexoSound('call-accepted');
+      playHearthSound('call-accepted');
     };
     const onCallReject = ({ conversationId, from }: { conversationId: number; from?: number }) => {
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
@@ -354,7 +354,7 @@ export function MessengerWorkspace({
     const onCallError = ({ conversationId, message }: { conversationId: number; message: string }) => {
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
       setCallError(message || 'Не удалось начать звонок.');
-      playNexoSound('error');
+      playHearthSound('error');
     };
     const onCallTimeout = ({ conversationId }: { conversationId: number; from?: number }) => {
       if (awaitingCallAcceptRef.current === conversationId) awaitingCallAcceptRef.current = null;
@@ -368,7 +368,7 @@ export function MessengerWorkspace({
         pendingIncomingSignalRef.current = null;
         onIncomingCallHandled?.();
       }
-      playNexoSound('call-ended');
+      playHearthSound('call-ended');
     };
     const onCallEnd = ({ conversationId }: { conversationId: number }) => {
       if (callStateRef.current?.conversationId === conversationId) endCall(false);
@@ -517,7 +517,7 @@ export function MessengerWorkspace({
       socketRef.current?.emit('call:timeout', { conversationId });
       pendingIncomingSignalRef.current = null;
       setIncomingCall((current) => current?.conversationId === conversationId ? null : current);
-      playNexoSound('call-ended');
+      playHearthSound('call-ended');
       onIncomingCallHandled?.();
     }, 45000);
     return () => window.clearTimeout(timeout);
@@ -538,12 +538,12 @@ export function MessengerWorkspace({
 
   useEffect(() => {
     if (!incomingCall || ringtoneMuted) return;
-    return startNexoRingtone();
+    return startHearthRingtone();
   }, [incomingCall, ringtoneMuted]);
 
   useEffect(() => {
     if (!callState?.initiator || callState.remoteStream) return;
-    return startNexoOutgoingTone();
+    return startHearthOutgoingTone();
   }, [callState?.conversationId, callState?.initiator, Boolean(callState?.remoteStream)]);
 
   useEffect(() => {
@@ -998,12 +998,12 @@ export function MessengerWorkspace({
       const sentKey = `dm:${data.message.id}`;
       setAnimatedMessageIds((current) => [...current.filter((item) => item !== sentKey), sentKey]);
       window.setTimeout(() => setAnimatedMessageIds((current) => current.filter((item) => item !== sentKey)), 850);
-      playNexoSound('send');
+      playHearthSound('send');
       setComposerText('');
       setUploadFile(null);
       setReplyingTo(null);
     } catch (error) {
-      playNexoSound('error');
+      playHearthSound('error');
       console.error(error);
     }
   }
@@ -1057,12 +1057,12 @@ export function MessengerWorkspace({
       const sentKey = `channel:${data.message.id}`;
       setAnimatedMessageIds((current) => [...current.filter((item) => item !== sentKey), sentKey]);
       window.setTimeout(() => setAnimatedMessageIds((current) => current.filter((item) => item !== sentKey)), 850);
-      playNexoSound('send');
+      playHearthSound('send');
       setChannelComposer('');
       setChannelUpload(null);
       setReplyingTo(null);
     } catch (error) {
-      playNexoSound('error');
+      playHearthSound('error');
       console.error(error);
     }
   }
@@ -1156,7 +1156,7 @@ export function MessengerWorkspace({
     if (document.documentElement.dataset.nexoVoiceActive === 'true') {
       if (!window.confirm('Выйти из голосового канала и начать личный звонок?')) return false;
       const channelId = Number(document.documentElement.dataset.nexoVoiceChannelId);
-      if (Number.isInteger(channelId)) window.dispatchEvent(new CustomEvent('hr-voice-action', { detail: { channelId, action: 'leave' } }));
+      if (Number.isInteger(channelId)) window.dispatchEvent(new CustomEvent('hearth-voice-action', { detail: { channelId, action: 'leave' } }));
       await new Promise((resolve) => window.setTimeout(resolve, 180));
     }
     setCallError('');
@@ -1220,7 +1220,7 @@ export function MessengerWorkspace({
       mediaStream?.getTracks().forEach((track) => track.stop());
       const mediaError = error as DOMException;
       const message = mediaError?.name === 'NotAllowedError'
-        ? 'Разрешите Nexo доступ к микрофону и камере в настройках Windows.'
+        ? 'Разрешите Hearth доступ к микрофону и камере в настройках Windows.'
         : mediaError?.name === 'NotFoundError'
           ? 'Не найдено подходящее аудиоустройство. Проверьте подключение микрофона.'
           : mediaError?.name === 'NotReadableError'
@@ -1253,7 +1253,7 @@ export function MessengerWorkspace({
       return;
     }
     socketRef.current?.emit('call:accept', { conversationId: call.conversationId, mediaType: acceptedMediaType || call.mediaType });
-    playNexoSound('call-accepted');
+    playHearthSound('call-accepted');
     onIncomingCallHandled?.();
   }
 
@@ -1262,7 +1262,7 @@ export function MessengerWorkspace({
     socketRef.current?.emit('call:decline', { conversationId: incomingCall.conversationId });
     pendingIncomingSignalRef.current = null;
     setIncomingCall(null);
-    playNexoSound('call-ended');
+    playHearthSound('call-ended');
     onIncomingCallHandled?.();
   }
 
@@ -1272,8 +1272,8 @@ export function MessengerWorkspace({
 
   useEffect(() => {
     const onGlobalEndCall = () => { if (callStateRef.current) endCall(true); };
-    window.addEventListener('hr-end-call', onGlobalEndCall);
-    return () => window.removeEventListener('hr-end-call', onGlobalEndCall);
+    window.addEventListener('hearth-end-call', onGlobalEndCall);
+    return () => window.removeEventListener('hearth-end-call', onGlobalEndCall);
   }, []);
 
   function endCall(notifyRemote = true) {
@@ -1285,7 +1285,7 @@ export function MessengerWorkspace({
     callStateRef.current = null;
     setCallState(null);
     if (notifyRemote) socketRef.current?.emit('call:end', { conversationId: current.conversationId });
-    playNexoSound('call-ended');
+    playHearthSound('call-ended');
     current.peer?.destroy();
     Object.values(current.peers || {}).forEach((peer) => peer.destroy());
     current.localStream?.getTracks().forEach((track) => track.stop());
@@ -1545,7 +1545,7 @@ export function MessengerWorkspace({
     if (servers.length === 0) {
       return (
         <div className="empty-state">
-          <h2>Добро пожаловать в Nexo</h2>
+          <h2>Добро пожаловать в Hearth</h2>
           <p>Создайте первое пространство для команды, проекта или сообщества.</p>
           <button className="primary" onClick={() => setShowCreateServer(true)}>
             <Plus size={16} />

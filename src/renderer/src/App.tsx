@@ -34,7 +34,7 @@ import { DefaultAvatar } from './components/DefaultAvatar';
 import { apiFetch } from './lib/api';
 import { applyTheme, isThemeChoice, type ThemeChoice } from './lib/theme';
 import { loadingPhrases } from './lib/phrases';
-import { playNexoSound } from './lib/sounds';
+import { playHearthSound } from './lib/sounds';
 import { getSocket } from './lib/socket';
 import type { ChannelMessage, Conversation, FriendPayload, Message, Server, User, UserStatus } from './types';
 
@@ -67,10 +67,10 @@ const statusChoices: StatusChoice[] = [
   { value: 'invisible', label: 'Невидимка' }
 ];
 
-function tabStorageKey(userId: number) { return `nexo.tabs.v1.${userId}`; }
-function pinStorageKey(userId: number) { return `nexo.pins.v1.${userId}`; }
-function sidebarStorageKey(userId: number) { return `nexo.sidebar-width.v1.${userId}`; }
-function unreadStorageKey(userId: number) { return `nexo.unreads.v1.${userId}`; }
+function tabStorageKey(userId: number) { return `hearth.tabs.v1.${userId}`; }
+function pinStorageKey(userId: number) { return `hearth.pins.v1.${userId}`; }
+function sidebarStorageKey(userId: number) { return `hearth.sidebar-width.v1.${userId}`; }
+function unreadStorageKey(userId: number) { return `hearth.unreads.v1.${userId}`; }
 
 function countUserMentions(content: string, username: string): number {
   const needle = `@${username.trim().toLocaleLowerCase('en-US')}`;
@@ -176,12 +176,12 @@ export default function App() {
     const onVoiceState = (event: Event) => {
       const detail = (event as CustomEvent<{ active: boolean; serverId?: number; channelId?: number; serverName?: string; channelName?: string; joinedAt?: number }>).detail;
       if (detail?.active && detail.serverId && detail.channelId) {
-        document.documentElement.dataset.nexoVoiceActive = 'true';
-        document.documentElement.dataset.nexoVoiceChannelId = String(detail.channelId);
+        document.documentElement.dataset.hearthVoiceActive = 'true';
+        document.documentElement.dataset.hearthVoiceChannelId = String(detail.channelId);
         setActiveVoiceInfo({ serverId: detail.serverId, channelId: detail.channelId, serverName: detail.serverName || '', channelName: detail.channelName || '', joinedAt: detail.joinedAt || Date.now() });
       } else if (!detail?.active) {
-        delete document.documentElement.dataset.nexoVoiceActive;
-        delete document.documentElement.dataset.nexoVoiceChannelId;
+        delete document.documentElement.dataset.hearthVoiceActive;
+        delete document.documentElement.dataset.hearthVoiceChannelId;
         setActiveVoiceInfo((current) => current && (detail?.channelId === undefined || detail.channelId === current.channelId) ? null : current);
       }
     };
@@ -193,10 +193,10 @@ export default function App() {
       const detail = (event as CustomEvent<{ channelId: number; participants: Array<{ user: { id: number; username: string; display_name: string; avatar_url: string; avatar_color?: string }; muted: boolean; deafened: boolean; canSpeak?: boolean }> }>).detail;
       if (detail?.channelId) setVoiceParticipantsByChannel((current) => ({ ...current, [detail.channelId]: detail.participants || [] }));
     };
-    window.addEventListener('hr-voice-state', onVoiceState);
-    window.addEventListener('hr-voice-participants', onVoiceParticipants);
-    window.addEventListener('hr-voice-speaking', onVoiceSpeaking);
-    return () => { window.removeEventListener('hr-voice-state', onVoiceState); window.removeEventListener('hr-voice-participants', onVoiceParticipants); window.removeEventListener('hr-voice-speaking', onVoiceSpeaking); };
+    window.addEventListener('hearth-voice-state', onVoiceState);
+    window.addEventListener('hearth-voice-participants', onVoiceParticipants);
+    window.addEventListener('hearth-voice-speaking', onVoiceSpeaking);
+    return () => { window.removeEventListener('hearth-voice-state', onVoiceState); window.removeEventListener('hearth-voice-participants', onVoiceParticipants); window.removeEventListener('hearth-voice-speaking', onVoiceSpeaking); };
   }, []);
 
   useEffect(() => {
@@ -311,7 +311,7 @@ export default function App() {
       setLoadingError('');
       try {
         const sessionResponse = await apiFetch('/api/auth/session');
-        if (!sessionResponse.ok) throw new Error('Не удалось связаться с сервером Nexo.');
+        if (!sessionResponse.ok) throw new Error('Не удалось связаться с сервером Hearth.');
         const payload = await sessionResponse.json();
         const currentUser = payload.user as User | null;
         if (cancelled) return;
@@ -331,7 +331,7 @@ export default function App() {
         if (!cancelled) setLoading(false);
       } catch (error) {
         if (!cancelled) {
-          setLoadingError((error as Error).message || 'Не удалось загрузить Nexo.');
+          setLoadingError((error as Error).message || 'Не удалось загрузить Hearth.');
           setLoading(false);
         }
       } finally {
@@ -376,10 +376,10 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const savedInput = localStorage.getItem(`nexo.audio-input.${user.id}`) || '';
-    const savedOutput = localStorage.getItem(`nexo.audio-output.${user.id}`) || '';
-    const savedVideo = localStorage.getItem(`nexo.video-input.${user.id}`) || '';
-    const savedMic = localStorage.getItem(`nexo.mic-muted.${user.id}`) === 'true';
+    const savedInput = localStorage.getItem(`hearth.audio-input.${user.id}`) || '';
+    const savedOutput = localStorage.getItem(`hearth.audio-output.${user.id}`) || '';
+    const savedVideo = localStorage.getItem(`hearth.video-input.${user.id}`) || '';
+    const savedMic = localStorage.getItem(`hearth.mic-muted.${user.id}`) === 'true';
     setAudioInputId(savedInput);
     setAudioOutputId(savedOutput);
     setVideoInputId(savedVideo);
@@ -445,8 +445,8 @@ export default function App() {
     }
     if (payload.messageId) {
       const messageElementId = payload.type === 'dm'
-        ? `hr-message-${payload.messageId}`
-        : `hr-channel-message-${payload.messageId}`;
+        ? `hearth-message-${payload.messageId}`
+        : `hearth-channel-message-${payload.messageId}`;
       window.setTimeout(() => document.getElementById(messageElementId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 420);
     }
     setPendingDeepLink(null);
@@ -468,7 +468,7 @@ export default function App() {
         void desktopApi?.showNotification?.({
           title: nextPayload.user.display_name || nextPayload.user.username,
           body: payload.mediaType === 'video' ? 'Входящий видеозвонок' : 'Входящий голосовой звонок',
-          deepLink: `nexo://dm/${payload.conversationId}`
+          deepLink: `hearth://dm/${payload.conversationId}`
         })?.catch(() => {});
       }
     };
@@ -492,8 +492,8 @@ export default function App() {
         group: Boolean(detail.group)
       });
     };
-    window.addEventListener('hr-call-state', onCallState);
-    return () => window.removeEventListener('hr-call-state', onCallState);
+    window.addEventListener('hearth-call-state', onCallState);
+    return () => window.removeEventListener('hearth-call-state', onCallState);
   }, []);
 
   useEffect(() => {
@@ -520,14 +520,14 @@ export default function App() {
         setUnreadDmCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + 1) }));
         const mentions = countUserMentions(message?.content || '', user.username);
         if (mentions > 0) setUnreadDmMentionCounts((current) => ({ ...current, [conversationId]: Math.min(99, (current[conversationId] || 0) + mentions) }));
-        playNexoSound(mentions > 0 ? 'notification' : 'message');
+        playHearthSound(mentions > 0 ? 'notification' : 'message');
         if (user.status !== 'dnd' && message && (!document.hasFocus() || document.visibilityState !== 'visible')) {
           const conversation = conversations.find((item) => item.id === conversationId);
           const title = conversation?.counterpart?.display_name || conversation?.counterpart?.username || 'Новое сообщение';
           void desktopApi?.showNotification?.({
             title: mentions > 0 ? `Упоминание · ${title}` : title,
             body: message.content || (message.attachment ? 'Отправлено вложение' : 'Новое сообщение'),
-            deepLink: `nexo://dm/${conversationId}/message/${message.id}`
+            deepLink: `hearth://dm/${conversationId}/message/${message.id}`
           })?.catch(() => {});
         }
       }
@@ -545,7 +545,7 @@ export default function App() {
         setUnreadChannelCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + 1) }));
         const mentions = countUserMentions(message?.content || '', user.username);
         if (mentions > 0) setUnreadChannelMentionCounts((current) => ({ ...current, [channelId]: Math.min(99, (current[channelId] || 0) + mentions) }));
-        playNexoSound(mentions > 0 ? 'notification' : 'message');
+        playHearthSound(mentions > 0 ? 'notification' : 'message');
         if (user.status !== 'dnd' && message) {
           const server = servers.find((item) => item.id === message.server_id);
           const channel = server?.channels.find((item) => item.id === channelId);
@@ -553,7 +553,7 @@ export default function App() {
           void desktopApi?.showNotification?.({
             title: mentions > 0 ? `Упоминание · ${title}` : title,
             body: message.content || (message.attachment ? 'Отправлено вложение' : 'Новое сообщение'),
-            deepLink: `nexo://channel/${message.server_id}/${channelId}/message/${message.id}`
+            deepLink: `hearth://channel/${message.server_id}/${channelId}/message/${message.id}`
           })?.catch(() => {});
         }
       }
@@ -754,13 +754,13 @@ export default function App() {
     if (!channel) return false;
     if (activeCallInfo) {
       if (!window.confirm('Выйти из личного звонка и подключиться к голосовому каналу?')) return false;
-      window.dispatchEvent(new CustomEvent('hr-end-call'));
+      window.dispatchEvent(new CustomEvent('hearth-end-call'));
       window.setTimeout(() => openTab({ id: `voice:${channel.id}`, kind: 'voice', title: `Голосовой · ${channel.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id }), 180);
       return true;
     }
     if (activeVoiceInfo && activeVoiceInfo.channelId !== channelId) {
       if (!window.confirm('Выйти из текущего голосового канала и подключиться к другому?')) return false;
-      window.dispatchEvent(new CustomEvent('hr-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }));
+      window.dispatchEvent(new CustomEvent('hearth-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }));
       window.setTimeout(() => openTab({ id: `voice:${channel.id}`, kind: 'voice', title: `Голосовой · ${channel.name}`, targetId: channel.id, serverId: server.id, channelId: channel.id }), 140);
       return true;
     }
@@ -1057,7 +1057,7 @@ export default function App() {
   }
 
   async function handleCheckUpdates() {
-    if (!desktopApi?.checkForUpdates) return { status: 'unavailable', message: 'Проверка доступна в настольной версии Nexo.' };
+    if (!desktopApi?.checkForUpdates) return { status: 'unavailable', message: 'Проверка доступна в настольной версии Hearth.' };
     return desktopApi.checkForUpdates();
   }
 
@@ -1120,9 +1120,9 @@ export default function App() {
 
 
   function setMic(next: boolean) {
-    if (micMuted !== next) playNexoSound(next ? 'mic-off' : 'mic-on');
+    if (micMuted !== next) playHearthSound(next ? 'mic-off' : 'mic-on');
     setMicMuted(next);
-    if (user) localStorage.setItem(`nexo.mic-muted.${user.id}`, String(next));
+    if (user) localStorage.setItem(`hearth.mic-muted.${user.id}`, String(next));
   }
 
   async function changeStatus(next: UserStatus) {
@@ -1143,14 +1143,14 @@ export default function App() {
         <motion.div className="hr-loading-logo" initial={{ opacity: 0, scale: .94 }} animate={{ opacity: 1, scale: 1 }}>
           <span className="brand-mark">N</span>
         </motion.div>
-        <p className="loading-brand">Nexo</p>
+        <p className="loading-brand">Hearth</p>
         <span className="loading-caption">YOUR SPACE TO CONNECT</span>
         <AnimatePresence mode="wait"><motion.p key={loadingPhraseIndex} className="loading-phrase"
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
           transition={{ duration: .25 }}>{loadingPhrases[loadingPhraseIndex]}</motion.p></AnimatePresence>
         <div className="loading-track"><motion.span animate={{ scaleX: [.12, .72, .35, .94] }}
           transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }} /></div>
-        <span className="loading-footnote">NEXO DESKTOP · ALPHA</span>
+        <span className="loading-footnote">HEARTH DESKTOP · ALPHA</span>
       </div>
     );
   }
@@ -1159,7 +1159,7 @@ export default function App() {
     return (
       <div className="boot-error-screen">
         <div className="boot-error-mark">N</div>
-        <h1>Не удаётся связаться с сервером Nexo</h1>
+        <h1>Не удаётся связаться с сервером Hearth</h1>
         <p>{loadingError}</p>
         <div><button className="primary" onClick={() => setBootAttempt((value) => value + 1)}>Повторить</button>
           <button className="ghost" onClick={() => desktopApi?.openLogs?.()}>Открыть журнал</button></div>
@@ -1172,7 +1172,7 @@ export default function App() {
   return (
     <div className="app-root hr-root">
       <header className="app-nav hr-titlebar">
-        <div className="titlebar-brand"><img className="brand-image" src="/hr-mark.svg" alt="" /><strong>Nexo</strong><span className="titlebar-version">ALPHA</span></div>
+        <div className="titlebar-brand"><img className="brand-image" src="/hr-mark.svg" alt="" /><strong>Hearth</strong><span className="titlebar-version">ALPHA</span></div>
         <button type="button" className="titlebar-command" onClick={() => openPalette()} data-tooltip="Найти или выполнить команду (Ctrl+K)">
           <Search size={15} /><span>Найти или выполнить команду</span><kbd>Ctrl K</kbd>
         </button>
@@ -1318,13 +1318,13 @@ export default function App() {
                           <span className="active-voice-dot" />
                           <span><strong>Голосовая связь</strong><small>{activeVoiceInfo.channelName} · {activeVoiceInfo.serverName} · {formatCallDuration(voiceClock - activeVoiceInfo.joinedAt)}</small></span>
                         </button>
-                        <button type="button" className="hangup" aria-label="Выйти из голосового канала" data-tooltip="Выйти из голосового канала" onClick={() => window.dispatchEvent(new CustomEvent('hr-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }))}><PhoneOff size={15} /></button>
+                        <button type="button" className="hangup" aria-label="Выйти из голосового канала" data-tooltip="Выйти из голосового канала" onClick={() => window.dispatchEvent(new CustomEvent('hearth-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'leave' } }))}><PhoneOff size={15} /></button>
                       </div>
                       <div className="active-voice-actions">
                         <button type="button" className={micMuted ? 'is-off' : ''} data-tooltip={micMuted ? 'Включить микрофон' : 'Выключить микрофон'} onClick={() => { if (deafened) setSavedMicMuted(!savedMicMuted); else setMic(!micMuted); }}>{micMuted ? <MicOff size={15} /> : <Mic size={15} />}</button>
                         <button type="button" className={deafened ? 'is-off' : ''} data-tooltip={deafened ? 'Включить звук' : 'Выключить звук'} onClick={() => { if (!deafened) { setSavedMicMuted(micMuted); setMic(true); setDeafened(true); } else { setDeafened(false); setMic(savedMicMuted); } }}>{deafened ? <HeadphoneOff size={15} /> : <Headphones size={15} />}</button>
-                        <button type="button" className="voice-action-button" data-tooltip="Камера" onClick={() => window.dispatchEvent(new CustomEvent('hr-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Camera size={15} /></button>
-                        <button type="button" className="voice-action-button" data-tooltip="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('hr-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><MonitorUp size={15} /></button>
+                        <button type="button" className="voice-action-button" data-tooltip="Камера" onClick={() => window.dispatchEvent(new CustomEvent('hearth-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'camera' } }))}><Camera size={15} /></button>
+                        <button type="button" className="voice-action-button" data-tooltip="Демонстрация экрана" onClick={() => window.dispatchEvent(new CustomEvent('hearth-voice-action', { detail: { channelId: activeVoiceInfo.channelId, action: 'screen' } }))}><MonitorUp size={15} /></button>
                       </div>
                     </div>}
                     {activeCallInfo && <div className="active-call-strip">
@@ -1335,7 +1335,7 @@ export default function App() {
                           <small>{formatCallDuration(callClock - activeCallInfo.startedAt)} · {activeCallInfo.group ? 'Групповой диалог' : 'Личный диалог'}</small>
                         </span>
                       </button>
-                      <button type="button" className="hangup" data-tooltip="Завершить звонок" aria-label="Завершить звонок" onClick={() => window.dispatchEvent(new CustomEvent('hr-end-call'))}><PhoneOff size={15} /></button>
+                      <button type="button" className="hangup" data-tooltip="Завершить звонок" aria-label="Завершить звонок" onClick={() => window.dispatchEvent(new CustomEvent('hearth-end-call'))}><PhoneOff size={15} /></button>
                     </div>}
                     
                     <div className="hr-user-dock">
@@ -1352,8 +1352,8 @@ export default function App() {
                         <button type="button" className={deafened ? 'dock-icon danger' : 'dock-icon'}
                           aria-label={deafened ? 'Включить звук' : 'Отключить звук'}
                           data-tooltip={deafened ? 'Включить звук' : 'Отключить звук'} onClick={() => {
-                            if (!deafened) { playNexoSound('headphones-off'); setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
-                            else { playNexoSound('headphones-on'); setDeafened(false); setMic(savedMicMuted); }
+                            if (!deafened) { playHearthSound('headphones-off'); setSavedMicMuted(micMuted); setMic(true); setDeafened(true); }
+                            else { playHearthSound('headphones-on'); setDeafened(false); setMic(savedMicMuted); }
                           }}>
                           {deafened ? <HeadphoneOff size={17} /> : <Headphones size={17} />}
                         </button>
@@ -1404,9 +1404,9 @@ export default function App() {
                   {tab.kind === 'settings' && <SettingsPanel key={tab.id} user={user} onUserUpdate={(nextUser) => setUser(nextUser)}
                     initialSection={tab.initialSection || 'account'} appVersion={appVersion} onCheckUpdates={handleCheckUpdates}
                     audioInputId={audioInputId} audioOutputId={audioOutputId} videoInputId={videoInputId}
-                    onVideoInputChange={(id) => { setVideoInputId(id); localStorage.setItem(`nexo.video-input.${user.id}`, id); }}
-                    onAudioInputChange={(id) => { setAudioInputId(id); localStorage.setItem(`nexo.audio-input.${user.id}`, id); }}
-                    onAudioOutputChange={(id) => { setAudioOutputId(id); localStorage.setItem(`nexo.audio-output.${user.id}`, id); }}
+                    onVideoInputChange={(id) => { setVideoInputId(id); localStorage.setItem(`hearth.video-input.${user.id}`, id); }}
+                    onAudioInputChange={(id) => { setAudioInputId(id); localStorage.setItem(`hearth.audio-input.${user.id}`, id); }}
+                    onAudioOutputChange={(id) => { setAudioOutputId(id); localStorage.setItem(`hearth.audio-output.${user.id}`, id); }}
                     onClose={() => closeTab(tab.id)} onLogout={handleLogout} />}
                 </section>
               ))}

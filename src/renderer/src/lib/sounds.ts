@@ -4,7 +4,7 @@ export type SoundKind =
   | 'mic-on' | 'mic-off' | 'headphones-on' | 'headphones-off'
   | 'notification' | 'error' | 'voice-join' | 'voice-leave' | 'voice-user-join' | 'voice-user-leave';
 
-export type NexoSoundPreferences = {
+export type HearthSoundPreferences = {
   enabled: boolean;
   volume: number;
   ringtoneVolume: number;
@@ -12,11 +12,11 @@ export type NexoSoundPreferences = {
   events: Record<SoundKind, boolean>;
 };
 
-export const NEXO_SOUND_EVENTS: Array<{ key: SoundKind; label: string; description: string }> = [
+export const HEARTH_SOUND_EVENTS: Array<{ key: SoundKind; label: string; description: string }> = [
   { key: 'message', label: 'Новое сообщение', description: 'Мягкая нисходящая пара нот' },
   { key: 'send', label: 'Отправка сообщения', description: 'Тихий короткий тон подтверждения' },
   { key: 'outgoing-ring', label: 'Исходящий вызов', description: 'Спокойный двойной сигнал во время вызова' },
-  { key: 'ring', label: 'Входящий звонок', description: 'Оригинальная мелодия Nexo из пяти нот' },
+  { key: 'ring', label: 'Входящий звонок', description: 'Оригинальная мелодия Hearth из пяти нот' },
   { key: 'call-accepted', label: 'Звонок принят', description: 'Короткая восходящая пара нот' },
   { key: 'call-ended', label: 'Звонок завершён', description: 'Мягкая нисходящая пара нот' },
   { key: 'mic-on', label: 'Микрофон включён', description: 'Сигнал включения микрофона' },
@@ -40,7 +40,7 @@ const DEFAULT_EVENTS: Record<SoundKind, boolean> = {
   notification: true, error: true, 'voice-join': true, 'voice-leave': true,
   'voice-user-join': true, 'voice-user-leave': true
 };
-const DEFAULTS: NexoSoundPreferences = {
+const DEFAULTS: HearthSoundPreferences = {
   enabled: true,
   volume: 0.22,
   ringtoneVolume: 0.25,
@@ -57,7 +57,7 @@ function clampVolume(value: unknown, fallback: number): number {
   return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : fallback;
 }
 
-export function getNexoSoundPreferences(): NexoSoundPreferences {
+export function getHearthSoundPreferences(): HearthSoundPreferences {
   try {
     const legacyKey = LEGACY_STORAGE_KEYS.find((key) => localStorage.getItem(key));
     const raw = localStorage.getItem(STORAGE_KEY) || (legacyKey ? localStorage.getItem(legacyKey) : null) || '{}';
@@ -89,7 +89,7 @@ export function getNexoSoundPreferences(): NexoSoundPreferences {
   }
 }
 
-export function saveNexoSoundPreferences(next: NexoSoundPreferences): void {
+export function saveHearthSoundPreferences(next: HearthSoundPreferences): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('hearth-sound-preferences-updated', { detail: next }));
@@ -176,8 +176,8 @@ function scheduleSoundPattern(audio: AudioContext, kind: SoundKind, volume: numb
   }
 }
 
-export function playNexoSound(kind: SoundKind): void {
-  const preferences = getNexoSoundPreferences();
+export function playHearthSound(kind: SoundKind): void {
+  const preferences = getHearthSoundPreferences();
   if (!preferences.enabled || !preferences.events[kind]) return;
   const isCallSound = kind === 'ring' || kind === 'outgoing-ring' || kind === 'call-accepted' || kind === 'call-ended';
   if (typeof document !== 'undefined' && document.documentElement.dataset.hearthDnd === 'true' && !(isCallSound && preferences.allowCallsInDnd)) return;
@@ -193,12 +193,12 @@ export function playNexoSound(kind: SoundKind): void {
   if (audio.state === 'running') scheduleSoundPattern(audio, kind, volume);
 }
 
-export function startNexoRingtone(): () => void {
-  const preferences = getNexoSoundPreferences();
+export function startHearthRingtone(): () => void {
+  const preferences = getHearthSoundPreferences();
   if (!preferences.enabled || !preferences.events.ring) return () => {};
   if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.hearthDnd === 'true') return () => {};
   let stopped = false;
-  const play = () => { if (!stopped) playNexoSound('ring'); };
+  const play = () => { if (!stopped) playHearthSound('ring'); };
   play();
   const interval = window.setInterval(play, 4000);
   const timeout = window.setTimeout(stop, 45000);
@@ -211,12 +211,12 @@ export function startNexoRingtone(): () => void {
   return stop;
 }
 
-export function startNexoOutgoingTone(): () => void {
-  const preferences = getNexoSoundPreferences();
+export function startHearthOutgoingTone(): () => void {
+  const preferences = getHearthSoundPreferences();
   if (!preferences.enabled || !preferences.events['outgoing-ring']) return () => {};
   if (!preferences.allowCallsInDnd && typeof document !== 'undefined' && document.documentElement.dataset.hearthDnd === 'true') return () => {};
   let stopped = false;
-  const play = () => { if (!stopped) playNexoSound('outgoing-ring'); };
+  const play = () => { if (!stopped) playHearthSound('outgoing-ring'); };
   play();
   const interval = window.setInterval(play, 3000);
   return () => { stopped = true; window.clearInterval(interval); };

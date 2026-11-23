@@ -17,7 +17,7 @@ import {
   Keyboard
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
-import { getNexoSoundPreferences, NEXO_SOUND_EVENTS, playNexoSound, saveNexoSoundPreferences, type NexoSoundPreferences } from '../lib/sounds';
+import { getHearthSoundPreferences, HEARTH_SOUND_EVENTS, playHearthSound, saveHearthSoundPreferences, type HearthSoundPreferences } from '../lib/sounds';
 import { Avatar } from './Avatar';
 import { Field, Input, Select, Textarea, Switch, Slider, Button } from './ui';
 import type { User, UserStatus } from '../types';
@@ -114,7 +114,7 @@ const PERMISSION_FLAGS = [
 
 export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', onClose, onLogout, appVersion = '0.0.8-alpha', onCheckUpdates, audioInputId = '', audioOutputId = '', videoInputId = '', onVideoInputChange, onAudioInputChange, onAudioOutputChange }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
-  const [soundPreferences, setSoundPreferences] = useState<NexoSoundPreferences>(() => getNexoSoundPreferences());
+  const [soundPreferences, setSoundPreferences] = useState<HearthSoundPreferences>(() => getHearthSoundPreferences());
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
   const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
@@ -200,17 +200,17 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
 
   useEffect(() => {
     const syncSoundPreferences = (event: Event) => {
-      const next = (event as CustomEvent<NexoSoundPreferences>).detail;
+      const next = (event as CustomEvent<HearthSoundPreferences>).detail;
       if (next) setSoundPreferences(next);
     };
     window.addEventListener('hearth-sound-preferences-updated', syncSoundPreferences);
     return () => window.removeEventListener('hearth-sound-preferences-updated', syncSoundPreferences);
   }, []);
 
-  function changeSoundPreference<K extends keyof NexoSoundPreferences>(key: K, value: NexoSoundPreferences[K]) {
+  function changeSoundPreference<K extends keyof HearthSoundPreferences>(key: K, value: HearthSoundPreferences[K]) {
     setSoundPreferences((current) => {
       const next = { ...current, [key]: value };
-      saveNexoSoundPreferences(next);
+      saveHearthSoundPreferences(next);
       return next;
     });
   }
@@ -536,7 +536,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   }
 
   async function purchasePlan(planId: number) {
-    setPremiumStatus({ type: 'loading', message: `Создаём ${premium?.brand ?? 'Nexo Pulse'}…` });
+    setPremiumStatus({ type: 'loading', message: `Создаём ${premium?.brand ?? 'Hearth Plus'}…` });
     try {
       const response = await apiFetch('/api/premium/checkout', {
         method: 'POST',
@@ -557,7 +557,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         const payload = await confirm.json().catch(() => ({}));
         throw new Error(payload.message || 'Не удалось подтвердить');
       }
-      setPremiumStatus({ type: 'success', message: `${premium?.brand ?? 'Nexo Pulse'} активирован!` });
+      setPremiumStatus({ type: 'success', message: `${premium?.brand ?? 'Hearth Plus'} активирован!` });
       const statusResponse = await apiFetch('/api/premium/status');
       if (statusResponse.ok) {
         setSubscription((await statusResponse.json()) as PremiumStatus);
@@ -622,7 +622,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
 
   function renderPremium() {
     if (!premium) {
-      return <p className="muted">Загружаем Nexo Pulse…</p>;
+      return <p className="muted">Загружаем Hearth Plus…</p>;
     }
     return (
       <div className="settings-section">
@@ -1003,7 +1003,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       setUpdateStatus({ type: 'error', message: 'Проверка обновлений недоступна в этой сборке.' });
       return;
     }
-    setUpdateStatus({ type: 'loading', message: 'Проверяем релизы Nexo…' });
+    setUpdateStatus({ type: 'loading', message: 'Проверяем релизы Hearth…' });
     try {
       setUpdateProgress(null);
       const result = await onCheckUpdates();
@@ -1020,9 +1020,9 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
   function renderUpdates() {
     return (
       <div className="settings-section">
-        <p className="eyebrow">Nexo Desktop</p>
+        <p className="eyebrow">Hearth Desktop</p>
         <h2>Обновления</h2>
-        <p className="muted">Nexo проверяет новые Alpha-релизы автоматически при запуске. Здесь можно запустить проверку вручную.</p>
+        <p className="muted">Hearth проверяет новые Alpha-релизы автоматически при запуске. Здесь можно запустить проверку вручную.</p>
         <div className="update-version-card">
           <div><span>Установленная версия</span><strong>{appVersion}</strong></div>
           <span className="update-version-mark">ALPHA</span>
@@ -1043,7 +1043,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
         </label>
         {updateStatus.message && <p className={`status ${updateStatus.type}`}>{updateStatus.message}</p>}
         {releaseNotes && <details className="release-notes"><summary>Что нового</summary><pre>{releaseNotes}</pre></details>}
-        <p className="muted update-help">При запуске Nexo проверяет новые Alpha-релизы. Скачанные установщики проверяются по SHA-256; тихая установка запускается автоматически.</p>
+        <p className="muted update-help">При запуске Hearth проверяет новые Alpha-релизы. Скачанные установщики проверяются по SHA-256; тихая установка запускается автоматически.</p>
       </div>
     );
   }
@@ -1318,12 +1318,12 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
             aria-label={`Цвет ${color}`} aria-pressed={profileColor === color} onClick={() => setProfileColor(color)} />)}</div>
         </div>
         <div className="settings-group">
-          <h3>Аватары Nexo</h3>
+          <h3>Аватары Hearth</h3>
           <p className="muted">Выберите одну из 12 геометрических эмблем. Загруженное изображение имеет приоритет.</p>
           <div className="avatar-preset-grid">
             {Array.from({ length: 12 }, (_, preset) => <button key={preset} type="button"
               className={profileAvatarPreset === preset ? 'selected' : ''}
-              aria-label={`Аватар Nexo ${preset + 1}`} aria-pressed={profileAvatarPreset === preset}
+              aria-label={`Аватар Hearth ${preset + 1}`} aria-pressed={profileAvatarPreset === preset}
               onClick={() => setProfileAvatarPreset(preset)}>
               <Avatar user={{ ...user, avatar_url: '', avatar_preset: preset }} size={42} />
             </button>)}
@@ -1342,7 +1342,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       <div className="settings-section discord-settings-page">
         <p className="eyebrow">Голос и видео</p>
         <h2>Устройства</h2>
-        <p className="muted">Выберите устройства, которые Nexo будет использовать для микрофона и вывода звука. Список обновляется при подключении или отключении оборудования.</p>
+        <p className="muted">Выберите устройства, которые Hearth будет использовать для микрофона и вывода звука. Список обновляется при подключении или отключении оборудования.</p>
         <div className="settings-group voice-device-list">
           <div className="settings-device-row"><span><strong>Устройство ввода</strong><small>Микрофон для звонков</small></span>
             <Select value={audioInputId} onChange={(event) => onAudioInputChange?.(event.target.value)}><option value="">Системное устройство по умолчанию</option>{audioInputs.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Микрофон ${index + 1}`}</option>)}</Select>
@@ -1364,9 +1364,9 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       <div className="settings-section discord-settings-page">
         <p className="eyebrow">Настройки приложения</p>
         <h2>Уведомления и звуки</h2>
-        <p className="muted">Единая звуковая палитра Nexo. Каждый сигнал можно отдельно отключить и прослушать.</p>
+        <p className="muted">Единая звуковая палитра Hearth. Каждый сигнал можно отдельно отключить и прослушать.</p>
         <div className="settings-group sound-settings-list">
-          <label className="settings-toggle-row"><span><strong>Все звуки</strong><small>Главный переключатель звуков Nexo</small></span>
+          <label className="settings-toggle-row"><span><strong>Все звуки</strong><small>Главный переключатель звуков Hearth</small></span>
             <Input type="checkbox" checked={soundPreferences.enabled} onChange={(event) => changeSoundPreference('enabled', event.target.checked)} /></label>
           <label className="settings-toggle-row"><span><strong>Разрешать звонки в режиме «Не беспокоить»</strong><small>Входящая мелодия будет звучать, если эта опция включена</small></span>
             <Input type="checkbox" checked={soundPreferences.allowCallsInDnd} onChange={(event) => changeSoundPreference('allowCallsInDnd', event.target.checked)} disabled={!soundPreferences.enabled} /></label>
@@ -1380,7 +1380,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
               onChange={(event) => changeSoundPreference('ringtoneVolume', Number(event.target.value))} disabled={!soundPreferences.enabled} /></label>
         </div>
         <div className="settings-group sound-event-list">
-          {NEXO_SOUND_EVENTS.map((event) => (
+          {HEARTH_SOUND_EVENTS.map((event) => (
             <div className="sound-event-row" key={event.key}>
               <span><strong>{event.label}</strong><small>{event.description}</small></span>
               <label className="sound-event-toggle" aria-label={`Включить звук: ${event.label}`}>
@@ -1388,7 +1388,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
                   onChange={(change) => changeSoundPreference('events', { ...soundPreferences.events, [event.key]: change.target.checked })}
                   disabled={!soundPreferences.enabled} />
               </label>
-              <button type="button" className="ghost tiny" onClick={() => playNexoSound(event.key)} disabled={!soundPreferences.enabled || !soundPreferences.events[event.key]}>
+              <button type="button" className="ghost tiny" onClick={() => playHearthSound(event.key)} disabled={!soundPreferences.enabled || !soundPreferences.events[event.key]}>
                 Прослушать
               </button>
             </div>
@@ -1440,7 +1440,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
       <div className="settings-section discord-settings-page hotkeys-settings">
         <p className="eyebrow">Настройки приложения</p>
         <h2>Горячие клавиши</h2>
-        <p className="muted">Быстро перемещайтесь по Nexo без мыши. На macOS сочетания используют Command вместо Ctrl.</p>
+        <p className="muted">Быстро перемещайтесь по Hearth без мыши. На macOS сочетания используют Command вместо Ctrl.</p>
         {groups.map((group) => (
           <div className="settings-group" key={group.title}>
             <h3 className="settings-nav-group">{group.title}</h3>
@@ -1517,7 +1517,7 @@ export function SettingsPanel({ user, onUserUpdate, initialSection = 'account', 
           <p className="settings-nav-group">Сообщества</p>
           <button className={section === 'premium' ? 'active' : ''} onClick={() => setSection('premium')}>
             <Star size={16} />
-            Nexo Pulse
+            Hearth Plus
           </button>
           <button className={section === 'servers' ? 'active' : ''} onClick={() => setSection('servers')}>
             <Users size={16} />
