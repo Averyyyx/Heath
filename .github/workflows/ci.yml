@@ -9,7 +9,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}${{ github.ref == 'refs/heads/chore/0.0.9-restructure' && '-final' || '' }}
   cancel-in-progress: true
 
 jobs:
