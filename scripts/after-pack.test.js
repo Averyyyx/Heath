@@ -7,57 +7,47 @@ const os = require('node:os');
 const path = require('node:path');
 const afterPack = require('./after-pack');
 
-test('copies the Electron-built SQLite binary into app.asar.unpacked', async () => {
+const relativeBinary = path.join('node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+
+test('copies the rebuilt Electron SQLite binary into app.asar.unpacked', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hearth-after-pack-'));
   try {
-    const relative = path.join('node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
-    const source = path.join(root, relative);
+    const source = path.join(root, relativeBinary);
     const appOutDir = path.join(root, 'dist', 'win-unpacked');
     fs.mkdirSync(path.dirname(source), { recursive: true });
-    fs.writeFileSync(source, 'native-module-fixture');
+    fs.writeFileSync(source, 'electron-native-module-fixture');
 
-    await afterPack({ projectDir: root, appOutDir });
+    afterPack({ projectDir: root, appOutDir });
 
-    const target = path.join(appOutDir, 'resources', 'app.asar.unpacked', relative);
-    assert.equal(fs.readFileSync(target, 'utf8'), 'native-module-fixture');
+    const target = path.join(appOutDir, 'resources', 'app.asar.unpacked', relativeBinary);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'electron-native-module-fixture');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('rebuilds the SQLite addon when install-app-deps did not leave the binary', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hearth-after-pack-rebuild-'));
+test('accepts the native binary when electron-builder has already unpacked it', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hearth-after-pack-unpacked-'));
   try {
-    const relative = path.join('node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
-    const source = path.join(root, relative);
     const appOutDir = path.join(root, 'dist', 'win-unpacked');
+    const target = path.join(appOutDir, 'resources', 'app.asar.unpacked', relativeBinary);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, 'already-unpacked-native-module');
+    
+    afterPack({ projectDir: root, appOutDir });
 
-    await afterPack({
-      projectDir: root,
-      appOutDir,
-      rebuildNative: async () => {
-        fs.mkdirSync(path.dirname(source), { recursive: true });
-        fs.writeFileSync(source, 'rebuilt-native-module-fixture');
-      }
-    });
-
-    const target = path.join(appOutDir, 'resources', 'app.asar.unpacked', relative);
-    assert.equal(fs.readFileSync(target, 'utf8'), 'rebuilt-native-module-fixture');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'already-unpacked-native-module');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('fails clearly when the native binary cannot be built', async () => {
+test('fails clearly when neither the build dependency nor unpacked app contains the binary', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hearth-after-pack-missing-'));
   try {
-    await assert.rejects(
-      afterPack({
-        projectDir: root,
-        appOutDir: path.join(root, 'dist'),
-        rebuildNative: async () => {}
-      }),
-      /native binary is missing/
+    assert.throws(
+      () => afterPack({ projectDir: root, appOutDir: path.join(root, 'dist') }),
+      /Electron-compatible better-sqlite3 native binary is missing/
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

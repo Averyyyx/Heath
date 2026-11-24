@@ -129,6 +129,46 @@ test('copies user data, migrates the SQLite database and preserves the original 
   }
 });
 
+test('moves a legacy database from the profile root into Hearth data/', () => {
+  const fixture = createFixture();
+  const legacyDbPath = path.join(fixture.legacyPath, 'nexo.db');
+  createLegacyDatabase(legacyDbPath);
+  fs.writeFileSync(path.join(fixture.legacyPath, 'settings.json'), '{"theme":"dark"}');
+
+  try {
+    const result = migrateLegacyUserData({
+      appDataPath: fixture.appDataPath,
+      fs,
+      path,
+      Database,
+      logger: { log() {}, warn() {} }
+    });
+    const destination = path.join(fixture.hearthPath, 'data', 'hearth.db');
+    assert.equal(result, fixture.hearthPath);
+    assert.equal(fs.existsSync(destination), true);
+    assert.equal(fs.existsSync(path.join(fixture.hearthPath, 'hearth.db')), false);
+    assert.equal(fs.existsSync(path.join(fixture.hearthPath, 'data', 'nexo.db')), false);
+
+    const migrated = new Database(destination);
+    try {
+      assert.equal(migrated.prepare('SELECT email FROM users WHERE id = 1').get().email, 'dev@hearth.local');
+      assert.equal(migrated.prepare('SELECT COUNT(*) AS count FROM http_sessions').get().count, 0);
+    } finally {
+      migrated.close();
+    }
+
+    const original = new Database(legacyDbPath);
+    try {
+      assert.equal(original.prepare('SELECT email FROM users WHERE id = 1').get().email, 'dev@nexo.local');
+      assert.equal(original.prepare('SELECT COUNT(*) AS count FROM http_sessions').get().count, 1);
+    } finally {
+      original.close();
+    }
+  } finally {
+    fs.rmSync(fixture.appDataPath, { recursive: true, force: true });
+  }
+});
+
 test('does not overwrite an existing Hearth profile', () => {
   const fixture = createFixture();
   fs.mkdirSync(fixture.hearthPath, { recursive: true });

@@ -63,5 +63,5 @@ extraMetadata:
   main: src/main/index.js
 
 # Нативные модули пересобираются под Electron в postinstall (electron-builder install-app-deps)
-npmRebuild: false
-buildDependenciesFromSource: false
+nativeRebuilder: sequential
+npmRebuild: true

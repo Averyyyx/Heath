@@ -46,13 +46,25 @@ function migrateLegacyUserData({
       }
     });
 
-    const databaseDirectories = [targetPath, path.join(targetPath, 'data')];
-    for (const databaseDirectory of databaseDirectories) {
-      if (!fs.existsSync(databaseDirectory)) continue;
-      for (const databaseName of ['app.db', 'nexo.db']) {
+    const dataDirectory = path.join(targetPath, 'data');
+    fs.mkdirSync(dataDirectory, { recursive: true });
+
+    // Prefer the database already stored in the historical data/ directory.
+    for (const databaseName of ['app.db', 'nexo.db']) {
+      for (const suffix of ['', '-wal', '-shm']) {
+        const oldFile = path.join(dataDirectory, databaseName + suffix);
+        const newFile = path.join(dataDirectory, 'hearth.db' + suffix);
+        if (fs.existsSync(oldFile) && !fs.existsSync(newFile)) fs.renameSync(oldFile, newFile);
+      }
+    }
+
+    // Some older profiles stored the SQLite file in the profile root.
+    // Move it into the current data/ location only when no nested database exists.
+    if (!fs.existsSync(databasePath)) {
+      for (const databaseName of ['app.db', 'nexo.db', 'hearth.db']) {
         for (const suffix of ['', '-wal', '-shm']) {
-          const oldFile = path.join(databaseDirectory, databaseName + suffix);
-          const newFile = path.join(databaseDirectory, 'hearth.db' + suffix);
+          const oldFile = path.join(targetPath, databaseName + suffix);
+          const newFile = path.join(dataDirectory, 'hearth.db' + suffix);
           if (fs.existsSync(oldFile) && !fs.existsSync(newFile)) fs.renameSync(oldFile, newFile);
         }
       }
