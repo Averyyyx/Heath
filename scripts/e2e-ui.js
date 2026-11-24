@@ -48,7 +48,7 @@ async function assertActiveDmTabMatchesHeader(page) {
 
 async function verifyWhatsNew(page, screenshotDir) {
   const initialModalCount = await page.getByRole('dialog', { name: 'Что нового' }).count();
-  if (initialModalCount !== 0) throw new Error('The first-ever launch must not show the What's New modal.');
+  if (initialModalCount !== 0) throw new Error("The first-ever launch must not show the What's New modal.");
 
   await page.evaluate(() => localStorage.setItem('hearth.last-seen-version', '0.0.8-alpha'));
   await page.reload({ waitUntil: 'domcontentloaded' });
