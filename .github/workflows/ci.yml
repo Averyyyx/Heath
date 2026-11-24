@@ -37,7 +37,7 @@ jobs:
       - name: Install renderer dependencies
         run: npm ci --prefix src/renderer
 
-      - name: Download Nexo 0.0.8 UI baseline
+      - name: Download 0.0.8 UI baseline screenshots
         uses: actions/download-artifact@v4
         with:
           name: Nexo-0.0.8-UI-E2E
