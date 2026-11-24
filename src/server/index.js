@@ -466,6 +466,8 @@ const activeCallParticipants = new Map();
 const { sanitizeUser } = require('./utils/users');
 
 
+const { ensureAuthenticated } = require('./middleware/auth');
+
 app.post('/api/servers/:serverId/roles', ensureAuthenticated, (req, res) => {
   const serverId = Number(req.params.serverId);
   if (!Number.isFinite(serverId)) {
@@ -726,7 +728,6 @@ if (githubReady) {
   );
 }
 
-const { ensureAuthenticated } = require('./middleware/auth');
 const { registerAuthRoutes } = require('./routes/auth');
 registerAuthRoutes({ app, authLimiter, isValidEmail, selectUserByEmail, validatePasswordStrength, bcrypt, generateHandleFromEmail, insertUser, db, defaultAvatarColor, selectUserById, sanitizeUser, ensureAuthenticated, speakeasy, QRCode, updateTwoFactor, updatePasswordHash, passport });
 
