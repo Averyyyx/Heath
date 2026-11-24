@@ -3,7 +3,7 @@
 function createServerDomainServices(dependencies) {
   const {
     PERMISSIONS, Server, app, computeBasePermissions, csrf,
-    db, ensureAuthenticated, hasPermission, insertAttachmentRecord, insertMessage,
+    db, hasPermission, insertAttachmentRecord, insertMessage,
     insertServerAttachmentRecord, insertServerMessage, insertServerSettings, insertUserSettings, io,
     listChannelsForServer, listFriendships, listMessageReactions, listServerMembers, listServerMembersDetailed,
     normalizeBadges, sanitizeUser, selectChannelById, selectChannelMessageReadReceipt, selectConversationById,
@@ -29,8 +29,6 @@ function broadcastUserUpdate(updatedUser) {
   }
   io.to(getUserRoom(updatedUser.id)).emit('user:update', { user: updatedUser });
 }
-
-const { ensureAuthenticated } = require('./middleware/auth');
 
 function hydrateFriendship(record, currentUserId) {
   if (!record) return null;

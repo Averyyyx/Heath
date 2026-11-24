@@ -726,6 +726,7 @@ if (githubReady) {
   );
 }
 
+const { ensureAuthenticated } = require('./middleware/auth');
 const { registerAuthRoutes } = require('./routes/auth');
 registerAuthRoutes({ app, authLimiter, isValidEmail, selectUserByEmail, validatePasswordStrength, bcrypt, generateHandleFromEmail, insertUser, db, defaultAvatarColor, selectUserById, sanitizeUser, ensureAuthenticated, speakeasy, QRCode, updateTwoFactor, updatePasswordHash, passport });
 
