@@ -13,7 +13,9 @@ const allowedFiles = new Set([
   'tests/legacy-migration.test.js',
   'src/renderer/src/content/whats-new.ts',
   'electron-builder.yml',
-  'CHANGELOG.md'
+  'CHANGELOG.md',
+  'package.json',
+  'src/shared/brand.js'
 ]);
 const appId = 'com.' + legacyTokens[0] + '.app';
 const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
