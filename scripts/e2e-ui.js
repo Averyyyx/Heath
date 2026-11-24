@@ -62,7 +62,7 @@ async function verifyWhatsNew(page, screenshotDir) {
   await modal.waitFor({ state: 'hidden', timeout: 5000 });
 
   const seenVersion = await page.evaluate(() => localStorage.getItem('hearth.last-seen-version'));
-  if (seenVersion !== '0.0.9-alpha') throw new Error('Closing the What's New modal did not save the current version.');
+  if (seenVersion !== '0.0.9-alpha') throw new Error("Closing the What's New modal did not save the current version.");
   await assertHearthBrand(page);
 }
 
