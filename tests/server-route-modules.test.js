@@ -220,7 +220,7 @@ test('extracted route modules register the original 49 HTTP endpoints in order',
   for (const method of ['get', 'post', 'put', 'patch', 'delete', 'options']) {
     app[method] = (route) => registrations.push([method.toUpperCase(), route]);
   }
-  const context = new Proxy({ app, upload: { single: () => () => {} } }, {
+  const context = new Proxy({ app, upload: { single: () => () => {} }, passport: { authenticate: () => () => {} } }, {
     get(target, property) {
       if (property in target) return target[property];
       return () => {};

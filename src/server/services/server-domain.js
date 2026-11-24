@@ -2,7 +2,7 @@
 
 function createServerDomainServices(dependencies) {
   const {
-    PERMISSIONS, Server, app, computeBasePermissions, csrf,
+    PERMISSIONS, Server, computeBasePermissions,
     db, hasPermission, insertAttachmentRecord, insertMessage,
     insertServerAttachmentRecord, insertServerMessage, insertServerSettings, insertUserSettings, io,
     listChannelsForServer, listFriendships, listMessageReactions, listServerMembers, listServerMembersDetailed,
@@ -319,18 +319,7 @@ function broadcastVoiceState(channelId) {
   });
 }
 
-app.get('/api/security/csrf-token', (req, res) => {
-  // В режиме разработки CSRF отключен для API, возвращаем фиктивный токен
-  if (process.env.NODE_ENV === 'development') {
-    return res.json({ token: 'dev-csrf-token-disabled' });
-  }
-  // В production используем реальный CSRF токен
-  if (typeof req.csrfToken === 'function') {
-    res.json({ token: req.csrfToken() });
-  } else {
-    res.json({ token: 'csrf-not-available' });
-  }
-});
+
 
 function ensureConversationAccess(conversationId, userId) {
   const conversation = selectConversationById.get(conversationId);

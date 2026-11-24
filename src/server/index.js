@@ -574,8 +574,8 @@ const {
   getMessageDelivery, serializeMessage, serializeServerMessage, serializeConversation,
   getConversationParticipants
 } = createServerDomainServices({
-  PERMISSIONS, Server, app, computeBasePermissions,
-  csrf, db, ensureAuthenticated, hasPermission,
+  PERMISSIONS, Server, computeBasePermissions,
+  db, ensureAuthenticated, hasPermission,
   insertAttachmentRecord, insertMessage, insertServerAttachmentRecord, insertServerMessage,
   insertServerSettings, insertUserSettings, io, listChannelsForServer,
   listFriendships, listMessageReactions, listServerMembers, listServerMembersDetailed,
@@ -597,6 +597,18 @@ const { seedDevAccount } = createDevAccountSeeder({
 });
 seedDevAccount();
 
+app.get('/api/security/csrf-token', (req, res) => {
+  // В режиме разработки CSRF отключен для API, возвращаем фиктивный токен
+  if (process.env.NODE_ENV === 'development') {
+    return res.json({ token: 'dev-csrf-token-disabled' });
+  }
+  // В production используем реальный CSRF токен
+  if (typeof req.csrfToken === 'function') {
+    res.json({ token: req.csrfToken() });
+  } else {
+    res.json({ token: 'csrf-not-available' });
+  }
+});
 
 const { createPasswordPolicy } = require('./services/password-policy');
 const { validatePasswordStrength } = createPasswordPolicy({ minimumScore: PASSWORD_MIN_SCORE });

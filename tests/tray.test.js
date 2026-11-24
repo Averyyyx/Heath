@@ -26,7 +26,7 @@ test('creates a Hearth tray and toggles the main window on tray click', () => {
   };
   const service = createTrayService({
     app: { quit() {}, isQuitting: false },
-    Tray: function Tray() { return tray; },
+    Tray: function Tray(image) { tray.setImage(image); return tray; },
     Menu: { buildFromTemplate: (items) => items },
     nativeImage: { createFromPath: (value) => value },
     getMainWindow: () => mainWindow,
@@ -58,7 +58,7 @@ test('clamps notification counts and updates the tray and Windows overlay', () =
   let count = 0;
   const service = createTrayService({
     app: {},
-    Tray: function Tray() { return tray; },
+    Tray: function Tray(image) { tray.setImage(image); return tray; },
     Menu: { buildFromTemplate: (items) => items },
     nativeImage: { createFromPath: (value) => value },
     getMainWindow: () => mainWindow,

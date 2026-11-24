@@ -18,6 +18,15 @@ function createService(state) {
   return createServerDomainServices(dependencies);
 }
 
+test('the domain service leaves HTTP route registration in the server entry point', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const entry = fs.readFileSync(path.join(__dirname, '..', 'src', 'server', 'index.js'), 'utf8');
+  const service = fs.readFileSync(path.join(__dirname, '..', 'src', 'server', 'services', 'server-domain.js'), 'utf8');
+  assert.match(entry, /app\.get\('\/api\/security\/csrf-token'/);
+  assert.doesNotMatch(service, /app\.get\(/);
+});
+
 test('server-domain membership checks distinguish missing servers and non-members', () => {
   const server = { id: 7, owner_id: 3 };
   const membership = { server_id: 7, user_id: 3 };
