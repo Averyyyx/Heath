@@ -213,6 +213,15 @@ const {
   PERMISSIONS
 } = createQueries(db);
 
+const { createIdentityService } = require('./services/identity');
+const {
+  normalizeHandle,
+  defaultAvatarColor,
+  randomDiscriminator,
+  generateUniqueHandle,
+  generateHandleFromEmail
+} = createIdentityService({ selectUserByUsername });
+
 const { serializeAttachment, normalizeBadges } = require('./utils/serialization');
 const { createPermissionService } = require('./services/permissions');
 const { computeBasePermissions, hasPermission } = createPermissionService({
