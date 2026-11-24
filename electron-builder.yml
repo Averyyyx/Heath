@@ -24,6 +24,10 @@ extraResources:
       - "**/*"
 
 asar: true
+
+# The embedded server is started with child_process.fork and ELECTRON_RUN_AS_NODE.
+electronFuses:
+  runAsNode: true
 afterPack: scripts/after-pack.js
 # Сервер запускается как отдельный процесс из app.asar.unpacked (Electron как Node).
 # Модули ищутся от этого каталога, а не из app.asar, поэтому node_modules нужно

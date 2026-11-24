@@ -2,6 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const modules = [
   ['server-management', require('../src/server/routes/server-management')],
@@ -218,7 +220,7 @@ test('extracted route modules register the original 49 HTTP endpoints in order',
   for (const method of ['get', 'post', 'put', 'patch', 'delete', 'options']) {
     app[method] = (route) => registrations.push([method.toUpperCase(), route]);
   }
-  const context = new Proxy({ app }, {
+  const context = new Proxy({ app, upload: { single: () => () => {} } }, {
     get(target, property) {
       if (property in target) return target[property];
       return () => {};
@@ -231,4 +233,13 @@ test('extracted route modules register the original 49 HTTP endpoints in order',
   }
 
   assert.deepEqual(registrations, expectedRoutes);
+
+  const serverEntry = fs.readFileSync(path.join(__dirname, '..', 'src', 'server', 'index.js'), 'utf8');
+  const registrationPositions = modules.map(([name]) =>
+    serverEntry.indexOf(`require('./routes/${name}').register(routeContext);`)
+  );
+  assert.ok(registrationPositions.every((position) => position >= 0),
+    'every extracted route module must be registered by the server entry point');
+  assert.deepEqual(registrationPositions, [...registrationPositions].sort((a, b) => a - b),
+    'route modules must be registered in their original order');
 });

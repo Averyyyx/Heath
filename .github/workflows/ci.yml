@@ -69,6 +69,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Baseline API/event inventory differs.' }
 
       - name: Run tests and syntax checks
+        timeout-minutes: 12
         run: npm test
 
       - name: Check Hearth brand references
@@ -91,9 +92,9 @@ jobs:
           $unpacked = Join-Path $app 'resources/app.asar.unpacked'
           $archive = Join-Path $app 'resources/app.asar'
           if (-not (Test-Path $archive)) { throw 'resources/app.asar is missing.' }
-          node -e "const asar = require('@electron/asar'); const files = new Set(asar.listPackage('dist/win-unpacked/resources/app.asar')); for (const entry of ['src/main/index.js', 'src/main/legacy-migration.js', 'src/main/windows/main-window.js', 'src/main/windows/splash-window.js', 'src/main/updater/index.js', 'src/preload/preload.js', 'src/preload/splash-preload.js']) { if (!files.has(entry)) throw new Error('ASAR entry missing: ' + entry); }"
+          node -e "const asar = require('@electron/asar'); const files = new Set(asar.listPackage('dist/win-unpacked/resources/app.asar')); for (const entry of ['src/main/index.js', 'src/main/legacy-migration.js', 'src/main/windows/main-window.js', 'src/main/windows/splash-window.js', 'src/main/updater/index.js', 'src/preload/preload.js', 'src/preload/splash-preload.js', 'src/server/services/server-domain.js', 'src/server/services/dev-account.js', 'src/server/routes/server-management.js', 'src/server/routes/conversation-messages.js']) { if (!files.has(entry)) throw new Error('ASAR entry missing: ' + entry); }"
           if ($LASTEXITCODE -ne 0) { throw 'The Electron main process files are missing from app.asar.' }
-          foreach ($relative in @('src/server/index.js', 'src/shared/email-validation.js', 'src/shared/brand.js', 'public/index.html', 'node_modules/better-sqlite3/build/Release/better_sqlite3.node')) {
+          foreach ($relative in @('src/server/index.js', 'src/server/services/server-domain.js', 'src/server/services/dev-account.js', 'src/server/routes/server-management.js', 'src/shared/email-validation.js', 'src/shared/brand.js', 'public/index.html', 'node_modules/better-sqlite3/build/Release/better_sqlite3.node')) {
             $target = Join-Path $unpacked $relative
             if (-not (Test-Path $target)) { throw "Unpacked application file is missing: $relative" }
           }
@@ -108,27 +109,32 @@ jobs:
         timeout-minutes: 8
         shell: pwsh
         run: |
-          $env:NODE_ENV = 'development'
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $env:ELECTRON_DESKTOP = '1'
+          $env:HOST = '127.0.0.1'
+          $env:NODE_ENV = 'production'
           $env:USE_MEMORY_SESSION = 'true'
-          $env:CLIENT_ORIGIN = 'http://localhost:4000'
+          $env:CLIENT_ORIGIN = 'http://127.0.0.1:4000'
           $env:HEARTH_DEV_ACCOUNT = 'true'
           $env:HEARTH_DEV_EMAIL = 'dev@hearth.local'
           $env:HEARTH_DEV_PASSWORD = 'Hearth-E2E-Password-2026!'
           $env:SESSION_SECRET = 'hearth-e2e-temporary-session-secret'
           $env:DB_PATH = Join-Path $env:RUNNER_TEMP 'hearth-e2e.db'
           $env:DATA_DIR = Join-Path $env:RUNNER_TEMP 'hearth-e2e-data'
-          $env:HEARTH_E2E_URL = 'http://localhost:4000'
+          $env:HEARTH_E2E_URL = 'http://127.0.0.1:4000'
           $env:HEARTH_E2E_EMAIL = 'dev@hearth.local'
           $env:HEARTH_E2E_PASSWORD = 'Hearth-E2E-Password-2026!'
           $env:HEARTH_E2E_SCREENSHOT_DIR = 'artifacts/current/shots'
           $stdout = Join-Path $env:RUNNER_TEMP 'hearth-e2e-server.log'
           $stderr = Join-Path $env:RUNNER_TEMP 'hearth-e2e-server-error.log'
-          $server = Start-Process -FilePath 'node' -ArgumentList @('src/server/index.js') -WorkingDirectory $env:GITHUB_WORKSPACE -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $app = Join-Path $env:GITHUB_WORKSPACE 'dist/win-unpacked'
+          $unpacked = Join-Path $app 'resources/app.asar.unpacked'
+          $server = Start-Process -FilePath (Join-Path $app 'Hearth.exe') -ArgumentList @('src/server/index.js') -WorkingDirectory $unpacked -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $ready = $false
             for ($attempt = 0; $attempt -lt 45; $attempt++) {
               try {
-                $response = Invoke-WebRequest -Uri 'http://127.0.0.1:4000' -TimeoutSec 2
+                $response = Invoke-WebRequest -Uri 'http://127.0.0.1:4000/api/security/csrf-token' -TimeoutSec 2
                 if ($response.StatusCode -eq 200) { $ready = $true; break }
               } catch {}
               Start-Sleep -Seconds 2

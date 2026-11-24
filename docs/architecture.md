@@ -18,7 +18,7 @@ Hearth is a Windows desktop messenger for developers. The application keeps its 
 - `scripts` — icon generation, public asset preparation, source inventory, E2E, and visual-difference tools.
 - `src/main` — Electron desktop lifecycle and supporting modules.
 - `src/preload` — isolated bridges between Electron and the renderer.
-- `src/server` — embedded HTTP and real-time server, database, middleware, routes, services, and socket handlers.
+- `src/server` — embedded HTTP and real-time server. Its route groups live in `routes/`; access control, serializers, room helpers, message creation, and account seeding live in `services/`; database and socket handlers remain separate.
 - `src/renderer` — the Vite and React client, with its own package and lock file.
 - `src/shared` — values and validation used by the desktop and server.
 - `tests` — integration and cross-module tests.
