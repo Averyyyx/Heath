@@ -15,7 +15,9 @@ const allowedFiles = new Set([
   'electron-builder.yml',
   'CHANGELOG.md',
   'package.json',
-  'src/shared/brand.js'
+  'src/shared/brand.js',
+  'src/renderer/package.json',
+  'docs/releasing.md'
 ]);
 const appId = 'com.' + legacyTokens[0] + '.app';
 const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
