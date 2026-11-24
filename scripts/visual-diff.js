@@ -14,6 +14,15 @@ const PIXEL_THRESHOLD = 0.1;
 // reference: Hearth branding/version text, randomized E2E account names, the
 // new What's New entry point, and the synthetic camera video frame.
 const IGNORED_REGIONS = {
+  'call-after-accept-a.png': [
+    { x: 0, y: 0, width: 180, height: 40 },
+    { x: 60, y: 40, width: 270, height: 40 },
+    { x: 275, y: 80, width: 450, height: 50 },
+    { x: 15, y: 300, width: 245, height: 110 },
+    { x: 20, y: 430, width: 240, height: 55 },
+    { x: 0, y: 770, width: 260, height: 55 },
+    { x: 0, y: 825, width: 260, height: 55 }
+  ],
   'group-call-three-participants-light-1440x900.png': [
     { x: 0, y: 0, width: 180, height: 40 },
     { x: 100, y: 40, width: 450, height: 40 },
