@@ -102,6 +102,14 @@ jobs:
           $legacyExe = 'Ne' + 'xo.exe'
           if (Test-Path (Join-Path $app $legacyExe)) { throw 'Legacy executable must not be packaged.' }
 
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hearth-0.0.9-Setup
+          path: dist/Hearth-0.0.9-Setup.exe
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Install Chromium
         run: npx playwright install chromium
 
