@@ -6,7 +6,7 @@ module.exports = Object.freeze({
   cssPrefix: 'hr',
   protocol: 'hearth',
   envPrefix: 'HEARTH_',
-  repo: Object.freeze({ owner: 'Averyyyx', name: 'Hearth' }),
+  repo: Object.freeze({ owner: 'Averyyyx', name: 'Nexo' }),
   premium: 'Hearth Plus',
   userAgent: 'Hearth-Desktop'
 });
