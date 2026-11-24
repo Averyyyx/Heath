@@ -65,3 +65,4 @@ extraMetadata:
 # Нативные модули пересобираются под Electron в postinstall (electron-builder install-app-deps)
 nativeRebuilder: sequential
 npmRebuild: true
+buildDependenciesFromSource: true
