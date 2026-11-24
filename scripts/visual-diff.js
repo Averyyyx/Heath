@@ -96,12 +96,12 @@ async function main() {
     }
     const baseline = PNG.sync.read(fs.readFileSync(baselinePath));
     const current = PNG.sync.read(fs.readFileSync(currentPath));
-    applyComparisonMasks(baseline, current, name);
     if (baseline.width !== current.width || baseline.height !== current.height) {
       rows.push({ file: name, percent: 'dimensions differ', result: 'FAIL' });
       failed = true;
       continue;
     }
+    applyComparisonMasks(baseline, current, name);
     const diff = new PNG({ width: baseline.width, height: baseline.height });
     const changed = pixelmatch(baseline.data, current.data, diff.data, baseline.width, baseline.height, {
       threshold: PIXEL_THRESHOLD
