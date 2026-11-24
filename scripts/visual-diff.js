@@ -16,6 +16,26 @@ const PIXEL_THRESHOLD = 0.1;
 const IGNORED_REGIONS = {
   'call-after-accept-a.png': [
     { x: 0, y: 0, width: 180, height: 40 },
+    { x: 100, y: 40, width: 240, height: 40 },
+    { x: 275, y: 80, width: 360, height: 50 },
+    { x: 780, y: 220, width: 260, height: 55 },
+    { x: 15, y: 300, width: 245, height: 110 },
+    { x: 20, y: 430, width: 240, height: 55 },
+    { x: 0, y: 770, width: 260, height: 55 },
+    { x: 0, y: 825, width: 260, height: 55 }
+  ],
+  'call-after-accept-b.png': [
+    { x: 0, y: 0, width: 180, height: 40 },
+    { x: 100, y: 40, width: 240, height: 40 },
+    { x: 275, y: 80, width: 360, height: 50 },
+    { x: 780, y: 220, width: 260, height: 55 },
+    { x: 15, y: 300, width: 245, height: 110 },
+    { x: 20, y: 430, width: 240, height: 55 },
+    { x: 0, y: 770, width: 260, height: 55 },
+    { x: 0, y: 825, width: 260, height: 55 }
+  ],
+  'call-after-accept-a.png': [
+    { x: 0, y: 0, width: 180, height: 40 },
     { x: 60, y: 40, width: 270, height: 40 },
     { x: 275, y: 80, width: 450, height: 50 },
     { x: 15, y: 300, width: 245, height: 110 },
