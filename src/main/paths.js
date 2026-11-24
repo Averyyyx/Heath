@@ -16,8 +16,8 @@ function createApplicationPaths({ app, path, process, mainDirectory = __dirname 
     mainPreload: path.join(mainDirectory, '..', 'preload', 'preload.js'),
     splashPreload: path.join(mainDirectory, '..', 'preload', 'splash-preload.js'),
     serverPath: app.isPackaged
-      ? path.join(unpackedDirectory, 'src', 'server', 'preload.js')
-      : path.join(mainDirectory, '..', 'server', 'preload.js'),
+      ? path.join(unpackedDirectory, 'src', 'server', 'index.js')
+      : path.join(mainDirectory, '..', 'server', 'index.js'),
     serverWorkingDirectory: unpackedDirectory
   });
 }

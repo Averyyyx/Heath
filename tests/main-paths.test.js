@@ -18,7 +18,7 @@ test('development paths resolve source files from the project root on the curren
 
   assert.equal(paths.projectRoot, projectRoot);
   assert.equal(paths.resourcesDirectory, path.join(projectRoot, 'resources'));
-  assert.equal(paths.serverPath, path.join(projectRoot, 'src', 'server', 'preload.js'));
+  assert.equal(paths.serverPath, path.join(projectRoot, 'src', 'server', 'index.js'));
   assert.equal(paths.serverWorkingDirectory, projectRoot);
   assert.equal(paths.mainPreload, path.join(projectRoot, 'src', 'preload', 'preload.js'));
   assert.equal(paths.splashPreload, path.join(projectRoot, 'src', 'preload', 'splash-preload.js'));
@@ -38,7 +38,7 @@ test('packaged paths keep the server and resources outside app.asar', () => {
   });
 
   const unpacked = path.join(resourcesPath, 'app.asar.unpacked');
-  assert.equal(paths.serverPath, path.join(unpacked, 'src', 'server', 'preload.js'));
+  assert.equal(paths.serverPath, path.join(unpacked, 'src', 'server', 'index.js'));
   assert.equal(paths.serverWorkingDirectory, unpacked);
   assert.equal(paths.resourcesDirectory, path.join(resourcesPath, 'resources'));
   assert.equal(paths.mainPreload, path.join(resourcesPath, 'app.asar', 'src', 'preload', 'preload.js'));
