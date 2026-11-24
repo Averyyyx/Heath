@@ -446,6 +446,9 @@ async function waitForStableModal(page, modal) {
       await pageA.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
       for (const [key, label] of settingsPages) {
         await pageA.locator('.settings-nav nav button').filter({ hasText: label }).click();
+        if (key === 'updates') {
+          await pageA.getByRole('button', { name: 'Что нового в этой версии' }).waitFor({ state: 'visible', timeout: 5000 });
+        }
         await pageA.waitForTimeout(500);
         await pageA.screenshot({
           path: path.join(screenshotDir, 'settings-' + key + '-' + theme + '-1440x900.png'),
