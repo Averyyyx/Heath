@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hearth</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,"Segoe UI",sans-serif;background:#262624;color:#faf9f5}
+*{box-sizing:border-box}
+body{margin:0;width:100vw;height:100vh;display:grid;place-items:center;background:#262624;overflow:hidden;-webkit-app-region:drag;cursor:grab;user-select:none}
+.card{-webkit-app-region:drag}
+.footer{-webkit-app-region:drag}
+body:active{cursor:grabbing}
+button{ -webkit-app-region:no-drag; user-select:none }
+.card{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 48px 32px;text-align:center}
+.logo{width:96px;height:96px;margin-bottom:18px;overflow:visible}
+.logo path{fill:#d97757;opacity:0;transform-origin:center;animation:logo-in 1.15s cubic-bezier(.2,.7,.2,1) forwards}
+h1{margin:0;font:600 32px "Source Serif 4",Georgia,serif;letter-spacing:-.5px}
+.tagline{margin-top:5px;color:#88867f;font-size:9px;font-weight:600;letter-spacing:.19em}
+.status{margin-top:52px;color:#d8d5cd;font-size:13px;min-height:24px;line-height:1.5}
+.detail{margin-top:7px;color:#88867f;font-size:10px;min-height:16px;line-height:1.5}
+.track{width:250px;height:2px;margin-top:22px;background:#42413e;overflow:hidden;border-radius:10px}
+.fill{height:100%;width:0%;background:#d97757;transition:width .2s ease}
+.fill.indeterminate{width:35%;animation:load 1.25s ease-in-out infinite}
+.skip{margin-top:22px;min-height:31px;padding:5px 13px;border:1px solid #514f4b;border-radius:7px;background:transparent;color:#c8c5bd;opacity:0;pointer-events:none;transition:opacity .18s ease,background .12s ease}
+.skip.visible{opacity:1;pointer-events:auto;cursor:pointer}
+.skip:hover{background:#333330;color:#faf9f5}
+.footer{position:absolute;bottom:26px;color:#69675f;font-size:9px;letter-spacing:.14em}
+@keyframes logo-in{0%{opacity:0;transform:scale(.82)}100%{opacity:1;transform:scale(1)}}
+@keyframes load{0%{transform:translateX(-120%)}100%{transform:translateX(390%)}}
+</style>
+</head>
+<body>
+<div class="card">
+  <svg class="logo" viewBox="0 0 512 512" role="img" aria-label="Hearth">
+    <path d="M136 392V252a120 120 0 0 1 240 0v140h-56V252a64 64 0 0 0-128 0v140z"/>
+    <path d="M256 214c26 28 40 50 40 74a40 40 0 0 1-80 0c0-14 6-26 16-36 2 12 10 18 18 18 0-20-4-36 6-56z"/>
+  </svg>
+  <h1>Hearth</h1>
+  <div class="tagline">YOUR SPACE TO CONNECT</div>
+  <div class="status" id="status">Подготавливаем запуск…</div>
+  <div class="detail" id="detail"></div>
+  <div class="track"><div class="fill indeterminate" id="fill"></div></div>
+  <button class="skip" id="skip" type="button">Пропустить обновление</button>
+</div>
+<div class="footer" id="version">HEARTH · ALPHA</div>
+<script>
+const statusEl=document.getElementById('status');
+const detailEl=document.getElementById('detail');
+const fillEl=document.getElementById('fill');
+const skipEl=document.getElementById('skip');
+let downloadingAt=0;
+let skipTimer=null;
+setTimeout(()=>skipEl.classList.add('visible'),3000);
+window.hearthSplash.onLoadingStatus((value)=>{statusEl.textContent=String(value||'Запуск Hearth…');});
+window.hearthSplash.onAppVersion((value)=>{document.getElementById('version').textContent='HEARTH · '+String(value);});
+window.hearthSplash.onUpdateStatus((payload)=>{
+  if(!payload)return;
+  if(payload.status==='checking'){statusEl.textContent='Проверяем обновления…';detailEl.textContent='';fillEl.classList.add('indeterminate');}
+  else if(payload.status==='development'){statusEl.textContent='Режим разработки';detailEl.textContent='Проверка обновлений пропущена';skipEl.classList.remove('visible');}
+  else if(payload.status==='up-to-date'){statusEl.textContent='У вас последняя версия';detailEl.textContent='';fillEl.classList.remove('indeterminate');fillEl.style.width='100%';skipEl.classList.remove('visible');}
+  else if(payload.status==='available'){statusEl.textContent=payload.message||'Найдена новая версия';detailEl.textContent=payload.version?'Версия '+payload.version:'';}
+  else if(payload.status==='downloading'){
+    if(!downloadingAt) downloadingAt=Date.now();
+    statusEl.textContent='Скачиваем обновление…';
+    detailEl.textContent=(Number.isFinite(payload.percent)?payload.percent:0)+'%';
+    fillEl.classList.remove('indeterminate');fillEl.style.width=(payload.percent||0)+'%';
+  }
+  else if(payload.status==='downloaded'){statusEl.textContent='Обновление проверено';detailEl.textContent=payload.version?'Hearth '+payload.version:'';fillEl.classList.remove('indeterminate');fillEl.style.width='100%';skipEl.classList.remove('visible');}
+  else if(payload.status==='installing'){statusEl.textContent='Устанавливаем обновление…';detailEl.textContent='Приложение перезапустится автоматически';}
+  else if(payload.status==='skipped'){statusEl.textContent='Запускаем Hearth…';detailEl.textContent='Обновление пропущено';}
+  else if(payload.status==='error'){statusEl.textContent='Не удалось проверить обновления';detailEl.textContent=payload.message||'Продолжаем запуск текущей версии';skipEl.classList.remove('visible');}
+});
+skipEl.addEventListener('click',()=>{skipEl.disabled=true;skipEl.textContent='Продолжаем запуск…';window.hearthSplash.skipUpdate();});
+</script>
+</body>
+</html>

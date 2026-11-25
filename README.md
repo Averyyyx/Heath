@@ -1,26 +1,61 @@
-# 🚀 Nexo — Next-Generation Open-Source Desktop Communication Platform
+# Hearth
 
-Nexo is a high-performance, modular desktop application designed as a modern, customizable alternative to Discord. Built with a robust full-stack architecture using **React, TypeScript, Node.js, and Electron**, Nexo provides seamless workspace synchronization, sub-120ms rendering latency, and native desktop window management.
+Hearth is a desktop communication application built with Electron, React, TypeScript, Node.js, Express, Socket.IO, and SQLite.
 
-## 🖼️ Interface Architecture Preview
-Nexo 0.0.5 uses a Discord-inspired three-zone workspace: server rail, contextual navigation, and a central conversation area. The interface includes friends, direct messages, channels, notification counters, sound preferences, and animated call prompts.
+The current application includes user accounts, friends, direct messages, text and voice channels, notifications, sound preferences, and voice/video communication.
 
-## 🛠️ Key Technical Specifications
-* **Electron Core Integration:** Desktop-native performance utilizing optimized Chromium window management and secure IPC (Inter-Process Communication) layers.
-* **Full-Stack Isolation:** Clean architectural split between the front-end client layer and the Node.js back-end infrastructure for scalable production.
-* **Localization Ready:** Embedded `locales` subsystem built from the ground up for seamless multi-language distribution.
-* **Advanced Automation:** Pre-configured test server routines (`test_server.js`) and logging mechanisms for granular debugging.
+## Development
 
-## 🤖 Future AI Roadmap
-We are actively developing **Nexo AI Agents** driven by dedicated LLM APIs to facilitate:
-1. Automated cross-channel moderation and workspace data indexing.
-2. Context-aware developer co-pilot subroutines integrated directly into the chat view.
+Requirements: Node.js 22 and npm.
 
+Install dependencies:
 
-## Известные ограничения Nexo 0.0.5 Alpha
+```sh
+npm ci
+npm ci --prefix src/renderer
+```
 
-- Windows-установщик пока не подписан сертификатом издателя, поэтому Windows SmartScreen может показывать предупреждение.
-- Голосовые каналы пространств пока отображаются как «Скоро»; полноценное подключение к ним ещё не реализовано.
-- Восстановление пароля по email недоступно до подключения почтового провайдера.
-- Удаление аккаунта и изменение email не включены: связанные операции пока нельзя безопасно выполнить для всех данных пользователя.
-- Автообновление работает через Windows NSIS-установщик и проверяет SHA-256 перед запуском; дифференциальные обновления пока не используются.
+Run the server with `npm run dev`, or start the desktop application with `npm start`.
+
+Build the application with `npm run build:app`. Create the Windows installer with `npm run electron:build`. Run automated checks with `npm test`.
+
+## Documentation
+
+- [Русская версия](README.ru.md)
+
+- [Architecture](docs/architecture.md)
+- [Development setup](docs/development.md)
+- [Releasing](docs/releasing.md)
+- [Developer test account](docs/dev-account.md)
+- [Engineering backlog](docs/backlog.md)
+
+---
+
+# Hearth — Русский
+
+Hearth — настольное приложение для общения и совместной работы. Технологический стек: Electron, React, TypeScript, Node.js, Express, Socket.IO и SQLite.
+
+Сейчас приложение включает аккаунты, друзей, личные сообщения, текстовые и голосовые каналы, уведомления, настройки звука, голосовые и видеозвонки.
+
+## Разработка
+
+Требуются Node.js 22 и npm.
+
+Установка зависимостей:
+
+```sh
+npm ci
+npm ci --prefix src/renderer
+```
+
+Запустить сервер: `npm run dev`. Запустить настольное приложение: `npm start`.
+
+Собрать приложение: `npm run build:app`. Создать установщик Windows: `npm run electron:build`. Запустить тесты: `npm test`.
+
+## Документация
+
+- [Архитектура](docs/architecture.md)
+- [Настройка разработки](docs/development.md)
+- [Сборка релиза](docs/releasing.md)
+- [Тестовый аккаунт разработчика](docs/dev-account.md)
+- [Технический список задач](docs/backlog.md)

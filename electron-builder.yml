@@ -1,37 +1,53 @@
+# Installer identifier is retained for in-place upgrades of existing installations.
 appId: com.nexo.app
-productName: Nexo
-copyright: Copyright © 2026 Nexo
+productName: Hearth
+copyright: Copyright © 2026 Averyyyx
 
 directories:
   output: dist
-  buildResources: build
+  buildResources: resources
 
 files:
   - "package.json"
-  - "server.js"
-  - "electron/**/*"
+  - "src/server/**/*"
+  - "src/main/**/*"
+  - "src/preload/**/*"
+  - "src/shared/**/*"
   - "public/**/*"
   - "node_modules/**/*"
   - "!node_modules/**/{test,tests,__tests__,docs,example,examples}/**"
 
+extraResources:
+  - from: resources
+    to: resources
+    filter:
+      - "**/*"
+
 asar: true
+
+# The embedded server is started with child_process.fork and ELECTRON_RUN_AS_NODE.
+electronFuses:
+  runAsNode: true
+afterPack: scripts/after-pack.js
 # Сервер запускается как отдельный процесс из app.asar.unpacked (Electron как Node).
 # Модули ищутся от этого каталога, а не из app.asar, поэтому node_modules нужно
 # распаковать целиком (раньше распаковывался только better-sqlite3, и express и др. не находились).
 asarUnpack:
-  - "server.js"
+  - "src/server/**/*"
+  - "src/shared/**/*"
   - "public/**/*"
-  - "electron/**/*"
   - "node_modules/**/*"
+  - "node_modules/better-sqlite3/**/*"
+  - "node_modules/**/*.node"
 
 win:
   target:
     - target: nsis
       arch:
         - x64
-  artifactName: "${productName}-${version}-Setup.${ext}"
+  artifactName: "${productName}-0.0.9-Setup.${ext}"
   signAndEditExecutable: true
-  icon: "electron/icons/Nexo-Desctop-ico.ico"
+  icon: "resources/icon.ico"
 
 nsis:
   oneClick: false
@@ -39,13 +55,14 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Nexo
+  shortcutName: Hearth
   runAfterFinish: true
   deleteAppDataOnUninstall: false
 
 extraMetadata:
-  main: electron/main.js
+  main: src/main/index.js
 
 # Нативные модули пересобираются под Electron в postinstall (electron-builder install-app-deps)
-npmRebuild: false
-buildDependenciesFromSource: false
+nativeRebuilder: sequential
+npmRebuild: true
+buildDependenciesFromSource: true

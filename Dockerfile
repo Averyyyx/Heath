@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:22-alpine
 
 # Установка зависимостей для better-sqlite3
 RUN apk add --no-cache python3 make g++
@@ -6,17 +6,20 @@ RUN apk add --no-cache python3 make g++
 # Рабочая директория
 WORKDIR /app
 
-# Копирование package files
+# Копирование package files и зависимостей клиента
 COPY package*.json ./
+COPY src/renderer/package*.json ./src/renderer/
 
-# Установка зависимостей
-RUN npm ci --only=production
+# Установка серверных и клиентских зависимостей
+RUN npm ci --only=production --ignore-scripts
+RUN npm ci --prefix src/renderer
 
 # Копирование исходных файлов
 COPY . .
 
-# Сборка клиента
-RUN npm run build:client
+# Сборка нативных модулей сервера и генерация настоящего public/
+RUN npm rebuild better-sqlite3 sqlite3
+RUN npm run build:app
 
 # Создание директорий
 RUN mkdir -p data uploads tmp
@@ -30,4 +33,4 @@ ENV PORT=4000
 ENV USE_MEMORY_SESSION=true
 
 # Запуск сервера
-CMD ["node", "server.js"]
+CMD ["node", "src/server/index.js"]

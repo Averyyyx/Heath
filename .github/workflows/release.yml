@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  windows:
+    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_commit.message, '[release]'))
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Read application version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install renderer dependencies
+        run: npm ci --prefix src/renderer
+
+      - name: Run project checks
+        run: npm test
+
+      - name: Build Windows installer
+        run: npm run electron:build
+
+      - name: Generate SHA-256 checksum
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:GITHUB_WORKSPACE 'dist/Hearth-0.0.9-Setup.exe'
+          if (-not (Test-Path $installer)) { throw 'Hearth installer not found.' }
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path ($installer + '.sha256') -Value "$hash  Hearth-0.0.9-Setup.exe" -NoNewline -Encoding ascii
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hearth-0.0.9-Windows
+          path: |
+            dist/Hearth-0.0.9-Setup.exe
+            dist/Hearth-0.0.9-Setup.exe.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Hearth ${{ steps.version.outputs.version }}
+          prerelease: true
+          body: |
+            ## Hearth 0.0.9 Alpha
+
+            - The application has a new name and icon.
+            - Existing local profile data is migrated automatically.
+            - Sign in again after installing this update.
+            - The previous data folder is kept as a rollback copy.
+          files: |
+            dist/Hearth-0.0.9-Setup.exe
+            dist/Hearth-0.0.9-Setup.exe.sha256
+            dist/latest.yml
+            dist/*.blockmap
